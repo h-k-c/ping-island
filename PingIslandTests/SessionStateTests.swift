@@ -403,6 +403,130 @@ final class SessionStateTests: XCTestCase {
         XCTAssertFalse(session.shouldHideFromPrimaryUI)
     }
 
+    func testCodexAuxiliaryExcludeThreadHidesFromPrimaryUI() {
+        let message = #"{"exclude":[]}"#
+        let session = SessionState(
+            sessionId: "codex-exclude-helper",
+            cwd: "/",
+            provider: .codex,
+            clientInfo: .codexApp(threadId: "codex-exclude-helper"),
+            previewText: message,
+            chatItems: [
+                ChatHistoryItem(id: "user-1", type: .user(message), timestamp: Date())
+            ],
+            conversationInfo: ConversationInfo(
+                summary: message,
+                lastMessage: message,
+                lastMessageRole: "user",
+                lastToolName: nil,
+                firstUserMessage: message,
+                lastUserMessageDate: Date()
+            )
+        )
+
+        XCTAssertTrue(session.shouldHideFromPrimaryUI)
+    }
+
+    func testCodexAuxiliarySuggestionsThreadHidesFromPrimaryUI() {
+        let message = #"{"suggestions":[{"title":"Add investor appendix slides","prompt":"Add the three investor appendix slides."}]}"#
+        let session = SessionState(
+            sessionId: "codex-suggestions-helper",
+            cwd: "/tmp/vestibular_ppt_market",
+            provider: .codex,
+            clientInfo: .codexApp(threadId: "codex-suggestions-helper"),
+            previewText: message,
+            chatItems: [
+                ChatHistoryItem(id: "user-1", type: .user(message), timestamp: Date())
+            ],
+            conversationInfo: ConversationInfo(
+                summary: message,
+                lastMessage: message,
+                lastMessageRole: "user",
+                lastToolName: nil,
+                firstUserMessage: message,
+                lastUserMessageDate: Date()
+            )
+        )
+
+        XCTAssertTrue(session.shouldHideFromPrimaryUI)
+    }
+
+    func testCodexAuxiliarySuggestionsThreadWithGenericSessionNameHidesFromPrimaryUI() {
+        let message = #"{"suggestions":[{"title":"Add investor appendix slides","prompt":"Add the three investor appendix slides."}]}"#
+        let session = SessionState(
+            sessionId: "codex-named-suggestions-helper",
+            cwd: "/tmp/vestibular_ppt_market",
+            projectName: "vestibular_ppt_market",
+            provider: .codex,
+            clientInfo: .codexApp(threadId: "codex-named-suggestions-helper"),
+            sessionName: "vestibular_ppt_market",
+            previewText: message,
+            chatItems: [
+                ChatHistoryItem(id: "user-1", type: .user(message), timestamp: Date())
+            ],
+            conversationInfo: ConversationInfo(
+                summary: message,
+                lastMessage: message,
+                lastMessageRole: "user",
+                lastToolName: nil,
+                firstUserMessage: message,
+                lastUserMessageDate: Date()
+            )
+        )
+
+        XCTAssertTrue(session.shouldHideFromPrimaryUI)
+    }
+
+    func testCodexNormalJSONPromptStaysVisibleInPrimaryUI() {
+        let message = #"{"task":"update release notes","exclude":[]}"#
+        let session = SessionState(
+            sessionId: "codex-json-user-task",
+            cwd: "/tmp/project",
+            provider: .codex,
+            clientInfo: .codexApp(threadId: "codex-json-user-task"),
+            previewText: message,
+            chatItems: [
+                ChatHistoryItem(id: "user-1", type: .user(message), timestamp: Date())
+            ],
+            conversationInfo: ConversationInfo(
+                summary: message,
+                lastMessage: message,
+                lastMessageRole: "user",
+                lastToolName: nil,
+                firstUserMessage: message,
+                lastUserMessageDate: Date()
+            )
+        )
+
+        XCTAssertFalse(session.shouldHideFromPrimaryUI)
+    }
+
+    func testCodexAuxiliaryJSONWithSpecificSessionNameStaysVisibleInPrimaryUI() {
+        let message = #"{"suggestions":[{"title":"Add investor appendix slides","prompt":"Add the three investor appendix slides."}]}"#
+        let session = SessionState(
+            sessionId: "codex-named-user-task",
+            cwd: "/tmp/vestibular_ppt_market",
+            projectName: "vestibular_ppt_market",
+            provider: .codex,
+            clientInfo: .codexApp(threadId: "codex-named-user-task"),
+            sessionName: "Investor appendix work",
+            previewText: message,
+            chatItems: [
+                ChatHistoryItem(id: "user-1", type: .user(message), timestamp: Date())
+            ],
+            conversationInfo: ConversationInfo(
+                summary: message,
+                lastMessage: message,
+                lastMessageRole: "user",
+                lastToolName: nil,
+                firstUserMessage: message,
+                lastUserMessageDate: Date()
+            )
+        )
+
+        XCTAssertFalse(session.shouldHideFromPrimaryUI)
+    }
+
     func testEndedSessionShowsArchiveActionAfterTenMinutes() {
         let session = SessionState(
             sessionId: "ended-archive-eligible",
