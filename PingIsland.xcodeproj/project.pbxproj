@@ -32,27 +32,27 @@
 		A10000000000000000000002 /* PingIslandUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PingIslandUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000000000000000000001E /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
 		A1000000000000000000001F /* LocalSecrets.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = LocalSecrets.example.xcconfig; sourceTree = "<group>"; };
+		A10000000000000000000022 /* Ping Island.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Ping Island.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000000000000000000002C /* AppStore.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppStore.xcconfig; sourceTree = "<group>"; };
 		FD33FD5D2EDF32D7002A6548 /* Ping Island.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Ping Island.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		A10000000000000000000022 /* Ping Island App Store.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = "Ping Island App Store.app"; path = "Ping Island.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		FD33FD702EDF32D7002A6548 /* Exceptions for "PingIsland" folder in "PingIsland" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info-AppStore.plist,
-				Info.plist,
-			);
-			target = FD33FD5C2EDF32D7002A6548 /* PingIsland */;
-		};
 		A10000000000000000000023 /* Exceptions for "PingIsland" folder in "PingIslandAppStore" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Info-AppStore.plist,
+				"Info-AppStore.plist",
 				Info.plist,
 			);
 			target = A10000000000000000000028 /* PingIslandAppStore */;
+		};
+		FD33FD702EDF32D7002A6548 /* Exceptions for "PingIsland" folder in "PingIsland" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Info-AppStore.plist",
+				Info.plist,
+			);
+			target = FD33FD5C2EDF32D7002A6548 /* PingIsland */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -136,7 +136,7 @@
 			isa = PBXGroup;
 			children = (
 				FD33FD5D2EDF32D7002A6548 /* Ping Island.app */,
-				A10000000000000000000022 /* Ping Island App Store.app */,
+				A10000000000000000000022 /* Ping Island.app */,
 				A10000000000000000000001 /* PingIslandTests.xctest */,
 				A10000000000000000000002 /* PingIslandUITests.xctest */,
 			);
@@ -192,6 +192,29 @@
 			productReference = A10000000000000000000002 /* PingIslandUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		A10000000000000000000028 /* PingIslandAppStore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1000000000000000000002B /* Build configuration list for PBXNativeTarget "PingIslandAppStore" */;
+			buildPhases = (
+				A10000000000000000000025 /* Sources */,
+				A10000000000000000000024 /* Frameworks */,
+				A10000000000000000000027 /* Embed PingIslandBridge */,
+				A10000000000000000000026 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				FD33FD5F2EDF32D7002A6548 /* PingIsland */,
+			);
+			name = PingIslandAppStore;
+			packageProductDependencies = (
+			);
+			productName = PingIsland;
+			productReference = A10000000000000000000022 /* Ping Island.app */;
+			productType = "com.apple.product-type.application";
+		};
 		FD33FD5C2EDF32D7002A6548 /* PingIsland */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = FD33FD682EDF32D8002A6548 /* Build configuration list for PBXNativeTarget "PingIsland" */;
@@ -216,29 +239,6 @@
 			productReference = FD33FD5D2EDF32D7002A6548 /* Ping Island.app */;
 			productType = "com.apple.product-type.application";
 		};
-		A10000000000000000000028 /* PingIslandAppStore */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A1000000000000000000002B /* Build configuration list for PBXNativeTarget "PingIslandAppStore" */;
-			buildPhases = (
-				A10000000000000000000025 /* Sources */,
-				A10000000000000000000024 /* Frameworks */,
-				A10000000000000000000027 /* Embed PingIslandBridge */,
-				A10000000000000000000026 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				FD33FD5F2EDF32D7002A6548 /* PingIsland */,
-			);
-			name = PingIslandAppStore;
-			packageProductDependencies = (
-			);
-			productName = PingIsland;
-			productReference = A10000000000000000000022 /* Ping Island App Store.app */;
-			productType = "com.apple.product-type.application";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -257,11 +257,11 @@
 						CreatedOnToolsVersion = 26.1.1;
 						TestTargetID = FD33FD5C2EDF32D7002A6548;
 					};
-					FD33FD5C2EDF32D7002A6548 = {
-						CreatedOnToolsVersion = 26.1.1;
-					};
 					A10000000000000000000028 = {
 						CreatedOnToolsVersion = 26.4;
+					};
+					FD33FD5C2EDF32D7002A6548 = {
+						CreatedOnToolsVersion = 26.1.1;
 					};
 				};
 			};
@@ -516,6 +516,81 @@
 			};
 			name = Release;
 		};
+		A10000000000000000000029 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A1000000000000000000002C /* AppStore.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ENTITLEMENTS = "PingIsland/Resources/PingIsland-AppStore.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 35;
+				DEVELOPMENT_TEAM = K46RM9974S;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "PingIsland/Info-AppStore.plist";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.10.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wudanwu.PingIsland;
+				PRODUCT_NAME = "Ping Island";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG APP_STORE $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A1000000000000000000002A /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A1000000000000000000002C /* AppStore.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				AUTOMATION_APPLE_EVENTS = YES;
+				CODE_SIGN_ENTITLEMENTS = "PingIsland/Resources/PingIsland-AppStore.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 35;
+				DEVELOPMENT_TEAM = K46RM9974S;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "PingIsland/Info-AppStore.plist";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.10.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wudanwu.PingIsland;
+				PRODUCT_NAME = "Ping Island";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "APP_STORE $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 		FD33FD662EDF32D8002A6548 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -711,81 +786,6 @@
 			};
 			name = Release;
 		};
-		A10000000000000000000029 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = A1000000000000000000002C /* AppStore.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ENTITLEMENTS = PingIsland/Resources/PingIsland-AppStore.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 35;
-				DEVELOPMENT_TEAM = K46RM9974S;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "PingIsland/Info-AppStore.plist";
-				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MARKETING_VERSION = 0.10.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.wudanwu.PingIsland;
-				PRODUCT_NAME = "Ping Island";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG APP_STORE $(inherited)";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		A1000000000000000000002A /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = A1000000000000000000002C /* AppStore.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ENTITLEMENTS = PingIsland/Resources/PingIsland-AppStore.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 35;
-				DEVELOPMENT_TEAM = K46RM9974S;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "PingIsland/Info-AppStore.plist";
-				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MARKETING_VERSION = 0.10.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.wudanwu.PingIsland;
-				PRODUCT_NAME = "Ping Island";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "APP_STORE $(inherited)";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -807,6 +807,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		A1000000000000000000002B /* Build configuration list for PBXNativeTarget "PingIslandAppStore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000029 /* Debug */,
+				A1000000000000000000002A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		FD33FD582EDF32D7002A6548 /* Build configuration list for PBXProject "PingIsland" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -821,15 +830,6 @@
 			buildConfigurations = (
 				FD33FD692EDF32D8002A6548 /* Debug */,
 				FD33FD6A2EDF32D8002A6548 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		A1000000000000000000002B /* Build configuration list for PBXNativeTarget "PingIslandAppStore" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A10000000000000000000029 /* Debug */,
-				A1000000000000000000002A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

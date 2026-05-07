@@ -146,6 +146,63 @@ enum SessionCompletionStateEvaluator {
     }
 }
 
+enum SessionCompletionNotificationPolicy {
+    private static let untrackedSessionNotificationWindow: TimeInterval = 60
+
+    static func shouldQueueCompletedNotification(
+        for session: SessionState,
+        previousPhase: SessionPhase?,
+        isEnabled: Bool,
+        now: Date = Date()
+    ) -> Bool {
+        guard isEnabled else { return false }
+        guard SessionCompletionStateEvaluator.isCompletedReadySession(session) else { return false }
+        guard previousPhase != .waitingForInput else { return false }
+        return wasTrackedOrRecentlyCreated(session, previousPhase: previousPhase, now: now)
+    }
+
+    static func shouldQueueEndedNotification(
+        for session: SessionState,
+        previousPhase: SessionPhase?,
+        isEnabled: Bool,
+        now: Date = Date()
+    ) -> Bool {
+        guard isEnabled else { return false }
+        guard session.phase == .ended else { return false }
+        guard previousPhase != .ended else { return false }
+        guard wasTrackedOrRecentlyCreated(session, previousPhase: previousPhase, now: now) else {
+            return false
+        }
+        if previousPhase == .waitingForInput {
+            return SessionCompletionStateEvaluator.allowsEndedNotificationAfterWaitingForInput(session)
+        }
+        return true
+    }
+
+    static func shouldQueueCompactedNotification(
+        for session: SessionState,
+        previousPhase: SessionPhase?,
+        isEnabled: Bool
+    ) -> Bool {
+        guard isEnabled else { return false }
+        guard previousPhase == .compacting else { return false }
+        guard session.phase != .compacting else { return false }
+        return true
+    }
+
+    private static func wasTrackedOrRecentlyCreated(
+        _ session: SessionState,
+        previousPhase: SessionPhase?,
+        now: Date
+    ) -> Bool {
+        if previousPhase != nil {
+            return true
+        }
+
+        return now.timeIntervalSince(session.createdAt) <= untrackedSessionNotificationWindow
+    }
+}
+
 struct SessionCompletionNotificationView: View {
     static let minimumContentHeight: CGFloat = 172
     static let maximumAssistantContentHeight: CGFloat = 300

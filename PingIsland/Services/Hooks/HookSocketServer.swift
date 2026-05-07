@@ -474,7 +474,7 @@ private struct BridgeEnvelopeIntervention: Codable, Sendable {
             message: message ?? "",
             options: (options ?? []).map(\.sessionOption),
             questions: [],
-            supportsSessionScope: supportsSessionScope ?? (kind == .approval),
+            supportsSessionScope: supportsSessionScope ?? false,
             metadata: interventionMetadata
         )
     }

@@ -353,7 +353,9 @@ actor SessionStore {
         }
 
         let previousLastActivity = session.lastActivity
-        session.lastActivity = Date()
+        if !(event.status == "ended" && session.phase == .ended) {
+            session.lastActivity = Date()
+        }
         if let hookMessage = Self.normalizedHookMessage(event.message) {
             if shouldCaptureHookMessage(hookMessage, for: event, session: session) {
                 session.latestHookMessage = hookMessage
@@ -1459,9 +1461,11 @@ actor SessionStore {
         guard var session = sessions[payload.sessionId] else { return }
 
         if !payload.messages.isEmpty {
-            session.lastActivity = Date()
             let shouldResumeEndedSession = payload.isIncremental
                 && payload.messages.contains(where: { $0.role == .user })
+            if session.phase != .ended || shouldResumeEndedSession {
+                session.lastActivity = Date()
+            }
             promoteSessionForTranscriptActivity(
                 &session,
                 allowEndedResume: shouldResumeEndedSession
@@ -2107,10 +2111,13 @@ actor SessionStore {
     }
 
     private func markSessionEnded(_ session: inout SessionState) {
+        let wasAlreadyEnded = session.phase == .ended
         session.phase = .ended
         session.intervention = nil
         session.autoApprovePermissions = false
-        session.lastActivity = Date()
+        if !wasAlreadyEnded {
+            session.lastActivity = Date()
+        }
     }
 
     private func scheduleFinalSessionSync(for session: SessionState) {

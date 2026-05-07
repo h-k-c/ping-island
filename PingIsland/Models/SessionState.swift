@@ -970,11 +970,13 @@ struct SessionState: Equatable, Identifiable, Sendable {
     nonisolated var scopedApprovalAction: SessionScopedApprovalAction? {
         guard needsApprovalResponse else { return nil }
 
-        if ingress == .codexAppServer || intervention?.supportsSessionScope == true {
+        if ingress == .codexAppServer {
             return .allowSession
         }
 
-        if provider == .claude, clientInfo.kind == .claudeCode {
+        if provider == .claude,
+           clientInfo.kind == .claudeCode,
+           intervention?.offersSessionScopedApproval == true {
             return .autoApprove
         }
 

@@ -1338,7 +1338,7 @@ struct ChatApprovalBar: View {
             Button {
                 onDeny()
             } label: {
-                Text("Deny")
+                Text(AppLocalization.string("Deny"))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.white.opacity(0.7))
                     .padding(.horizontal, 16)
@@ -1371,7 +1371,7 @@ struct ChatApprovalBar: View {
             Button {
                 onApprove()
             } label: {
-                Text("Allow")
+                Text(AppLocalization.string("Allow"))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.black)
                     .padding(.horizontal, 16)

@@ -473,7 +473,7 @@ private struct HoverApprovalCard: View {
             }
 
             HStack(spacing: 8) {
-                Button("Deny") {
+                Button(AppLocalization.string("Deny")) {
                     sessionMonitor.denyPermission(sessionId: session.sessionId, reason: nil)
                     onActionCompleted()
                 }
@@ -492,7 +492,7 @@ private struct HoverApprovalCard: View {
                     )
                 }
 
-                Button("Allow") {
+                Button(AppLocalization.string("Allow")) {
                     sessionMonitor.approvePermission(sessionId: session.sessionId)
                     onActionCompleted()
                 }

@@ -883,6 +883,18 @@ struct SessionIntervention: Equatable, Identifiable, Sendable {
         metadata["responseMode"] != "external_only"
     }
 
+    nonisolated var offersSessionScopedApproval: Bool {
+        supportsSessionScope || options.contains { option in
+            let normalizedId = Self.normalizedApprovalOptionIdentifier(option.id)
+            if normalizedId == "approveforsession" || normalizedId == "allowforsession" {
+                return true
+            }
+
+            let normalizedTitle = Self.normalizedApprovalOptionIdentifier(option.title)
+            return normalizedTitle == "approveforsession" || normalizedTitle == "allowforsession"
+        }
+    }
+
     nonisolated var resolvedQuestions: [SessionInterventionQuestion] {
         if !questions.isEmpty {
             return questions
@@ -1048,6 +1060,15 @@ struct SessionIntervention: Equatable, Identifiable, Sendable {
             return firstOption.title
         }
         return title
+    }
+
+    private nonisolated static func normalizedApprovalOptionIdentifier(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: " ", with: "")
     }
 }
 

@@ -293,12 +293,38 @@ final class SessionStateTests: XCTestCase {
         XCTAssertEqual(session.pendingToolInput, "command: swift test\ntimeout: 30")
     }
 
-    func testClaudeCodeWaitingForApprovalSupportsAutoApproveAction() {
+    func testClaudeCodeWaitingForApprovalWithoutSessionScopeDoesNotExposeAutoApproveAction() {
+        let session = SessionState(
+            sessionId: "claude-no-session-scope",
+            cwd: "/tmp/project",
+            provider: .claude,
+            clientInfo: SessionClientInfo(kind: .claudeCode, name: "Claude Code"),
+            phase: .waitingForApproval(
+                PermissionContext(toolUseId: "tool-1", toolName: "Bash", toolInput: nil, receivedAt: Date())
+            )
+        )
+
+        XCTAssertNil(session.scopedApprovalAction)
+        XCTAssertFalse(session.supportsSessionScopedApproval)
+    }
+
+    func testClaudeCodeWaitingForApprovalUsesBridgeSessionScopeFlagForAutoApproveAction() {
+        let intervention = SessionIntervention(
+            id: "tool-1",
+            kind: .approval,
+            title: "Claude needs approval",
+            message: "Run Bash?",
+            options: [],
+            questions: [],
+            supportsSessionScope: true,
+            metadata: [:]
+        )
         let session = SessionState(
             sessionId: "claude-auto-approve",
             cwd: "/tmp/project",
             provider: .claude,
             clientInfo: SessionClientInfo(kind: .claudeCode, name: "Claude Code"),
+            intervention: intervention,
             phase: .waitingForApproval(
                 PermissionContext(toolUseId: "tool-1", toolName: "Bash", toolInput: nil, receivedAt: Date())
             )
@@ -308,6 +334,36 @@ final class SessionStateTests: XCTestCase {
         XCTAssertTrue(session.supportsSessionScopedApproval)
         XCTAssertEqual(SessionScopedApprovalAction.autoApprove.buttonTitleKey, "Always Allow")
         XCTAssertEqual(SessionScopedApprovalAction.autoApprove.compactButtonTitleKey, "Always")
+    }
+
+    func testClaudeCodeWaitingForApprovalUsesBridgeApproveForSessionOptionForAutoApproveAction() {
+        let intervention = SessionIntervention(
+            id: "tool-1",
+            kind: .approval,
+            title: "Claude needs approval",
+            message: "Run Bash?",
+            options: [
+                SessionInterventionOption(id: "approve", title: "Allow Once", detail: nil),
+                SessionInterventionOption(id: "approveForSession", title: "Allow for Session", detail: nil),
+                SessionInterventionOption(id: "deny", title: "Deny", detail: nil)
+            ],
+            questions: [],
+            supportsSessionScope: false,
+            metadata: [:]
+        )
+        let session = SessionState(
+            sessionId: "claude-auto-approve-from-option",
+            cwd: "/tmp/project",
+            provider: .claude,
+            clientInfo: SessionClientInfo(kind: .claudeCode, name: "Claude Code"),
+            intervention: intervention,
+            phase: .waitingForApproval(
+                PermissionContext(toolUseId: "tool-1", toolName: "Bash", toolInput: nil, receivedAt: Date())
+            )
+        )
+
+        XCTAssertEqual(session.scopedApprovalAction, .autoApprove)
+        XCTAssertTrue(session.supportsSessionScopedApproval)
     }
 
     func testQoderWaitingForApprovalDoesNotExposeClaudeAutoApproveAction() {

@@ -1495,7 +1495,7 @@ struct InlineApprovalButtons: View {
             Button {
                 onReject()
             } label: {
-                Text("Deny")
+                Text(AppLocalization.string("Deny"))
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.white.opacity(0.6))
                     .padding(.horizontal, 8)
@@ -1527,7 +1527,7 @@ struct InlineApprovalButtons: View {
             Button {
                 onApprove()
             } label: {
-                Text("Allow")
+                Text(AppLocalization.string("Allow"))
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.black)
                     .padding(.horizontal, 8)

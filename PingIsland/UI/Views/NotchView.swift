@@ -1061,33 +1061,33 @@ struct NotchView: View {
         for session: SessionState,
         previousPhase: SessionPhase?
     ) -> Bool {
-        guard settings.autoOpenCompletionPanel else { return false }
-        guard SessionCompletionStateEvaluator.isCompletedReadySession(session) else { return false }
-        guard previousPhase != .waitingForInput else { return false }
-        return true
+        SessionCompletionNotificationPolicy.shouldQueueCompletedNotification(
+            for: session,
+            previousPhase: previousPhase,
+            isEnabled: settings.autoOpenCompletionPanel
+        )
     }
 
     private func shouldQueueEndedNotification(
         for session: SessionState,
         previousPhase: SessionPhase?
     ) -> Bool {
-        guard settings.autoOpenCompletionPanel else { return false }
-        guard session.phase == .ended else { return false }
-        guard previousPhase != .ended else { return false }
-        if previousPhase == .waitingForInput {
-            return SessionCompletionStateEvaluator.allowsEndedNotificationAfterWaitingForInput(session)
-        }
-        return true
+        SessionCompletionNotificationPolicy.shouldQueueEndedNotification(
+            for: session,
+            previousPhase: previousPhase,
+            isEnabled: settings.autoOpenCompletionPanel
+        )
     }
 
     private func shouldQueueCompactedNotification(
         for session: SessionState,
         previousPhase: SessionPhase?
     ) -> Bool {
-        guard settings.autoOpenCompactedNotificationPanel else { return false }
-        guard previousPhase == .compacting else { return false }
-        guard session.phase != .compacting else { return false }
-        return true
+        SessionCompletionNotificationPolicy.shouldQueueCompactedNotification(
+            for: session,
+            previousPhase: previousPhase,
+            isEnabled: settings.autoOpenCompactedNotificationPanel
+        )
     }
 
     private func synchronizeCompletionNotifications(with instances: [SessionState]) {

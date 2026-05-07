@@ -152,8 +152,8 @@ struct CodexSessionView: View {
             }
             .buttonStyle(CodexCapsuleButtonStyle(background: Color.white.opacity(0.9), foreground: .black))
 
-            if intervention.supportsSessionScope {
-                Button(AppLocalization.string("Allow Session")) {
+            if intervention.offersSessionScopedApproval {
+                Button(AppLocalization.string("Always Allow")) {
                     sessionMonitor.approvePermission(sessionId: session.sessionId, forSession: true)
                     viewModel.exitChat()
                 }

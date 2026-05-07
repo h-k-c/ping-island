@@ -151,6 +151,95 @@ final class SessionStoreFileUpdateTests: XCTestCase {
         await store.process(.sessionArchived(sessionId: sessionId))
     }
 
+    func testRepeatedSessionEndDoesNotRefreshEndedSessionActivity() async throws {
+        let store = SessionStore.shared
+        let sessionId = "duplicate-ended-\(UUID().uuidString)"
+
+        await store.process(.hookReceived(
+            HookEvent(
+                sessionId: sessionId,
+                cwd: "/tmp/project",
+                event: "Notification",
+                status: "idle",
+                provider: .claude,
+                clientInfo: SessionClientInfo(kind: .claudeCode, name: "Claude Code"),
+                pid: nil,
+                tty: nil,
+                tool: nil,
+                toolInput: nil,
+                toolUseId: nil,
+                notificationType: "idle_prompt",
+                message: "Done"
+            )
+        ))
+        await store.process(.sessionEnded(sessionId: sessionId))
+        let endedSession = await store.session(for: sessionId)
+        let endedAt = try XCTUnwrap(endedSession?.lastActivity)
+
+        try await Task.sleep(nanoseconds: 20_000_000)
+        await store.process(.sessionEnded(sessionId: sessionId))
+
+        let repeatedEndSessionSnapshot = await store.session(for: sessionId)
+        let repeatedEndSession = try XCTUnwrap(repeatedEndSessionSnapshot)
+        XCTAssertEqual(repeatedEndSession.phase, .ended)
+        XCTAssertEqual(repeatedEndSession.lastActivity, endedAt)
+
+        await store.process(.sessionArchived(sessionId: sessionId))
+    }
+
+    func testAssistantOnlyTranscriptUpdateDoesNotRefreshEndedSessionActivity() async throws {
+        let store = SessionStore.shared
+        let sessionId = "ended-assistant-sync-\(UUID().uuidString)"
+
+        await store.process(.hookReceived(
+            HookEvent(
+                sessionId: sessionId,
+                cwd: "/tmp/project",
+                event: "Notification",
+                status: "idle",
+                provider: .claude,
+                clientInfo: SessionClientInfo(kind: .claudeCode, name: "Claude Code"),
+                pid: nil,
+                tty: nil,
+                tool: nil,
+                toolInput: nil,
+                toolUseId: nil,
+                notificationType: "idle_prompt",
+                message: "Done"
+            )
+        ))
+        await store.process(.sessionEnded(sessionId: sessionId))
+        let endedSession = await store.session(for: sessionId)
+        let endedAt = try XCTUnwrap(endedSession?.lastActivity)
+
+        try await Task.sleep(nanoseconds: 20_000_000)
+        await store.process(.fileUpdated(
+            FileUpdatePayload(
+                sessionId: sessionId,
+                cwd: "/tmp/project",
+                messages: [
+                    ChatMessage(
+                        id: "assistant-final",
+                        role: .assistant,
+                        timestamp: Date(),
+                        content: [.text("Final answer")]
+                    )
+                ],
+                isIncremental: true,
+                completedToolIds: [],
+                toolResults: [:],
+                structuredResults: [:]
+            )
+        ))
+
+        let updatedSessionSnapshot = await store.session(for: sessionId)
+        let updatedSession = try XCTUnwrap(updatedSessionSnapshot)
+        XCTAssertEqual(updatedSession.phase, .ended)
+        XCTAssertEqual(updatedSession.lastActivity, endedAt)
+
+        await store.process(.sessionArchived(sessionId: sessionId))
+    }
+
     func testIdlePromptDoesNotDowngradeRecentProcessingSession() async throws {
         let store = SessionStore.shared
         let sessionId = "recent-processing-grace-\(UUID().uuidString)"

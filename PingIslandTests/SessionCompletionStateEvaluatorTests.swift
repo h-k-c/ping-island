@@ -136,4 +136,63 @@ final class SessionCompletionStateEvaluatorTests: XCTestCase {
         XCTAssertTrue(SessionCompletionStateEvaluator.allowsEndedNotificationAfterWaitingForInput(qoderCLI))
         XCTAssertFalse(SessionCompletionStateEvaluator.allowsEndedNotificationAfterWaitingForInput(claude))
     }
+
+    func testCompletionNotificationPolicyIgnoresOldUntrackedEndedSessions() {
+        let now = Date()
+        let session = SessionState(
+            sessionId: "old-ended",
+            cwd: "/tmp/project",
+            phase: .ended,
+            lastActivity: now,
+            createdAt: now.addingTimeInterval(-2 * 60 * 60)
+        )
+
+        XCTAssertFalse(
+            SessionCompletionNotificationPolicy.shouldQueueEndedNotification(
+                for: session,
+                previousPhase: nil,
+                isEnabled: true,
+                now: now
+            )
+        )
+    }
+
+    func testCompletionNotificationPolicyAllowsRecentUntrackedCompletedSessions() {
+        let now = Date()
+        let session = SessionState(
+            sessionId: "recent-completed",
+            cwd: "/tmp/project",
+            phase: .waitingForInput,
+            chatItems: [
+                ChatHistoryItem(id: "assistant", type: .assistant("Done"), timestamp: now)
+            ],
+            createdAt: now.addingTimeInterval(-5)
+        )
+
+        XCTAssertTrue(
+            SessionCompletionNotificationPolicy.shouldQueueCompletedNotification(
+                for: session,
+                previousPhase: nil,
+                isEnabled: true,
+                now: now
+            )
+        )
+    }
+
+    func testCompletionNotificationPolicyAllowsTrackedEndedTransition() {
+        let session = SessionState(
+            sessionId: "tracked-ended",
+            cwd: "/tmp/project",
+            phase: .ended,
+            createdAt: Date(timeIntervalSince1970: 0)
+        )
+
+        XCTAssertTrue(
+            SessionCompletionNotificationPolicy.shouldQueueEndedNotification(
+                for: session,
+                previousPhase: .processing,
+                isEnabled: true
+            )
+        )
+    }
 }
