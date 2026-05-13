@@ -249,12 +249,14 @@ final class SettingsPanelViewModel: ObservableObject {
         case .display:
             ScreenSelector.shared.refreshScreens()
             refreshClosedNotchUsageAvailability()
+        case .sound:
+            SoundPackCatalog.shared.refresh()
         case .integration:
             refreshHookInstallationStates()
             refreshIDEExtensionInstallationStates()
             refreshCustomHookInstallations()
             refreshQoderCLIHookRefreshStatus()
-        case .general, .shortcuts, .mascot, .sound, .remote, .labs, .about:
+        case .general, .shortcuts, .mascot, .remote, .labs, .about:
             break
         }
     }
@@ -692,10 +694,12 @@ private struct SoundSettingsContent: View {
             }
         }
         .onAppear {
-            soundPacks.refresh()
             ensureValidSelectedSoundPack()
         }
         .onChange(of: soundPacks.availablePacks) { _, _ in
+            ensureValidSelectedSoundPack()
+        }
+        .onChange(of: settings.soundThemeMode) { _, _ in
             ensureValidSelectedSoundPack()
         }
     }
@@ -764,6 +768,50 @@ private struct SoundSettingsContent: View {
     }
 }
 
+private struct SettingsCategoryLoadingView: View {
+    let category: SettingsCategory
+
+    var body: some View {
+        SettingsSectionCard(title: category.title) {
+            VStack(spacing: 12) {
+                ProgressView()
+                    .controlSize(.regular)
+                    .tint(.white.opacity(0.82))
+
+                Text(verbatim: loadingTitle)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.88))
+
+                Text(verbatim: loadingSubtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white.opacity(0.54))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 180)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 24)
+        }
+    }
+
+    private var loadingTitle: String {
+        AppLocalization.format("正在加载%@设置…", AppLocalization.string(category.title))
+    }
+
+    private var loadingSubtitle: String {
+        switch category {
+        case .display:
+            return AppLocalization.string("正在刷新显示器与用量展示状态")
+        case .sound:
+            return AppLocalization.string("正在扫描可用声音主题包")
+        case .integration:
+            return AppLocalization.string("正在检查 Hooks、IDE 扩展与客户端安装状态")
+        case .general, .shortcuts, .mascot, .remote, .labs, .about:
+            return AppLocalization.string("马上就好")
+        }
+    }
+}
+
 private struct SettingsSidebarSection: Identifiable {
     let title: String?
     let categories: [SettingsCategory]
@@ -823,6 +871,8 @@ private struct SettingsPanelContentView: View {
     @State private var consecutiveGeneralTapCount = 0
     @State private var isAccessibilityPollingActive = false
     @State private var arePreviewAnimationsActive = false
+    @State private var loadingCategory: SettingsCategory?
+    @State private var categoryRefreshTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -859,15 +909,14 @@ private struct SettingsPanelContentView: View {
             isAccessibilityPollingActive = isVisible
             arePreviewAnimationsActive = isVisible
 
-            Task { @MainActor in
-                await Task.yield()
-                guard !Task.isCancelled else { return }
-                viewModel.refresh(for: currentCategory)
-            }
+            scheduleCategoryRefresh(for: currentCategory, showLoading: false)
         }
         .onDisappear {
             isAccessibilityPollingActive = false
             arePreviewAnimationsActive = false
+            categoryRefreshTask?.cancel()
+            categoryRefreshTask = nil
+            loadingCategory = nil
         }
         .task(id: isAccessibilityPollingActive) {
             guard isAccessibilityPollingActive else { return }
@@ -886,17 +935,14 @@ private struct SettingsPanelContentView: View {
             isAccessibilityPollingActive = isVisible
             arePreviewAnimationsActive = isVisible
             if isVisible {
-                viewModel.refresh(for: currentCategory)
+                scheduleCategoryRefresh(for: currentCategory, showLoading: false)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            viewModel.refresh(for: currentCategory)
+            scheduleCategoryRefresh(for: currentCategory, showLoading: false)
         }
         .onChange(of: settings.appLanguage) { _, _ in
             viewModel.refreshLocalizedState()
-        }
-        .onChange(of: currentCategory) { _, category in
-            viewModel.refresh(for: category)
         }
         .alert(
             "重新安装 Hooks？",
@@ -1188,25 +1234,29 @@ private struct SettingsPanelContentView: View {
     private var detail: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 22) {
-                switch currentCategory {
-                case .general:
-                    generalContent
-                case .shortcuts:
-                    shortcutsContent
-                case .display:
-                    displayContent
-                case .mascot:
-                    mascotContent
-                case .sound:
-                    soundContent
-                case .integration:
-                    integrationContent
-                case .remote:
-                    remoteContent
-                case .labs:
-                    labsContent
-                case .about:
-                    aboutContent
+                if loadingCategory == currentCategory {
+                    SettingsCategoryLoadingView(category: currentCategory)
+                } else {
+                    switch currentCategory {
+                    case .general:
+                        generalContent
+                    case .shortcuts:
+                        shortcutsContent
+                    case .display:
+                        displayContent
+                    case .mascot:
+                        mascotContent
+                    case .sound:
+                        soundContent
+                    case .integration:
+                        integrationContent
+                    case .remote:
+                        remoteContent
+                    case .labs:
+                        labsContent
+                    case .about:
+                        aboutContent
+                    }
                 }
             }
             .padding(.horizontal, 22)
@@ -1287,19 +1337,57 @@ private struct SettingsPanelContentView: View {
     private func selectSidebarCategory(_ category: SettingsCategory) {
         selectedCategory = category
 
-        guard !settings.labsSettingsUnlocked else {
-            return
-        }
-
-        guard category == .general else {
+        if !settings.labsSettingsUnlocked, category != .general {
             consecutiveGeneralTapCount = 0
-            return
+        } else if !settings.labsSettingsUnlocked, category == .general {
+            consecutiveGeneralTapCount += 1
         }
 
-        consecutiveGeneralTapCount += 1
-        if consecutiveGeneralTapCount >= 6 {
+        if !settings.labsSettingsUnlocked, consecutiveGeneralTapCount >= 6 {
             settings.labsSettingsUnlocked = true
             selectedCategory = .labs
+        }
+
+        let categoryToRefresh = currentCategory
+        scheduleCategoryRefresh(
+            for: categoryToRefresh,
+            showLoading: shouldShowLoading(for: categoryToRefresh)
+        )
+    }
+
+    private func shouldShowLoading(for category: SettingsCategory) -> Bool {
+        switch category {
+        case .display, .sound, .integration:
+            return true
+        case .general, .shortcuts, .mascot, .remote, .labs, .about:
+            return false
+        }
+    }
+
+    private func scheduleCategoryRefresh(for category: SettingsCategory, showLoading: Bool) {
+        categoryRefreshTask?.cancel()
+        categoryRefreshTask = nil
+
+        if showLoading {
+            loadingCategory = category
+        } else if loadingCategory == category {
+            loadingCategory = nil
+        }
+
+        categoryRefreshTask = Task { @MainActor in
+            if showLoading {
+                try? await Task.sleep(nanoseconds: 80_000_000)
+            } else {
+                await Task.yield()
+            }
+
+            guard !Task.isCancelled else { return }
+            viewModel.refresh(for: category)
+
+            guard !Task.isCancelled else { return }
+            if loadingCategory == category {
+                loadingCategory = nil
+            }
         }
     }
 
