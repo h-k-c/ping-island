@@ -808,7 +808,7 @@ final class RemoteConnectorManager: ObservableObject {
                 let newHooks = profile.events.map { event -> TOMLHookConfigParser.TOMLHookEntry in
                     let matcher = event.templates.first.map { template -> String in
                         switch template {
-                        case .plain: return ""
+                        case .plain, .direct: return ""
                         case .matcher(let value): return value
                         }
                     } ?? ""

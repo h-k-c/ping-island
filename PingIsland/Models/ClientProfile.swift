@@ -28,6 +28,10 @@ enum SessionAssistantLabelMode: String, Sendable {
 enum HookInstallEntryTemplate: Sendable {
     case plain
     case matcher(String)
+    /// Writes a flat {"command": "...", "type": "command"} entry without the
+    /// Claude Code-style {"hooks": [...]} wrapper. Required for Cursor which
+    /// does not support the nested hooks format.
+    case direct
 }
 
 enum ManagedHookInstallationKind: Sendable, Equatable {
@@ -760,12 +764,12 @@ enum ClientProfileRegistry {
         ManagedHookClientProfile(
             id: "cursor-hooks",
             title: "Cursor",
-            subtitle: "管理 ~/Library/Application Support/Cursor/User/settings.json，按 Claude Hooks 协议接入 Island",
+            subtitle: "管理 ~/.cursor/hooks.json，按 Claude Hooks 协议接入 Island",
             logoAssetName: "CursorLogo",
             prefersBundledLogoOverAppIcon: true,
             localAppBundleIdentifiers: ["com.todesktop.230313mzl4w4u92"],
             iconSymbolName: "cursorarrow.rays",
-            configurationRelativePath: "Library/Application Support/Cursor/User/settings.json",
+            configurationRelativePath: ".cursor/hooks.json",
             bridgeSource: "claude",
             bridgeExtraArguments: [
                 "--client-kind", "cursor",
@@ -775,16 +779,14 @@ enum ClientProfileRegistry {
             defaultEnabled: false,
             brand: .claude,
             events: [
-                HookInstallEventDescriptor(name: "UserPromptSubmit", templates: [.plain]),
-                HookInstallEventDescriptor(name: "PreToolUse", templates: [.matcher("*")]),
-                HookInstallEventDescriptor(name: "PostToolUse", templates: [.matcher("*")]),
-                HookInstallEventDescriptor(name: "PermissionRequest", templates: [.matcher("*")], timeout: 86_400),
-                HookInstallEventDescriptor(name: "Notification", templates: [.matcher("*")]),
-                HookInstallEventDescriptor(name: "Stop", templates: [.plain]),
-                HookInstallEventDescriptor(name: "SubagentStop", templates: [.plain]),
-                HookInstallEventDescriptor(name: "SessionStart", templates: [.plain]),
-                HookInstallEventDescriptor(name: "SessionEnd", templates: [.plain]),
-                HookInstallEventDescriptor(name: "PreCompact", templates: [.matcher("auto"), .matcher("manual")]),
+                HookInstallEventDescriptor(name: "beforeSubmitPrompt", templates: [.direct]),
+                HookInstallEventDescriptor(name: "preToolUse", templates: [.direct]),
+                HookInstallEventDescriptor(name: "postToolUse", templates: [.direct]),
+                HookInstallEventDescriptor(name: "stop", templates: [.direct]),
+                HookInstallEventDescriptor(name: "subagentStop", templates: [.direct]),
+                HookInstallEventDescriptor(name: "sessionStart", templates: [.direct]),
+                HookInstallEventDescriptor(name: "sessionEnd", templates: [.direct]),
+                HookInstallEventDescriptor(name: "preCompact", templates: [.direct]),
             ]
         ),
         ManagedHookClientProfile(
