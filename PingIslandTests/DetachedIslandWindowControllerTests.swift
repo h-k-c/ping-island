@@ -475,33 +475,17 @@ final class DetachedIslandWindowControllerTests: XCTestCase {
         }
     }
 
-    func testBubbleShapeLeavesTransparentRenderInsetAtFrameEdges() {
-        let rect = CGRect(x: 0, y: 0, width: 280, height: 180)
-        let edgeSamples = [
-            CGPoint(x: rect.midX, y: rect.minY + 0.5),
-            CGPoint(x: rect.maxX - 0.5, y: rect.midY),
-            CGPoint(x: rect.midX, y: rect.maxY - 0.5),
-            CGPoint(x: rect.minX + 0.5, y: rect.midY)
-        ]
-        let interiorSample = CGPoint(
-            x: rect.midX,
-            y: rect.minY + DetachedIslandPanelMetrics.bubbleRenderInset + 2
+    func testBubbleContentWidthReservesRenderInsetAndPadding() {
+        let frameWidth: CGFloat = 280
+        let expectedWidth = frameWidth
+            - (DetachedIslandPanelMetrics.bubbleRenderInset * 2)
+            - (DetachedIslandPanelMetrics.bubbleHorizontalPadding * 2)
+
+        XCTAssertEqual(
+            DetachedIslandContentModel.contentWidth(for: frameWidth),
+            expectedWidth,
+            accuracy: 0.5
         )
-
-        for placement in DetachedIslandBubblePlacement.allCases {
-            let path = DetachedIslandBubbleShape(placement: placement).path(in: rect)
-
-            for sample in edgeSamples {
-                XCTAssertFalse(
-                    path.contains(sample),
-                    "Expected \(placement) bubble to avoid drawing on frame edge \(sample)"
-                )
-            }
-            XCTAssertTrue(
-                path.contains(interiorSample),
-                "Expected \(placement) bubble to fill just inside its render inset"
-            )
-        }
     }
 
     func testBubbleLayoutLeavesWindowGutterAroundRenderedBubble() throws {

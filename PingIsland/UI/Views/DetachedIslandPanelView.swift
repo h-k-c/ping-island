@@ -307,7 +307,9 @@ enum DetachedIslandContentModel {
     ) -> CGFloat {
         max(
             0,
-            bubbleFrameWidth - (DetachedIslandPanelMetrics.bubbleHorizontalPadding * 2)
+            bubbleFrameWidth
+                - (DetachedIslandPanelMetrics.bubbleRenderInset * 2)
+                - (DetachedIslandPanelMetrics.bubbleHorizontalPadding * 2)
         )
     }
 
@@ -1163,13 +1165,17 @@ private struct DetachedIslandBubbleChrome<Content: View>: View {
     var body: some View {
         let shape = DetachedIslandBubbleShape(placement: placement)
 
-        content
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.horizontal, DetachedIslandPanelMetrics.bubbleHorizontalPadding)
-            .padding(.vertical, DetachedIslandPanelMetrics.bubbleVerticalPadding)
-            .background(
-                shape.fill(Color.black)
-            )
+        ZStack(alignment: .topLeading) {
+            shape.fill(Color.black)
+
+            content
+                .padding(.horizontal, DetachedIslandPanelMetrics.bubbleHorizontalPadding)
+                .padding(.vertical, DetachedIslandPanelMetrics.bubbleVerticalPadding)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+            .compositingGroup()
+            .mask(shape)
+            .padding(DetachedIslandPanelMetrics.bubbleRenderInset)
     }
 }
 
@@ -1177,19 +1183,10 @@ struct DetachedIslandBubbleShape: Shape {
     let placement: DetachedIslandBubblePlacement
 
     func path(in rect: CGRect) -> Path {
-        let renderInset = min(
-            DetachedIslandPanelMetrics.bubbleRenderInset,
-            max(0, min(rect.width, rect.height) / 2)
-        )
-        let drawingRect = rect.insetBy(dx: renderInset, dy: renderInset)
-        guard drawingRect.width > 0, drawingRect.height > 0 else {
-            return Path()
-        }
-
         let radius = min(
             DetachedIslandPanelMetrics.bubbleCornerRadius,
-            min(drawingRect.width, drawingRect.height) / 2
+            min(rect.width, rect.height) / 2
         )
-        return Path(roundedRect: drawingRect, cornerRadius: radius)
+        return Path(roundedRect: rect, cornerRadius: radius)
     }
 }
