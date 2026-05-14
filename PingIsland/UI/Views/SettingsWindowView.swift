@@ -322,12 +322,26 @@ final class SettingsPanelViewModel: ObservableObject {
     }
 
     func installHooks(for profile: ManagedHookClientProfile) {
+#if APP_STORE
+        let didInstall = HookInstaller.installWithUserAuthorization(profile)
+        if didInstall {
+            AppSettings.hookInstallOnboardingPending = false
+        }
+#else
         HookInstaller.install(profile)
+#endif
         refreshHookInstallationStates()
     }
 
     func installHooks(for profile: ManagedHookClientProfile, selection: HookInstallSelection) {
+#if APP_STORE
+        let didInstall = HookInstaller.installWithUserAuthorization(profile, selection: selection)
+        if didInstall {
+            AppSettings.hookInstallOnboardingPending = false
+        }
+#else
         HookInstaller.install(profile, selection: selection)
+#endif
         refreshHookInstallationStates()
     }
 
@@ -344,8 +358,12 @@ final class SettingsPanelViewModel: ObservableObject {
         Task {
             await Task.yield()
 
+#if APP_STORE
+            let didInstall = HookInstaller.reinstallWithUserAuthorization(profile, selection: selection)
+#else
             HookInstaller.reinstall(profile)
             let didInstall = HookInstaller.isInstalled(profile)
+#endif
 
             try? await Task.sleep(nanoseconds: 450_000_000)
 
@@ -382,8 +400,12 @@ final class SettingsPanelViewModel: ObservableObject {
         Task {
             await Task.yield()
 
+#if APP_STORE
+            let didInstall = HookInstaller.reinstallWithUserAuthorization(profile)
+#else
             HookInstaller.reinstall(profile)
             let didInstall = HookInstaller.isInstalled(profile)
+#endif
 
             try? await Task.sleep(nanoseconds: 450_000_000)
 
@@ -406,7 +428,13 @@ final class SettingsPanelViewModel: ObservableObject {
     }
 
     func uninstallHooks(for profile: ManagedHookClientProfile) {
+#if APP_STORE
+        guard HookInstaller.uninstallWithUserAuthorization(profile) else {
+            return
+        }
+#else
         HookInstaller.uninstall(profile)
+#endif
         refreshHookInstallationStates()
     }
 
@@ -421,7 +449,13 @@ final class SettingsPanelViewModel: ObservableObject {
     }
 
     func uninstallAllHooks() {
+#if APP_STORE
+        guard HookInstaller.uninstallAllWithUserAuthorization() else {
+            return
+        }
+#else
         HookInstaller.uninstall()
+#endif
         for installation in HookInstaller.customInstallations() {
             HookInstaller.uninstallCustom(id: installation.id)
         }
@@ -1669,6 +1703,19 @@ private struct SettingsPanelContentView: View {
 
     private var integrationContent: some View {
         VStack(alignment: .leading, spacing: 18) {
+#if APP_STORE
+            SettingsSectionCard(title: "App Store 沙箱") {
+                SettingsInfoLine(
+                    title: "需要手动授权目录",
+                    subtitle: "App Store 版本不会默认写入 ~/.claude、~/.codex 等配置。安装或重装 Hooks 时，请在系统弹窗中授权用户主目录。"
+                ) {
+                    Image(systemName: "lock.shield")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(TerminalColors.amber)
+                }
+            }
+#endif
+
             let hookProfiles = viewModel.visibleHookProfiles
             if !hookProfiles.isEmpty {
                 SettingsSectionCard(title: "Hooks 管理") {

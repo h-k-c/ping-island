@@ -91,11 +91,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         HookInstallWelcomeWindowController.shared.present { decision in
             switch decision {
             case .installDefaults:
+#if APP_STORE
+                let didInstall = HookInstaller.performFirstRunDefaultInstallWithUserAuthorization()
+                AppSettings.hookInstallOnboardingPending = !didInstall
+#else
                 HookInstaller.performFirstRunDefaultInstall()
                 AppSettings.hookInstallOnboardingPending = false
+#endif
             case .customize:
+#if APP_STORE
+                AppSettings.hookInstallOnboardingPending = true
+#else
                 HookInstaller.performFirstRunDefaultInstall()
                 AppSettings.hookInstallOnboardingPending = false
+#endif
                 SettingsWindowController.shared.present()
             case .skip:
                 AppSettings.hookInstallOnboardingPending = false

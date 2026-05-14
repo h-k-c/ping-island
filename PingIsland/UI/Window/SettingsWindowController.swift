@@ -305,11 +305,11 @@ private struct HookInstallWelcomeView: View {
 
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(appLocalized: "为以下客户端安装 Hooks")
+                    Text(appLocalized: title)
                         .font(.system(size: 24, weight: .bold))
                         .foregroundColor(.white)
 
-                    Text(appLocalized: "Ping Island 通过 Hooks 监听会话事件、显示通知与审批。可以一键安装默认配置，或选择仅启用部分事件。")
+                    Text(appLocalized: subtitle)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white.opacity(0.66))
                         .fixedSize(horizontal: false, vertical: true)
@@ -328,6 +328,22 @@ private struct HookInstallWelcomeView: View {
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: Color.black.opacity(0.24), radius: 24, y: 14)
         .preferredColorScheme(.dark)
+    }
+
+    private var title: String {
+#if APP_STORE
+        "授权后安装 Hooks"
+#else
+        "为以下客户端安装 Hooks"
+#endif
+    }
+
+    private var subtitle: String {
+#if APP_STORE
+        "Mac App Store 版本不会自动写入 ~/.claude、~/.codex 等目录。选择安装时，Ping Island 会请求你授权用户主目录后再写入配置。"
+#else
+        "Ping Island 通过 Hooks 监听会话事件、显示通知与审批。可以一键安装默认配置，或选择仅启用部分事件。"
+#endif
     }
 
     private var profileList: some View {
@@ -387,7 +403,7 @@ private struct HookInstallWelcomeView: View {
             Button {
                 onComplete(.installDefaults)
             } label: {
-                Text(appLocalized: "使用默认配置安装（推荐）")
+                Text(appLocalized: primaryButtonTitle)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.black.opacity(0.86))
                     .frame(maxWidth: .infinity)
@@ -404,7 +420,7 @@ private struct HookInstallWelcomeView: View {
                 Button {
                     onComplete(.customize)
                 } label: {
-                    Text(appLocalized: "自定义事件…")
+                    Text(appLocalized: secondaryButtonTitle)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -441,6 +457,22 @@ private struct HookInstallWelcomeView: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    private var primaryButtonTitle: String {
+#if APP_STORE
+        "授权主目录并安装"
+#else
+        "使用默认配置安装（推荐）"
+#endif
+    }
+
+    private var secondaryButtonTitle: String {
+#if APP_STORE
+        "稍后在设置中授权…"
+#else
+        "自定义事件…"
+#endif
     }
 }
 
