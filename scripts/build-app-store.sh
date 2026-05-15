@@ -16,6 +16,7 @@ SKIP_SIGNING="${PING_ISLAND_SKIP_APP_STORE_SIGNING:-0}"
 UPLOAD="${PING_ISLAND_APP_STORE_UPLOAD:-0}"
 APP_STORE_ENTITLEMENTS="$PROJECT_DIR/PingIsland/Resources/PingIsland-AppStore.entitlements"
 APP_GROUP_ID="group.com.wudanwu.PingIsland"
+ALLOW_DEVICE_REGISTRATION="${PING_ISLAND_ALLOW_PROVISIONING_DEVICE_REGISTRATION:-1}"
 
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
@@ -50,6 +51,9 @@ else
         CODE_SIGN_STYLE=Automatic
         DEVELOPMENT_TEAM="$TEAM_ID"
     )
+    if [ "$ALLOW_DEVICE_REGISTRATION" = "1" ]; then
+        archive_args+=(-allowProvisioningDeviceRegistration)
+    fi
 fi
 
 echo "Archiving Mac App Store build..."

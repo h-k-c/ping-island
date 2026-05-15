@@ -126,6 +126,10 @@ The script uses an export options plist with:
 `xcodebuild -allowProvisioningUpdates` can use a signed-in Xcode account or an
 App Store Connect API key via `-authenticationKeyPath`, `-authenticationKeyID`,
 and `-authenticationKeyIssuerID`.
+For local command-line uploads, the script also passes
+`-allowProvisioningDeviceRegistration` by default so Xcode can register the
+current Mac when it needs a development profile for the archive phase; set
+`PING_ISLAND_ALLOW_PROVISIONING_DEVICE_REGISTRATION=0` to disable that behavior.
 
 ## Metadata Draft
 
