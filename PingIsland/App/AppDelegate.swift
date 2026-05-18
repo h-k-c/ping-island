@@ -30,6 +30,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Task {
                 await TelemetryService.shared.start()
             }
+            Task {
+                await PluginHost.shared.start()
+            }
+            NotificationCenter.default.addObserver(
+                forName: .pluginButtonTapped,
+                object: nil,
+                queue: .main
+            ) { notification in
+                guard let actionId = notification.userInfo?["actionId"] as? String else { return }
+                Task { @MainActor in
+                    for process in PluginHost.shared.runningProcesses {
+                        await process.sendAction(actionId: actionId)
+                    }
+                }
+            }
         }
 
         if launchConfiguration.shouldInstallIntegrations {
@@ -200,6 +215,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         startupSessionMonitor.stopMonitoring()
         Task {
             await TelemetryService.shared.stop()
+        }
+        Task {
+            await PluginHost.shared.stop()
         }
     }
     private func ensureSingleInstance() -> Bool {
