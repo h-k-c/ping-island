@@ -1,0 +1,51 @@
+#!/bin/bash
+# Island Plugin Protocol demo — weather simulation
+
+send() {
+  printf '%s\n' "$1"
+}
+
+handle_init() {
+  local id="$1"
+  send "{\"jsonrpc\":\"2.0\",\"id\":$id,\"result\":{\"name\":\"天气Demo\",\"ready\":true}}"
+
+  # Initial compact slot
+  send '{"jsonrpc":"2.0","method":"island/compact","params":{"position":"right","content":{"icon":{"type":"sf","name":"sun.max.fill"},"label":"23","tint":"yellow"}}}'
+
+  # Expanded content
+  send '{"jsonrpc":"2.0","method":"island/expanded","params":{"sections":[{"type":"stat","label":"气温","value":"23°C","icon":{"type":"sf","name":"thermometer.medium"}},{"type":"divider"},{"type":"progress","label":"湿度","value":0.65,"tint":"blue"},{"type":"stat","label":"风速","value":"12 km/h","icon":{"type":"sf","name":"wind"}},{"type":"button","label":"刷新","actionId":"refresh"}]}}'
+}
+
+TEMPS=(21 22 23 24 23 22 21)
+IDX=0
+
+update_weather() {
+  local temp="${TEMPS[$IDX]}"
+  IDX=$(( (IDX + 1) % ${#TEMPS[@]} ))
+  send "{\"jsonrpc\":\"2.0\",\"method\":\"island/compact\",\"params\":{\"position\":\"right\",\"content\":{\"icon\":{\"type\":\"sf\",\"name\":\"sun.max.fill\"},\"label\":\"${temp}\",\"tint\":\"yellow\"}}}"
+}
+
+# Main loop
+while IFS= read -r line; do
+  method=$(echo "$line" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('method',''))" 2>/dev/null)
+  id=$(echo "$line" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id','1'))" 2>/dev/null)
+
+  case "$method" in
+    initialize)
+      handle_init "$id"
+      (while true; do sleep 30; update_weather; done) &
+      BG_PID=$!
+      ;;
+    action)
+      action_id=$(echo "$line" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('params',{}).get('actionId',''))" 2>/dev/null)
+      if [ "$action_id" = "refresh" ]; then
+        update_weather
+        send '{"jsonrpc":"2.0","method":"island/notify","params":{"icon":{"type":"sf","name":"arrow.clockwise"},"title":"天气已更新","duration":2.0}}'
+      fi
+      ;;
+    shutdown)
+      kill "$BG_PID" 2>/dev/null
+      exit 0
+      ;;
+  esac
+done
