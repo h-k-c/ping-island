@@ -11,6 +11,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     case display
     case mascot
     case sound
+    case plugins
     case integration
     case remote
     case labs
@@ -25,6 +26,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .display: return "显示"
         case .mascot: return "宠物"
         case .sound: return "声音"
+        case .plugins: return "插件"
         case .integration: return "集成"
         case .remote: return "远程"
         case .labs: return "实验室"
@@ -39,6 +41,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .display: return "显示器与位置"
         case .mascot: return "客户端宠物与动作"
         case .sound: return "通知与提示音"
+        case .plugins: return "已安装的岛插件"
         case .integration: return "Hooks 与 IDE 扩展"
         case .remote: return "SSH 主机与远程转发"
         case .labs: return "试验性特性"
@@ -53,6 +56,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .display: return "rectangle.on.rectangle"
         case .mascot: return "face.smiling.fill"
         case .sound: return "speaker.wave.2.fill"
+        case .plugins: return "puzzlepiece.extension.fill"
         case .integration: return "link.circle.fill"
         case .remote: return "network.badge.shield.half.filled"
         case .labs: return "flask.fill"
@@ -67,6 +71,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .display: return Color(red: 0.46, green: 0.40, blue: 0.96)
         case .mascot: return Color(red: 0.91, green: 0.27, blue: 0.81)  // Pink
         case .sound: return Color(red: 0.22, green: 0.83, blue: 0.42)
+        case .plugins: return Color(red: 0.55, green: 0.36, blue: 0.96)
         case .integration: return Color(red: 0.16, green: 0.76, blue: 0.72)
         case .remote: return Color(red: 0.95, green: 0.54, blue: 0.20)
         case .labs: return Color(red: 0.82, green: 0.48, blue: 0.97)
@@ -261,7 +266,7 @@ final class SettingsPanelViewModel: ObservableObject {
             refreshCustomHookInstallations()
             refreshQoderCLIHookRefreshStatus()
             refreshBridgeHealthStatus()
-        case .general, .shortcuts, .mascot, .remote, .labs, .about:
+        case .general, .shortcuts, .mascot, .plugins, .remote, .labs, .about:
             break
         }
     }
@@ -886,7 +891,7 @@ private struct SettingsCategoryLoadingView: View {
             return AppLocalization.string("正在扫描可用声音主题包")
         case .integration:
             return AppLocalization.string("正在检查 Hooks、IDE 扩展与客户端安装状态")
-        case .general, .shortcuts, .mascot, .remote, .labs, .about:
+        case .general, .shortcuts, .mascot, .plugins, .remote, .labs, .about:
             return AppLocalization.string("马上就好")
         }
     }
@@ -1354,6 +1359,8 @@ private struct SettingsPanelContentView: View {
                         mascotContent
                     case .sound:
                         soundContent
+                    case .plugins:
+                        PluginsSettingsView()
                     case .integration:
                         integrationContent
                     case .remote:
@@ -1474,7 +1481,7 @@ private struct SettingsPanelContentView: View {
         switch category {
         case .display, .sound, .integration:
             return true
-        case .general, .shortcuts, .mascot, .remote, .labs, .about:
+        case .general, .shortcuts, .mascot, .plugins, .remote, .labs, .about:
             return false
         }
     }
