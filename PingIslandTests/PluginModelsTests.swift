@@ -20,7 +20,7 @@ final class PluginModelsTests: XCTestCase {
         XCTAssertEqual(manifest.name, "Test")
         XCTAssertEqual(manifest.slots, [.compact])
         XCTAssertNil(manifest.description)
-        XCTAssertNil(manifest.icon)
+        XCTAssertNil(manifest.iconPath)
     }
 
     func testParsesFullManifest() throws {
@@ -166,5 +166,19 @@ final class PluginModelsTests: XCTestCase {
         XCTAssertEqual(content.title, "Build OK")
         XCTAssertEqual(content.duration, 4.0)
         XCTAssertEqual(content.actionId, "open_log")
+    }
+
+    // MARK: - ExpandedSection roundtrip
+
+    func testExpandedSectionRoundtrip() throws {
+        let original: ExpandedSection = .stat(StatSection(
+            label: "CPU",
+            value: "42%",
+            icon: .sf(name: "cpu"),
+            tint: .blue
+        ))
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ExpandedSection.self, from: data)
+        XCTAssertEqual(original, decoded)
     }
 }
