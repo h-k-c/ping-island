@@ -1,5 +1,7 @@
 # Island Plugin Protocol — 实施进度
 
+**状态：✅ 全部 11 个 Task 完成。42 个单测通过，全测试套件无回归。**
+
 **当前分支：** `claude/jolly-benz-70d6a4`（worktree 分支）
 **计划文档：** `docs/superpowers/plans/2026-05-18-island-plugin-protocol.md`
 **Spec 文档：** `docs/superpowers/specs/2026-05-18-island-plugin-protocol-design.md`
@@ -56,15 +58,17 @@
 2. **Xcode 项目自动同步** — 使用 `PBXFileSystemSynchronizedRootGroup`，新文件放对目录即可，**无需改 pbxproj**
 3. **测试 import：** `@testable import Ping_Island`
 4. **macOS 14+，Swift 5.9**
-5. **测试命令：**
+5. **测试命令（必须加 codesign 关闭 flag）：**
    ```bash
    xcodebuild test \
      -project PingIsland.xcodeproj \
      -scheme PingIsland \
      -destination 'platform=macOS,arch=arm64' \
      -only-testing:PingIslandTests/<TestClassName> \
-     2>&1 | grep -E "Test (passed|failed)|error:"
+     CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+     2>&1 | grep -E "passed|failed|Executed " | tail -20
    ```
+   不加 codesign flag 会因为 Mac Development 证书缺失而 fail。
 6. **commit message 规范：** `feat(plugin): ...` 或 `fix(plugin): ...`
 7. **SourceKit IDE 警告** `No such module 'XCTest'` 是 IDE 误报，xcodebuild 实际编译通过，忽略
 
