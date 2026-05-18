@@ -919,6 +919,8 @@ struct NotchView: View {
             return "session_list"
         case .chat:
             return "session_detail"
+        case .plugin:
+            return "plugin_content"  // plugin content handled by PluginSlotArbiter
         }
     }
 

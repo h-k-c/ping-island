@@ -26,11 +26,13 @@ enum NotchOpenReason {
 enum NotchContentType: Equatable {
     case instances
     case chat(SessionState)
+    case plugin(pluginId: String)
 
     var id: String {
         switch self {
         case .instances: return "instances"
         case .chat(let session): return "chat-\(session.sessionId)"
+        case .plugin(let id): return "plugin-\(id)"
         }
     }
 }
@@ -189,7 +191,7 @@ class NotchViewModel: ObservableObject {
                     height: min(maxAllowedHeight, screenRect.height - 180)
                 )
             }
-        case .instances:
+        case .instances, .plugin:
             let fallbackHeight: CGFloat = openReason == .hover ? 150 : 170
             let measuredHeight = openedMeasuredHeight ?? fallbackHeight
 
@@ -247,6 +249,8 @@ class NotchViewModel: ObservableObject {
         case .chat:
             return min(screenLimit, maxPanelHeight)
         case .instances:
+            return min(screenLimit, maxPanelHeight)
+        case .plugin:
             return min(screenLimit, maxPanelHeight)
         }
     }
@@ -841,6 +845,8 @@ class NotchViewModel: ObservableObject {
             currentChatSession = session
         case .instances:
             currentChatSession = nil
+        case .plugin:
+            currentChatSession = nil  // plugin content handled separately
         }
 
         self.contentType = .instances
