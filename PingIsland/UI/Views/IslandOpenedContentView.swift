@@ -92,6 +92,8 @@ struct IslandOpenedContentView: View {
                     viewModel: viewModel
                 )
             }
+        case .plugin(let pluginId):
+            PluginExpandedPanelView(pluginId: pluginId)
         }
     }
 

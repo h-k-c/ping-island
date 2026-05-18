@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 enum IslandExpandedSurface: Equatable {
     case docked
@@ -18,6 +19,7 @@ enum IslandExpandedRoute: Equatable {
     case attentionNotification(SessionState)
     case completionNotification(SessionCompletionNotification)
     case chat(SessionState)
+    case plugin(pluginId: String)
 }
 
 enum IslandExpandedRouteResolver {
@@ -95,5 +97,23 @@ enum IslandExpandedRouteResolver {
         let lhsDate = lhs.attentionRequestedAt ?? lhs.lastUserMessageDate ?? lhs.lastActivity
         let rhsDate = rhs.attentionRequestedAt ?? rhs.lastUserMessageDate ?? rhs.lastActivity
         return lhsDate > rhsDate
+    }
+}
+
+struct PluginExpandedPanelView: View {
+    let pluginId: String
+    @ObservedObject private var arbiter = PluginSlotArbiter.shared
+
+    var body: some View {
+        if let sections = arbiter.expandedContent[pluginId] {
+            ScrollView {
+                IslandPluginRenderer.expandedView(sections: sections)
+            }
+        } else {
+            Text("加载中…")
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.4))
+                .padding()
+        }
     }
 }

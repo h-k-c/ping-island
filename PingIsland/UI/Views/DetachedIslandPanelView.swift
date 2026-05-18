@@ -285,6 +285,8 @@ enum DetachedIslandContentModel {
             )
         case .chat:
             return viewModel.panelSize(for: .detached)
+        case .plugin:
+            return viewModel.panelSize(for: .detached)
         }
     }
 

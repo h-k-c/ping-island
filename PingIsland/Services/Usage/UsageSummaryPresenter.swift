@@ -172,6 +172,8 @@ enum UsageSummaryPresenter {
             return true
         case .attentionNotification, .completionNotification:
             return false
+        case .plugin:
+            return false
         }
     }
 

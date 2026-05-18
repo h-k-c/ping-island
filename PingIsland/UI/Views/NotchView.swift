@@ -38,6 +38,7 @@ struct NotchView: View {
     @ObservedObject private var updateManager = UpdateManager.shared
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var screenSelector = ScreenSelector.shared
+    @ObservedObject private var pluginArbiter = PluginSlotArbiter.shared
     @State private var previousPendingIds: Set<String> = []
     @State private var manualAttentionTracker = SessionManualAttentionTracker()
     @State private var previousWaitingForInputIds: Set<String> = []
@@ -418,6 +419,9 @@ struct NotchView: View {
                 handleWaitingForInputChange(instances)
                 handleCompletionNotificationChange(instances)
             }
+            .onChange(of: isAnyProcessing) { _, active in
+                PluginSlotArbiter.shared.setCoreActive(active, side: .right)
+            }
     }
 
     private var visibilityAwareBody: some View {
@@ -672,6 +676,8 @@ struct NotchView: View {
                                 )
                             } else if activeSessionCount > 0 {
                                 SessionCountIndicator(count: activeSessionCount)
+                            } else if let pluginContent = pluginArbiter.activeRight {
+                                IslandPluginRenderer.compactView(content: pluginContent)
                             }
                         }
                         .frame(width: closedTrailingWidth, alignment: .trailing)
