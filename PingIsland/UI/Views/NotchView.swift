@@ -678,6 +678,12 @@ struct NotchView: View {
                                 SessionCountIndicator(count: activeSessionCount)
                             } else if let pluginContent = pluginArbiter.activeRight {
                                 IslandPluginRenderer.compactView(content: pluginContent)
+                                    .onTapGesture {
+                                        if let pluginId = pluginArbiter.activeRightPluginId {
+                                            viewModel.contentType = .plugin(pluginId: pluginId)
+                                            viewModel.notchOpen(reason: .click)
+                                        }
+                                    }
                             }
                         }
                         .frame(width: closedTrailingWidth, alignment: .trailing)

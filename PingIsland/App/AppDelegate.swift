@@ -40,9 +40,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ) { notification in
                 guard let actionId = notification.userInfo?["actionId"] as? String else { return }
                 Task { @MainActor in
-                    for process in PluginHost.shared.runningProcesses {
-                        await process.sendAction(actionId: actionId)
-                    }
+                    guard let pluginId = PluginSlotArbiter.shared.currentlyDisplayedExpandedPluginId else { return }
+                    await PluginHost.shared.sendAction(actionId: actionId, to: pluginId)
                 }
             }
         }

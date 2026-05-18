@@ -20,6 +20,7 @@ actor PluginProcess {
     private var retryCount = 0
     private static let maxRetries = 3
     private static let retryDelaysNanos: [UInt64] = [1_000_000_000, 2_000_000_000, 4_000_000_000]
+    private static let maxLineBytes = 1_048_576  // 1 MB
 
     private var readyContinuation: CheckedContinuation<Bool, Never>?
     private var timeoutTask: Task<Void, Never>?
@@ -164,7 +165,12 @@ actor PluginProcess {
                             buffer.removeAll(keepingCapacity: true)
                         }
                     } else {
-                        buffer.append(byte)
+                        if buffer.count >= Self.maxLineBytes {
+                            // Oversized line — drop buffer, will resync at next newline
+                            buffer.removeAll(keepingCapacity: false)
+                        } else {
+                            buffer.append(byte)
+                        }
                     }
                 }
             } catch { }

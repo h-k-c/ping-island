@@ -11,6 +11,7 @@ final class PluginSlotArbiter: ObservableObject {
     @Published private(set) var activeRightPluginId: String?
     @Published private(set) var pendingNotifications: [PluginNotifyUpdate] = []
     @Published private(set) var expandedContent: [String: [ExpandedSection]] = [:]
+    @Published var currentlyDisplayedExpandedPluginId: String?
 
     private var leftSlots: [(pluginId: String, content: PluginCompactContent)] = []
     private var rightSlots: [(pluginId: String, content: PluginCompactContent)] = []

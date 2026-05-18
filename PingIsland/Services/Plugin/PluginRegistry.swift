@@ -6,6 +6,7 @@ final class PluginRegistry: ObservableObject {
     static let shared = PluginRegistry()
 
     @Published private(set) var installedPlugins: [InstalledPlugin] = []
+    let enabledStateChanged = PassthroughSubject<String, Never>()
 
     private let pluginsDirectoryURL: URL
     private let defaults: UserDefaults
@@ -68,6 +69,7 @@ final class PluginRegistry: ObservableObject {
         var map = enabledMap
         map[pluginId] = enabled
         defaults.set(map, forKey: enabledKey)
+        enabledStateChanged.send(pluginId)
     }
 
     private var enabledMap: [String: Bool] {

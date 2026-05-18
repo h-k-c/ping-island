@@ -42,6 +42,10 @@ enum IslandExpandedRouteResolver {
             break
         }
 
+        if case .plugin(let id) = contentType {
+            return .plugin(pluginId: id)
+        }
+
         if case .chat(let session) = contentType {
             return .chat(session)
         }
@@ -105,15 +109,23 @@ struct PluginExpandedPanelView: View {
     @ObservedObject private var arbiter = PluginSlotArbiter.shared
 
     var body: some View {
-        if let sections = arbiter.expandedContent[pluginId] {
-            ScrollView {
-                IslandPluginRenderer.expandedView(sections: sections)
+        Group {
+            if let sections = arbiter.expandedContent[pluginId] {
+                ScrollView {
+                    IslandPluginRenderer.expandedView(sections: sections)
+                }
+            } else {
+                Text("加载中…")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .padding()
             }
-        } else {
-            Text("加载中…")
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.4))
-                .padding()
+        }
+        .onAppear { arbiter.currentlyDisplayedExpandedPluginId = pluginId }
+        .onDisappear {
+            if arbiter.currentlyDisplayedExpandedPluginId == pluginId {
+                arbiter.currentlyDisplayedExpandedPluginId = nil
+            }
         }
     }
 }

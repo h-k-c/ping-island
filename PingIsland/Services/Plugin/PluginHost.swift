@@ -16,6 +16,7 @@ final class PluginHost: ObservableObject {
     private var processes: [String: PluginProcess] = [:]
     private var listenerTasks: [String: Task<Void, Never>] = [:]
     private var registryCancellable: AnyCancellable?
+    private var enabledStateCancellable: AnyCancellable?
     private var hasStarted = false
 
     init(registry: PluginRegistry = .shared, arbiter: PluginSlotArbiter = .shared) {
@@ -44,12 +45,20 @@ final class PluginHost: ObservableObject {
                     await self?.reconcilePlugins(plugins)
                 }
             }
+
+        enabledStateCancellable = registry.enabledStateChanged
+            .sink { [weak self] pluginId in
+                Task { [weak self] in
+                    await self?.handleEnabledStateChange(pluginId)
+                }
+            }
     }
 
     func stop() async {
         guard hasStarted else { return }
         hasStarted = false
         registryCancellable = nil
+        enabledStateCancellable = nil
 
         for task in listenerTasks.values { task.cancel() }
         listenerTasks.removeAll()
@@ -59,6 +68,25 @@ final class PluginHost: ObservableObject {
         processStates.removeAll()
 
         registry.stop()
+    }
+
+    func sendAction(actionId: String, to pluginId: String) async {
+        if let process = processes[pluginId] {
+            await process.sendAction(actionId: actionId)
+        }
+    }
+
+    private func handleEnabledStateChange(_ pluginId: String) async {
+        let isEnabled = registry.isEnabled(pluginId)
+        let isRunning = processes[pluginId] != nil
+
+        if isEnabled && !isRunning {
+            if let plugin = registry.installedPlugins.first(where: { $0.id == pluginId }) {
+                await startPlugin(plugin)
+            }
+        } else if !isEnabled && isRunning {
+            await stopPlugin(pluginId)
+        }
     }
 
     private func startPlugin(_ plugin: InstalledPlugin) async {
