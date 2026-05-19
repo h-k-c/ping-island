@@ -14,8 +14,6 @@ import Foundation
 class SessionMonitor: ObservableObject {
     @Published var instances: [SessionState] = []
     @Published var pendingInstances: [SessionState] = []
-    @Published private(set) var claudeUsageSnapshot: ClaudeUsageSnapshot?
-    @Published private(set) var codexUsageSnapshot: CodexUsageSnapshot?
 
     nonisolated static var isRunningUnderXCTest: Bool {
         Foundation.ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
@@ -26,9 +24,7 @@ class SessionMonitor: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var hasStarted = false
     private var allSessions: [SessionState] = []
-    private var usageRefreshTask: Task<Void, Never>?
     private var maintenanceTask: Task<Void, Never>?
-    private let shouldRefreshUsage: Bool
     private var questionDraftCache = SessionQuestionDraftCache()
     private var telemetryPendingAttentionSessionIDs: Set<String> = []
 
@@ -37,13 +33,7 @@ class SessionMonitor: ObservableObject {
         observeSharedState: Bool = true
     ) {
         self.runtimeCoordinator = runtimeCoordinator
-        self.shouldRefreshUsage = !Self.isRunningUnderXCTest
         guard observeSharedState else { return }
-        if shouldRefreshUsage {
-            claudeUsageSnapshot = UsageSnapshotCacheStore.loadClaude()
-            codexUsageSnapshot = UsageSnapshotCacheStore.loadCodex()
-        }
-
         SessionStore.shared.sessionsPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] sessions in
@@ -62,14 +52,10 @@ class SessionMonitor: ObservableObject {
             }
             .store(in: &cancellables)
 
-        if shouldRefreshUsage {
-            refreshUsageState()
-        }
     }
 
     deinit {
         maintenanceTask?.cancel()
-        usageRefreshTask?.cancel()
     }
 
     // MARK: - Monitoring Lifecycle
@@ -244,8 +230,6 @@ class SessionMonitor: ObservableObject {
         hasStarted = false
         maintenanceTask?.cancel()
         maintenanceTask = nil
-        usageRefreshTask?.cancel()
-        usageRefreshTask = nil
         HookSocketServer.shared.stop()
         RemoteConnectorManager.shared.stop()
         Task {
@@ -278,10 +262,6 @@ class SessionMonitor: ObservableObject {
                 await MainActor.run {
                     guard let self else { return }
                     self.refreshVisibleSessions()
-                    if self.shouldRefreshUsage,
-                       EnergyGovernor.shared.policy.usageRefreshInterval != nil {
-                        self.refreshUsageState()
-                    }
                 }
 
                 await SessionStore.shared.process(
@@ -292,36 +272,6 @@ class SessionMonitor: ObservableObject {
         }
     }
 
-    func refreshUsageState() {
-        usageRefreshTask?.cancel()
-        usageRefreshTask = Task { [weak self] in
-            guard let self else { return }
-
-            let cachedClaudeSnapshot = UsageSnapshotCacheStore.loadClaude()
-            let cachedCodexSnapshot = UsageSnapshotCacheStore.loadCodex()
-
-            let claudeSnapshot = await Task.detached(priority: .utility) {
-                try? ClaudeUsageLoader.load()
-            }.value
-
-            let codexSnapshot = await Task.detached(priority: .utility) {
-                try? CodexUsageLoader.load()
-            }.value
-
-            guard !Task.isCancelled else { return }
-
-            if let claudeSnapshot {
-                UsageSnapshotCacheStore.saveClaude(claudeSnapshot)
-            }
-            if let codexSnapshot {
-                UsageSnapshotCacheStore.saveCodex(codexSnapshot)
-            }
-
-            self.claudeUsageSnapshot = claudeSnapshot ?? cachedClaudeSnapshot
-            self.codexUsageSnapshot = codexSnapshot ?? cachedCodexSnapshot
-            self.syncCodexThreadDiscovery(using: self.codexUsageSnapshot)
-        }
-    }
 
     // MARK: - Native Runtime
 
@@ -1128,15 +1078,6 @@ class SessionMonitor: ObservableObject {
         return snapshot
     }
 
-    private func syncCodexThreadDiscovery(using snapshot: CodexUsageSnapshot?) {
-        guard let threadID = snapshot?.threadID else { return }
-
-        Task {
-            let alreadyTracked = await SessionStore.shared.containsSession(threadID)
-            guard !alreadyTracked else { return }
-            await CodexAppServerMonitor.shared.refreshThreadDiscovery(threadId: threadID)
-        }
-    }
 
     nonisolated static func shouldWatchTranscript(for event: HookEvent, phase: SessionPhase) -> Bool {
         guard event.ingress != .remoteBridge else { return false }

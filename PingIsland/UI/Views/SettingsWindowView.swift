@@ -95,45 +95,6 @@ struct QoderCLIHookRefreshNoticeGate {
     }
 }
 
-struct ClosedNotchUsageAvailability: Equatable {
-    var hasClaudeSevenDay = false
-    var hasCodexSevenDay = false
-
-    static func current() -> ClosedNotchUsageAvailability {
-        let cachedClaudeSnapshot = UsageSnapshotCacheStore.loadClaude()
-        let cachedCodexSnapshot = UsageSnapshotCacheStore.loadCodex()
-        let claudeSnapshot = if cachedClaudeSnapshot?.sevenDay == nil {
-            (try? ClaudeUsageLoader.load()) ?? cachedClaudeSnapshot
-        } else {
-            cachedClaudeSnapshot
-        }
-        let codexSnapshot = if cachedCodexSnapshot?.windows.contains(where: {
-            UsageSummaryPresenter.isSevenDayWindowLabel($0.label)
-        }) != true {
-            (try? CodexUsageLoader.load()) ?? cachedCodexSnapshot
-        } else {
-            cachedCodexSnapshot
-        }
-
-        return ClosedNotchUsageAvailability(
-            hasClaudeSevenDay: claudeSnapshot?.sevenDay != nil,
-            hasCodexSevenDay: codexSnapshot?.windows.contains {
-                UsageSummaryPresenter.isSevenDayWindowLabel($0.label)
-            } == true
-        )
-    }
-
-    func supports(_ mode: ClosedNotchTrailingContentMode) -> Bool {
-        switch mode {
-        case .sessionCount:
-            return true
-        case .claudeSevenDayRemaining:
-            return hasClaudeSevenDay
-        case .codexSevenDayRemaining:
-            return hasCodexSevenDay
-        }
-    }
-}
 
 enum AccessibilityPermissionStatus {
 #if APP_STORE
@@ -172,7 +133,6 @@ final class SettingsPanelViewModel: ObservableObject {
     @Published private(set) var customHookInstallations: [HookInstaller.CustomHookInstallation] = []
     @Published private(set) var qoderCLIHookRefreshStatus: HookInstaller.QoderCLIHookRefreshStatus?
     @Published private(set) var qoderCLIHookRefreshNoticeStatus: HookInstaller.QoderCLIHookRefreshStatus?
-    @Published private(set) var closedNotchUsageAvailability = ClosedNotchUsageAvailability()
     @Published private(set) var bridgeHealthStatus = HookInstaller.BridgeHealthStatus(
         isHealthy: false,
         message: AppLocalization.string("Bridge 链路尚未检测")
@@ -223,7 +183,6 @@ final class SettingsPanelViewModel: ObservableObject {
         switch category {
         case .display:
             ScreenSelector.shared.refreshScreens()
-            refreshClosedNotchUsageAvailability()
         case .sound:
             SoundPackCatalog.shared.refresh()
         case .general, .mascot, .plugins, .remote, .labs, .about:
@@ -266,9 +225,6 @@ final class SettingsPanelViewModel: ObservableObject {
         qoderCLIHookRefreshNoticeStatus = status
     }
 
-    func refreshClosedNotchUsageAvailability() {
-        closedNotchUsageAvailability = ClosedNotchUsageAvailability.current()
-    }
 
     func refreshBridgeHealthStatus() {
         bridgeHealthStatus = HookInstaller.bridgeHealthStatus()
@@ -1419,18 +1375,7 @@ private struct SettingsPanelContentView: View {
                     SettingsLineDivider()
                     NotchDisplayModeSelector(mode: $settings.notchDisplayMode)
                     SettingsLineDivider()
-                    SettingsInfoLine(
-                        title: "右侧展示内容",
-                        subtitle: "默认显示会话数量；检测到 Claude Code 或 Codex 的 7d 用量后，可改为展示其中一个客户端的 Token 剩余额度。"
-                    ) {
-                        ClosedNotchTrailingContentPicker(
-                            mode: Binding(
-                                get: { settings.closedNotchTrailingContentMode },
-                                set: { settings.closedNotchTrailingContentMode = $0 }
-                            ),
-                            availability: viewModel.closedNotchUsageAvailability
-                        )
-                    }
+
                 } else {
                     SettingsLineDivider()
                     FloatingPetPlacementInfoCard()
@@ -3855,23 +3800,6 @@ private struct AutoRoutePromptsIdleDelayPicker: View {
     }
 }
 
-private struct ClosedNotchTrailingContentPicker: View {
-    @Binding var mode: ClosedNotchTrailingContentMode
-    let availability: ClosedNotchUsageAvailability
-
-    var body: some View {
-        Picker("", selection: $mode) {
-            ForEach(ClosedNotchTrailingContentMode.allCases) { candidate in
-                Text(appLocalized: candidate.title)
-                    .tag(candidate)
-                    .disabled(!availability.supports(candidate))
-            }
-        }
-        .labelsHidden()
-        .accessibilityLabel(Text(appLocalized: "右侧展示内容"))
-        .settingsMenuPicker(width: 190)
-    }
-}
 
 private struct FloatingPetSizeModePicker: View {
     @Binding var mode: FloatingPetSizeMode

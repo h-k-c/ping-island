@@ -690,9 +690,7 @@ struct DetachedIslandPanelView: View {
             bubblePlacement: interactionModel.bubblePlacement,
             measuredAttentionBubbleHeight: bubbleViewState.measuredAttentionBubbleHeight,
             measuredCompletionBubbleHeight: bubbleViewState.measuredCompletionBubbleHeight,
-            additionalFooterHeight: shouldShowFloatingUsageFooter
-                ? DetachedIslandPanelMetrics.usageFooterReservedHeight
-                : 0,
+            additionalFooterHeight: 0,
             activeCompletionNotification: bubbleViewState.activeCompletionNotification,
             guideBubbleSize: interactionModel.isSettingsHintVisible
                 ? DetachedIslandPanelMetrics.settingsHintBubbleSize
@@ -704,30 +702,8 @@ struct DetachedIslandPanelView: View {
         DetachedIslandPanelMetrics.petMetrics(for: viewModel.screenRect)
     }
 
-    private var usageSummaryProviders: [UsageSummaryProvider] {
-        UsageSummaryPresenter.providers(
-            claudeSnapshot: sessionMonitor.claudeUsageSnapshot,
-            codexSnapshot: sessionMonitor.codexUsageSnapshot,
-            mode: settings.usageValueMode,
-            locale: settings.locale
-        )
-    }
 
-    private var floatingPetUsageWindows: [UsageSummaryWindow] {
-        guard settings.showUsage else { return [] }
-        return usageSummaryProviders
-            .flatMap(\.windows)
-            .filter(UsageSummaryPresenter.shouldShowFloatingBolt)
-    }
 
-    private var shouldShowFloatingUsageFooter: Bool {
-        guard let bubbleRoute else { return false }
-        return UsageSummaryPresenter.shouldShowSummary(
-            for: bubbleRoute,
-            showUsage: settings.showUsage,
-            providers: usageSummaryProviders
-        )
-    }
 
     private var compactMascotKind: MascotKind {
         settings.mascotKind(for: IslandMascotResolver.sourceSession(from: sortedSessions)?.mascotClient)
@@ -829,7 +805,6 @@ struct DetachedIslandPanelView: View {
     private var petButton: some View {
         DetachedFloatingPetInteractionView(
             activeCount: activeCount,
-            usageWindows: floatingPetUsageWindows,
             mascotKind: compactMascotKind,
             mascotStatus: compactMascotStatus,
             petMetrics: petMetrics,
@@ -853,7 +828,7 @@ struct DetachedIslandPanelView: View {
         contentWidth: CGFloat
     ) -> some View {
         DetachedIslandBubbleChrome(placement: layout.bubblePlacement) {
-            VStack(alignment: .leading, spacing: shouldShowFloatingUsageFooter ? 4 : 8) {
+            VStack(alignment: .leading, spacing: 8) {
                 IslandOpenedContentView(
                     sessionMonitor: sessionMonitor,
                     viewModel: viewModel,
@@ -872,24 +847,7 @@ struct DetachedIslandPanelView: View {
                     onDismissCompletionNotification: onDismissCompletionNotification
                 )
 
-                if shouldShowFloatingUsageFooter {
-                    HStack {
-                        Spacer(minLength: 0)
-                        UsageSummaryStripView(
-                            providers: usageSummaryProviders,
-                            inline: true,
-                            alignment: .trailing,
-                            displayStyle: .battery,
-                            batteryHoverDetailStyle: .currentWindow,
-                            batteryPopoverPlacement: .above,
-                            locale: settings.locale
-                        )
-                        .zIndex(200)
-                    }
-                    .padding(.top, -2)
-                    .offset(y: DetachedIslandPanelMetrics.usageFooterVerticalOffset)
-                    .zIndex(200)
-                }
+
             }
         }
     }
@@ -926,7 +884,6 @@ private struct DetachedFloatingPetSettingsHintView: View {
 
 private struct DetachedFloatingPetInteractionView: View {
     let activeCount: Int
-    let usageWindows: [UsageSummaryWindow]
     let mascotKind: MascotKind
     let mascotStatus: MascotStatus
     let petMetrics: DetachedIslandPetMetrics
@@ -961,13 +918,7 @@ private struct DetachedFloatingPetInteractionView: View {
             width: petMetrics.petHitFrame,
             height: petMetrics.petHitFrame
         )
-        .overlay(alignment: .top) {
-            if !usageWindows.isEmpty {
-                DetachedFloatingUsageBoltView(windows: usageWindows)
-                    .offset(y: petMetrics.floatingUsageBoltVerticalOffset)
-                    .allowsHitTesting(false)
-            }
-        }
+
         .rotationEffect(.degrees(isDragging ? -7 : 0))
         .scaleEffect(isDragging ? 1.08 : 1)
         .animation(.spring(response: 0.22, dampingFraction: 0.68), value: isDragging)
@@ -1001,75 +952,6 @@ private struct DetachedFloatingPetInteractionView: View {
     }
 }
 
-private struct DetachedFloatingUsageBoltView: View {
-    let windows: [UsageSummaryWindow]
-
-    @ObservedObject private var energyGovernor = EnergyGovernor.shared
-
-    private let cycleInterval: TimeInterval = 1.8
-
-    var body: some View {
-        if energyGovernor.policy.animationLevel == .staticFrames {
-            boltBody(date: .now, isAnimated: false)
-        } else {
-            TimelineView(.periodic(from: .now, by: boltInterval)) { context in
-                boltBody(date: context.date, isAnimated: true)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func boltBody(date: Date, isAnimated: Bool) -> some View {
-        if let window = window(for: date) {
-            let phase = date.timeIntervalSinceReferenceDate
-            let pulse = isAnimated ? 1 + (sin(phase * .pi * 2 / 1.2) * 0.05) : 1
-            let lift = isAnimated ? sin(phase * .pi * 2 / 1.6) * 1.2 : 0
-
-            Image(systemName: "bolt.fill")
-                .font(.system(size: 8, weight: .black))
-                .foregroundColor(color(for: window.severity))
-                .scaleEffect((window.severity == .critical ? 1.08 : 1) * pulse)
-                .offset(y: lift)
-                .id(window.id)
-                .help(window.resetText ?? window.valueText)
-                .accessibilityLabel(Text(accessibilityLabel(for: window)))
-        }
-    }
-
-    private var boltInterval: TimeInterval {
-        switch energyGovernor.policy.animationLevel {
-        case .full:
-            1.0 / 24.0
-        case .reduced:
-            1.0 / 8.0
-        case .staticFrames:
-            1.0 / 24.0
-        }
-    }
-
-    private func window(for date: Date) -> UsageSummaryWindow? {
-        guard !windows.isEmpty else { return nil }
-        let index = Int(date.timeIntervalSinceReferenceDate / cycleInterval) % windows.count
-        return windows[index]
-    }
-
-    private func color(for severity: UsageSummarySeverity) -> Color {
-        switch severity {
-        case .healthy:
-            return Color(red: 0.42, green: 0.92, blue: 0.60)
-        case .warning:
-            return Color(red: 0.98, green: 0.82, blue: 0.32)
-        case .critical:
-            return Color(red: 0.98, green: 0.44, blue: 0.38)
-        }
-    }
-
-    private func accessibilityLabel(for window: UsageSummaryWindow) -> String {
-        [window.label, window.valueText, window.resetText]
-            .compactMap { $0 }
-            .joined(separator: ", ")
-    }
-}
 
 private struct DetachedPetInteractionBridge: NSViewRepresentable {
     let size: CGSize

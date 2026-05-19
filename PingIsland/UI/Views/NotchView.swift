@@ -105,61 +105,15 @@ struct NotchView: View {
         countedClosedSessions.count
     }
 
-    private var usageSummaryProviders: [UsageSummaryProvider] {
-        UsageSummaryPresenter.providers(
-            claudeSnapshot: sessionMonitor.claudeUsageSnapshot,
-            codexSnapshot: sessionMonitor.codexUsageSnapshot,
-            mode: openedHeaderUsageValueMode,
-            locale: settings.locale
-        )
-    }
 
-    private var closedTrailingUsageWindow: UsageSummaryWindow? {
-        guard let providerID = settings.closedNotchTrailingContentMode.usageProviderID else {
-            return nil
-        }
 
-        return UsageSummaryPresenter.sevenDayWindow(
-            forProviderID: providerID,
-            in: usageSummaryProviders
-        )
-    }
 
-    private var closedTrailingUsageProviderTitle: String? {
-        guard let providerID = settings.closedNotchTrailingContentMode.usageProviderID else {
-            return nil
-        }
 
-        return usageSummaryProviders.first { $0.id == providerID }?.title
-    }
-
-    private var openedHeaderUsageValueMode: UsageValueMode {
-        isOnBuiltinDisplay ? .remaining : settings.usageValueMode
-    }
-
-    private var openedHeaderUsageDisplayStyle: UsageSummaryStripView.DisplayStyle {
-        isOnBuiltinDisplay ? .preferredBattery : .numeric
-    }
 
     private var isOnBuiltinDisplay: Bool {
         screenSelector.selectedScreen?.isBuiltinDisplay == true
     }
 
-    private var shouldShowOpenedHeaderUsage: Bool {
-        let route = IslandExpandedRouteResolver.resolve(
-            surface: .docked,
-            trigger: triggerForCurrentPresentation,
-            contentType: viewModel.contentType,
-            sessions: sessionMonitor.instances,
-            activeCompletionNotification: activeCompletionNotification
-        )
-
-        return UsageSummaryPresenter.shouldShowSummary(
-            for: route,
-            showUsage: settings.showUsage,
-            providers: usageSummaryProviders
-        )
-    }
 
     private var shouldHideForIdleState: Bool {
         settings.autoHideWhenIdle
@@ -691,11 +645,6 @@ struct NotchView: View {
                         ZStack {
                             if hasManualAttentionIndicator {
                                 BellIndicatorIcon(size: 12, color: closedIndicatorTone.emphasisColor)
-                            } else if let usageWindow = closedTrailingUsageWindow {
-                                ClosedNotchUsageRemainingIndicator(
-                                    providerTitle: closedTrailingUsageProviderTitle,
-                                    window: usageWindow
-                                )
                             } else if let pluginContent = pluginArbiter.activeRight {
                                 IslandPluginRenderer.compactView(content: pluginContent)
                                     .onTapGesture {
@@ -723,9 +672,6 @@ struct NotchView: View {
     }
 
     private var closedTrailingWidth: CGFloat {
-        if closedTrailingUsageWindow != nil {
-            return max(sideWidth, 34)
-        }
         return sideWidth
     }
 
@@ -773,18 +719,6 @@ struct NotchView: View {
                     size: petIconSize
                 )
                 .padding(.leading, 14)
-            }
-
-            if shouldShowOpenedHeaderUsage {
-                UsageSummaryStripView(
-                    providers: usageSummaryProviders,
-                    inline: true,
-                    displayStyle: openedHeaderUsageDisplayStyle,
-                    locale: settings.locale
-                )
-                .padding(.leading, viewModel.openReason == .notification && activeCompletionNotification != nil ? 6 : 4)
-                .layoutPriority(1)
-                .zIndex(200)
             }
 
             Spacer(minLength: 0)
@@ -1697,45 +1631,3 @@ private struct SessionCountIndicator: View {
     }
 }
 
-private struct ClosedNotchUsageRemainingIndicator: View {
-    let providerTitle: String?
-    let window: UsageSummaryWindow
-    private let closedNotchRightShift: CGFloat = 4
-
-    var body: some View {
-        Text(remainingText)
-            .font(.system(size: remainingPercentage >= 100 ? 8.0 : 8.8, weight: .semibold, design: .rounded))
-            .foregroundStyle(color(for: window.severity))
-            .lineLimit(1)
-            .minimumScaleFactor(0.82)
-            .frame(minWidth: 28, alignment: .trailing)
-            .offset(x: closedNotchRightShift)
-            .help(helpText)
-            .accessibilityLabel(Text(helpText))
-    }
-
-    private var remainingPercentage: Int {
-        Int(max(0, window.remainingPercentage).rounded())
-    }
-
-    private var remainingText: String {
-        "\(remainingPercentage)%"
-    }
-
-    private var helpText: String {
-        let title = providerTitle ?? ""
-        let prefix = title.isEmpty ? window.label : "\(title) \(window.label)"
-        return "\(prefix) \(remainingText) \(AppLocalization.string("剩余"))"
-    }
-
-    private func color(for severity: UsageSummarySeverity) -> Color {
-        switch severity {
-        case .healthy:
-            return Color(red: 0.42, green: 0.92, blue: 0.60)
-        case .warning:
-            return Color(red: 0.98, green: 0.82, blue: 0.32)
-        case .critical:
-            return Color(red: 0.98, green: 0.44, blue: 0.38)
-        }
-    }
-}

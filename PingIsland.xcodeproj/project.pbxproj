@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3204F7B0D81C67F62862FD29 /* PingIslandPlugin in Embed PingIslandPlugin */ = {isa = PBXBuildFile; fileRef = 2865B058CB7162F2E19C53D2 /* PingIslandPlugin */; settings = {}; };
+		3204F7B0D81C67F62862FD29 /* PingIslandPlugin in Embed PingIslandPlugin */ = {isa = PBXBuildFile; fileRef = 2865B058CB7162F2E19C53D2 /* PingIslandPlugin */; };
 		41842858E0A8BDC3D34759DB /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F0C9474542E5F77EE7ACB7 /* main.swift */; };
 		A1000000000000000000001B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1000000000000000000001C /* Sparkle */; };
 		E3E6617A604BB611E6C6DA77 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CCA620871394B6DF03908D32 /* Cocoa.framework */; };
@@ -52,8 +52,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		2865B058CB7162F2E19C53D2 /* PingIslandPlugin */ = {isa = PBXFileReference; includeInIndex = 0; path = PingIslandPlugin; sourceTree = BUILT_PRODUCTS_DIR; };
-		37DD0FBACB423D066514B0FD /* PingIslandPlugin */ = {isa = PBXFileReference; includeInIndex = 0; path = PingIslandPlugin; sourceTree = BUILT_PRODUCTS_DIR; };
+		2865B058CB7162F2E19C53D2 /* PingIslandPlugin */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = text; path = PingIslandPlugin; sourceTree = BUILT_PRODUCTS_DIR; };
+		37DD0FBACB423D066514B0FD /* PingIslandPlugin */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = text; path = PingIslandPlugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000001 /* PingIslandTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PingIslandTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000002 /* PingIslandUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PingIslandUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000000000000000000001E /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
@@ -88,15 +88,11 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10000000000000000000003 /* PingIslandTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = PingIslandTests;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000004 /* PingIslandUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = PingIslandUITests;
 			sourceTree = "<group>";
 		};
@@ -157,7 +153,6 @@
 			children = (
 				C7F0C9474542E5F77EE7ACB7 /* main.swift */,
 			);
-			name = PingIslandPlugin;
 			path = PingIslandPlugin;
 			sourceTree = "<group>";
 		};

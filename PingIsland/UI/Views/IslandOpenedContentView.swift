@@ -17,7 +17,7 @@ struct IslandOpenedContentView: View {
         routeContent
         .frame(width: contentWidth)
         .onAppear {
-            sessionMonitor.refreshUsageState()
+            sessionMonitor
         }
     }
 

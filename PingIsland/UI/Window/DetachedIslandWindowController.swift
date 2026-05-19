@@ -786,31 +786,7 @@ final class DetachedIslandWindowController: NSWindowController, NSWindowDelegate
         petAnchorScreen: CGPoint? = nil,
         availableFrame: CGRect? = nil
     ) -> DetachedIslandWindowLayout {
-        let additionalFooterHeight: CGFloat = {
-            guard AppSettings.showUsage,
-                  let mode = DetachedIslandBubbleContentMode(bubbleState: bubbleState) else {
-                return 0
-            }
-
-            let providers = UsageSummaryPresenter.providers(
-                claudeSnapshot: sessionMonitor.claudeUsageSnapshot,
-                codexSnapshot: sessionMonitor.codexUsageSnapshot,
-                mode: AppSettings.usageValueMode,
-                locale: AppSettings.shared.locale
-            )
-            let route = DetachedIslandContentModel.route(
-                for: sessionMonitor.instances,
-                viewModel: viewModel,
-                mode: mode,
-                activeCompletionNotification: activeCompletionNotification
-            )
-
-            return UsageSummaryPresenter.shouldShowSummary(
-                for: route,
-                showUsage: AppSettings.showUsage,
-                providers: providers
-            ) ? DetachedIslandPanelMetrics.usageFooterReservedHeight : 0
-        }()
+        let additionalFooterHeight: CGFloat = 0
 
         return DetachedIslandContentModel.layout(
             for: sessionMonitor.instances,
