@@ -153,6 +153,11 @@ class SessionMonitor: ObservableObject {
 
         await SessionStore.shared.process(.hookReceived(effectiveEvent))
 
+        // Forward to subscribed plugins (e.g. ClaudePlugin)
+        await MainActor.run {
+            PluginEventBus.shared.dispatch(hookEvent: effectiveEvent)
+        }
+
         if shouldAutoApprovePermission,
            let approvedToolUseId = await Self.resolvePendingApprovalToolUseId(for: effectiveEvent.sessionId, fallback: effectiveEvent.toolUseId) {
             if effectiveEvent.ingress == .remoteBridge {
