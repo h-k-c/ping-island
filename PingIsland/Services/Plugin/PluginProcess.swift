@@ -33,7 +33,7 @@ actor PluginProcess {
         manifest: PluginManifest,
         bundleURL: URL,
         islandVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
-        initializeTimeoutSeconds: Double = 5.0
+        initializeTimeoutSeconds: Double = 15.0
     ) {
         self.manifest = manifest
         self.bundleURL = bundleURL
@@ -89,6 +89,10 @@ actor PluginProcess {
 
     private func launch() async -> Bool {
         state = .starting
+
+        // Cancel orphaned read task from previous failed attempt
+        readTask?.cancel()
+        readTask = nil
 
         let execURL = bundleURL.appendingPathComponent(manifest.executable)
         guard FileManager.default.isExecutableFile(atPath: execURL.path) else {
