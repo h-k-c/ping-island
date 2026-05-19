@@ -139,6 +139,12 @@ struct PluginsSettingsView: View {
                     configDivider()
                     approvalRouteRow(isOn: routeBinding)
                 }
+
+                // Usage plugin auth config
+                if plugin.id == "com.wudanwu.pingisland.usage" {
+                    configDivider()
+                    UsagePluginAuthView()
+                }
             }
         }
     }

@@ -102,15 +102,11 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10000000000000000000003 /* PingIslandTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = PingIslandTests;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000004 /* PingIslandUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = PingIslandUITests;
 			sourceTree = "<group>";
 		};
