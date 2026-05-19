@@ -63,7 +63,7 @@ actor PluginProcess {
         readTask?.cancel()
         readyContinuation?.resume(returning: false)
         readyContinuation = nil
-        sendRawMessage(["jsonrpc": "2.0", "method": "shutdown"])
+        send(["jsonrpc": "2.0", "method": "shutdown"])
         let proc = process
         Task.detached {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -75,7 +75,7 @@ actor PluginProcess {
     }
 
     func sendAction(actionId: String) {
-        sendRawMessage(["jsonrpc": "2.0", "method": "action", "params": ["actionId": actionId]])
+        send(["jsonrpc": "2.0", "method": "action", "params": ["actionId": actionId]])
     }
 
     private func launchWithRetry() async {
@@ -128,7 +128,7 @@ actor PluginProcess {
         startStdoutReader(stdoutPipe.fileHandleForReading)
         forwardStderr(stderrPipe.fileHandleForReading)
 
-        sendRawMessage([
+        send([
             "jsonrpc": "2.0", "id": 1, "method": "initialize",
             "params": ["islandVersion": islandVersion, "pluginId": manifest.id, "config": [:] as [String: Any]]
         ])
@@ -253,15 +253,12 @@ actor PluginProcess {
         }
     }
 
-    func sendRawMessage(_ dict: [String: Any]) {
+    /// Serialise `dict` as JSON and write one newline-terminated line to the plugin's stdin.
+    func send(_ dict: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let handle = stdinHandle else { return }
         var line = data
         line.append(UInt8(ascii: "\n"))
         try? handle.write(contentsOf: line)
-    }
-
-    func sendRawDict(_ dict: [String: Any]) {
-        sendRawMessage(dict)
     }
 }

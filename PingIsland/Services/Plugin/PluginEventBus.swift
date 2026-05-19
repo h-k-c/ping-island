@@ -23,7 +23,7 @@ final class PluginEventBus {
         let subscribed = PluginHost.shared.subscribedProcesses(for: "hookEvent")
         for process in subscribed {
             Task {
-                await process.sendRawDict(json)
+                await process.send(json)
             }
         }
     }
