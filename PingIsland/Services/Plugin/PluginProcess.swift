@@ -246,11 +246,15 @@ actor PluginProcess {
         }
     }
 
-    private func sendRawMessage(_ dict: [String: Any]) {
+    func sendRawMessage(_ dict: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let handle = stdinHandle else { return }
         var line = data
         line.append(UInt8(ascii: "\n"))
         try? handle.write(contentsOf: line)
+    }
+
+    func sendRawDict(_ dict: [String: Any]) {
+        sendRawMessage(dict)
     }
 }

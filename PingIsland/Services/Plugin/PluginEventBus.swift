@@ -1,0 +1,63 @@
+import Foundation
+import os.log
+
+/// Forwards host-side events to plugin processes that subscribed in their manifest.
+@MainActor
+final class PluginEventBus {
+    static let shared = PluginEventBus()
+    private let logger = Logger(subsystem: "com.wudanwu.pingisland", category: "PluginEventBus")
+
+    init() {}
+
+    /// Dispatch a HookEvent to all processes subscribed to "hookEvent".
+    func dispatch(hookEvent event: HookEvent) {
+        let json = hookEventJSON(
+            sessionId: event.sessionId,
+            event: event.event,
+            status: event.status,
+            provider: event.provider.rawValue,
+            cwd: event.cwd,
+            message: event.message,
+            phase: resolvedPhase(from: event)
+        )
+        let subscribed = PluginHost.shared.subscribedProcesses(for: "hookEvent")
+        for process in subscribed {
+            Task {
+                await process.sendRawDict(json)
+            }
+        }
+    }
+
+    /// Build the JSON-RPC notification dict. Exposed internal for testing.
+    func hookEventJSON(
+        sessionId: String,
+        event: String,
+        status: String,
+        provider: String,
+        cwd: String,
+        message: String?,
+        phase: String
+    ) -> [String: Any] {
+        var params: [String: Any] = [
+            "sessionId": sessionId,
+            "event": event,
+            "status": status,
+            "provider": provider,
+            "cwd": cwd,
+            "phase": phase
+        ]
+        if let message { params["message"] = message }
+        return ["jsonrpc": "2.0", "method": "hookEvent", "params": params]
+    }
+
+    private func resolvedPhase(from event: HookEvent) -> String {
+        switch event.event {
+        case "Stop", "Notification" where event.status == "completed":
+            return "ended"
+        case "PreToolUse", "PostToolUse":
+            return "processing"
+        default:
+            return "idle"
+        }
+    }
+}

@@ -28,6 +28,11 @@ final class PluginHost: ObservableObject {
         Array(processes.values)
     }
 
+    /// Returns running processes whose manifest subscribes to the given event type.
+    func subscribedProcesses(for eventType: String) -> [PluginProcess] {
+        processes.values.filter { $0.manifest.subscribesTo.contains(eventType) }
+    }
+
     func start() async {
         guard !hasStarted else { return }
         hasStarted = true
