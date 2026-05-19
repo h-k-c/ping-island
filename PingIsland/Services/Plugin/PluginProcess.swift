@@ -98,7 +98,10 @@ actor PluginProcess {
 
         let proc = Process()
         proc.executableURL = execURL
-        proc.currentDirectoryURL = bundleURL.appendingPathComponent("Contents")
+        let contentsURL = bundleURL.appendingPathComponent("Contents")
+        proc.currentDirectoryURL = FileManager.default.fileExists(atPath: contentsURL.path)
+            ? contentsURL
+            : bundleURL
         proc.environment = Foundation.ProcessInfo.processInfo.environment.merging([
             "PING_ISLAND_VERSION": islandVersion,
             "PING_ISLAND_PLUGIN_ID": manifest.id
