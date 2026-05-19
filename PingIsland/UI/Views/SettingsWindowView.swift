@@ -1575,6 +1575,102 @@ private struct SettingsPanelContentView: View {
                         .foregroundColor(.white.opacity(0.72))
                 }
             }
+
+            // IDE 扩展（从集成页迁入）
+            let ideProfiles = viewModel.visibleIDEExtensionProfiles
+            if !ideProfiles.isEmpty {
+                SettingsSectionCard(title: "IDE 扩展") {
+                    let profiles = ideProfiles
+                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
+                        IDEExtensionManagementLine(
+                            profile: profile,
+                            isInstalled: viewModel.isIDEExtensionInstalled(profile),
+                            installAction: { viewModel.installIDEExtension(for: profile) },
+                            reinstallAction: { viewModel.reinstallIDEExtension(for: profile) },
+                            authorizeAction: { viewModel.authorizeIDEExtension(for: profile) },
+                            uninstallAction: { viewModel.uninstallIDEExtension(for: profile) }
+                        )
+                        if index < profiles.count - 1 { SettingsLineDivider() }
+                    }
+                }
+            }
+
+            // 空闲时自动审批路由（全局，影响所有 AI 插件）
+            SettingsSectionCard(title: "空闲审批路由") {
+                SettingsToggleLine(
+                    title: "空闲时自动保留到终端",
+                    subtitle: "键盘和鼠标静默达到设定时长后，临时将所有 AI 插件的审批与提问路由回终端；恢复活跃后回到各插件自身设置。",
+                    isOn: $settings.autoRoutePromptsToTerminalWhenIdleEnabled
+                )
+                SettingsLineDivider()
+                SettingsInfoLine(
+                    title: "静默时长",
+                    subtitle: settings.idleAutoRoutePromptsToTerminalActive
+                        ? "当前已进入空闲保护，后续新审批和提问会保留在终端。"
+                        : "达到该时长后自动进入空闲保护。"
+                ) {
+                    AutoRoutePromptsIdleDelayPicker(delay: $settings.autoRoutePromptsIdleDelay)
+                        .disabled(!settings.autoRoutePromptsToTerminalWhenIdleEnabled)
+                        .opacity(settings.autoRoutePromptsToTerminalWhenIdleEnabled ? 1 : 0.45)
+                }
+            }
+
+#if APP_STORE
+            SettingsSectionCard(title: "App Store 沙箱") {
+                SettingsInfoLine(
+                    title: "需要手动授权目录",
+                    subtitle: "App Store 版本不会默认写入 ~/.claude、~/.codex 等配置。安装或重装 Hooks 时，请在系统弹窗中授权用户主目录。"
+                ) {
+                    Image(systemName: "lock.shield")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(TerminalColors.amber)
+                }
+                SettingsLineDivider()
+                SettingsInfoLine(
+                    title: "Bridge 链路自检",
+                    subtitle: viewModel.bridgeHealthStatus.message
+                ) {
+                    HStack(spacing: 10) {
+                        Text(appLocalized: viewModel.bridgeHealthStatus.isHealthy ? "正常" : "异常")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(viewModel.bridgeHealthStatus.isHealthy ? TerminalColors.green : TerminalColors.amber)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Capsule(style: .continuous).fill((viewModel.bridgeHealthStatus.isHealthy ? TerminalColors.green : TerminalColors.amber).opacity(0.16)))
+                            .overlay(Capsule(style: .continuous).strokeBorder((viewModel.bridgeHealthStatus.isHealthy ? TerminalColors.green : TerminalColors.amber).opacity(0.28), lineWidth: 1))
+                        HookManagementButton(title: "重新检测", tint: TerminalColors.blue) {
+                            viewModel.refreshBridgeHealthStatus()
+                        }
+                    }
+                }
+            }
+#endif
+
+#if !APP_STORE
+            SettingsSectionCard(title: "系统权限") {
+                SettingsStatusLine(
+                    title: "辅助功能",
+                    subtitle: viewModel.accessibilityEnabled ? "已授权，可进行窗口聚焦与前台检测" : "未授权，部分自动聚焦能力不可用",
+                    status: viewModel.accessibilityEnabled ? "已开启" : "待开启",
+                    statusColor: viewModel.accessibilityEnabled ? TerminalColors.green : TerminalColors.amber
+                ) {
+                    if !viewModel.accessibilityEnabled { viewModel.openAccessibilitySettings() }
+                }
+            }
+#endif
+
+            Button(action: { showingUninstallAllHooksConfirmation = true }) {
+                HStack(spacing: 7) {
+                    Image(systemName: "trash").font(.system(size: 12, weight: .semibold))
+                    Text(appLocalized: "一键卸载所有 Hooks 配置文件").font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundColor(TerminalColors.red)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(appLocalized: "一键卸载所有 Hooks 配置文件"))
         }
     }
 
@@ -1779,101 +1875,7 @@ private struct SettingsPanelContentView: View {
                 }
             }
 
-            // IDE 扩展（从集成页迁入）
-            let ideProfiles = viewModel.visibleIDEExtensionProfiles
-            if !ideProfiles.isEmpty {
-                SettingsSectionCard(title: "IDE 扩展") {
-                    let profiles = ideProfiles
-                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
-                        IDEExtensionManagementLine(
-                            profile: profile,
-                            isInstalled: viewModel.isIDEExtensionInstalled(profile),
-                            installAction: { viewModel.installIDEExtension(for: profile) },
-                            reinstallAction: { viewModel.reinstallIDEExtension(for: profile) },
-                            authorizeAction: { viewModel.authorizeIDEExtension(for: profile) },
-                            uninstallAction: { viewModel.uninstallIDEExtension(for: profile) }
-                        )
-                        if index < profiles.count - 1 { SettingsLineDivider() }
-                    }
-                }
-            }
 
-            // 空闲时自动审批路由（全局，影响所有 AI 插件）
-            SettingsSectionCard(title: "空闲审批路由") {
-                SettingsToggleLine(
-                    title: "空闲时自动保留到终端",
-                    subtitle: "键盘和鼠标静默达到设定时长后，临时将所有 AI 插件的审批与提问路由回终端；恢复活跃后回到各插件自身设置。",
-                    isOn: $settings.autoRoutePromptsToTerminalWhenIdleEnabled
-                )
-                SettingsLineDivider()
-                SettingsInfoLine(
-                    title: "静默时长",
-                    subtitle: settings.idleAutoRoutePromptsToTerminalActive
-                        ? "当前已进入空闲保护，后续新审批和提问会保留在终端。"
-                        : "达到该时长后自动进入空闲保护。"
-                ) {
-                    AutoRoutePromptsIdleDelayPicker(delay: $settings.autoRoutePromptsIdleDelay)
-                        .disabled(!settings.autoRoutePromptsToTerminalWhenIdleEnabled)
-                        .opacity(settings.autoRoutePromptsToTerminalWhenIdleEnabled ? 1 : 0.45)
-                }
-            }
-
-#if APP_STORE
-            SettingsSectionCard(title: "App Store 沙箱") {
-                SettingsInfoLine(
-                    title: "需要手动授权目录",
-                    subtitle: "App Store 版本不会默认写入 ~/.claude、~/.codex 等配置。安装或重装 Hooks 时，请在系统弹窗中授权用户主目录。"
-                ) {
-                    Image(systemName: "lock.shield")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(TerminalColors.amber)
-                }
-                SettingsLineDivider()
-                SettingsInfoLine(
-                    title: "Bridge 链路自检",
-                    subtitle: viewModel.bridgeHealthStatus.message
-                ) {
-                    HStack(spacing: 10) {
-                        Text(appLocalized: viewModel.bridgeHealthStatus.isHealthy ? "正常" : "异常")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(viewModel.bridgeHealthStatus.isHealthy ? TerminalColors.green : TerminalColors.amber)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Capsule(style: .continuous).fill((viewModel.bridgeHealthStatus.isHealthy ? TerminalColors.green : TerminalColors.amber).opacity(0.16)))
-                            .overlay(Capsule(style: .continuous).strokeBorder((viewModel.bridgeHealthStatus.isHealthy ? TerminalColors.green : TerminalColors.amber).opacity(0.28), lineWidth: 1))
-                        HookManagementButton(title: "重新检测", tint: TerminalColors.blue) {
-                            viewModel.refreshBridgeHealthStatus()
-                        }
-                    }
-                }
-            }
-#endif
-
-#if !APP_STORE
-            SettingsSectionCard(title: "系统权限") {
-                SettingsStatusLine(
-                    title: "辅助功能",
-                    subtitle: viewModel.accessibilityEnabled ? "已授权，可进行窗口聚焦与前台检测" : "未授权，部分自动聚焦能力不可用",
-                    status: viewModel.accessibilityEnabled ? "已开启" : "待开启",
-                    statusColor: viewModel.accessibilityEnabled ? TerminalColors.green : TerminalColors.amber
-                ) {
-                    if !viewModel.accessibilityEnabled { viewModel.openAccessibilitySettings() }
-                }
-            }
-#endif
-
-            Button(action: { showingUninstallAllHooksConfirmation = true }) {
-                HStack(spacing: 7) {
-                    Image(systemName: "trash").font(.system(size: 12, weight: .semibold))
-                    Text(appLocalized: "一键卸载所有 Hooks 配置文件").font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundColor(TerminalColors.red)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text(appLocalized: "一键卸载所有 Hooks 配置文件"))
         }
     }
 
