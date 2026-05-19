@@ -12,6 +12,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var shouldRunHookWalkthroughAfterOnboarding = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Ignore SIGPIPE so writing to a closed plugin stdin pipe doesn't crash the app.
+        signal(SIGPIPE, SIG_IGN)
+
         if launchConfiguration.shouldEnforceSingleInstance && !ensureSingleInstance() {
             NSApplication.shared.terminate(nil)
             return
