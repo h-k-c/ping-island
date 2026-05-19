@@ -27,6 +27,7 @@ final class PluginSlotArbiterTests: XCTestCase {
 
     func testSinglePluginAppearsOnRight() {
         let arbiter = makeArbiter()
+        arbiter.rightEarAssignment = "com.a"
         arbiter.handleCompact(makeCompact(pluginId: "com.a", position: .right, label: "A"))
         XCTAssertEqual(arbiter.activeRight?.label, "A")
         XCTAssertNil(arbiter.activeLeft)
@@ -34,6 +35,7 @@ final class PluginSlotArbiterTests: XCTestCase {
 
     func testSinglePluginAppearsOnLeft() {
         let arbiter = makeArbiter()
+        arbiter.leftEarAssignment = "com.a"
         arbiter.handleCompact(makeCompact(pluginId: "com.a", position: .left, label: "L"))
         XCTAssertEqual(arbiter.activeLeft?.label, "L")
         XCTAssertNil(arbiter.activeRight)
@@ -41,6 +43,7 @@ final class PluginSlotArbiterTests: XCTestCase {
 
     func testClearingContentRemovesFromSlot() {
         let arbiter = makeArbiter()
+        arbiter.rightEarAssignment = "com.a"
         arbiter.handleCompact(makeCompact(pluginId: "com.a", position: .right, label: "A"))
         arbiter.handleCompact(PluginCompactUpdate(pluginId: "com.a", position: .right, content: nil))
         XCTAssertNil(arbiter.activeRight)
@@ -48,6 +51,7 @@ final class PluginSlotArbiterTests: XCTestCase {
 
     func testCoreActivitySuppressesRightPlugin() {
         let arbiter = makeArbiter()
+        arbiter.rightEarAssignment = "com.a"
         arbiter.handleCompact(makeCompact(pluginId: "com.a", position: .right, label: "A"))
         arbiter.setCoreActive(true, side: .right)
         XCTAssertNil(arbiter.activeRight)
@@ -55,28 +59,17 @@ final class PluginSlotArbiterTests: XCTestCase {
 
     func testCoreActivityReleasedRestoresPlugin() {
         let arbiter = makeArbiter()
+        arbiter.rightEarAssignment = "com.a"
         arbiter.handleCompact(makeCompact(pluginId: "com.a", position: .right, label: "A"))
         arbiter.setCoreActive(true, side: .right)
         arbiter.setCoreActive(false, side: .right)
         XCTAssertEqual(arbiter.activeRight?.label, "A")
     }
 
-    func testMultiplePluginsSameSideCarousel() {
-        let arbiter = makeArbiter()
-        arbiter.handleCompact(makeCompact(pluginId: "com.a", position: .right, label: "A"))
-        arbiter.handleCompact(makeCompact(pluginId: "com.b", position: .right, label: "B"))
-
-        let first = arbiter.activeRight?.label
-        XCTAssertNotNil(first)
-
-        arbiter.advanceCarousel(side: .right)
-        let second = arbiter.activeRight?.label
-        XCTAssertNotNil(second)
-        XCTAssertNotEqual(first, second)
-    }
 
     func testLabelIsTruncatedToFourCharacters() {
         let arbiter = makeArbiter()
+        arbiter.rightEarAssignment = "com.a"
         arbiter.handleCompact(PluginCompactUpdate(
             pluginId: "com.a",
             position: .right,

@@ -5,6 +5,8 @@ import Foundation
 final class PluginSlotArbiter: ObservableObject {
     static let shared = PluginSlotArbiter()
 
+    // MARK: - Active display state (consumed by NotchView)
+
     @Published private(set) var activeLeft: PluginCompactContent?
     @Published private(set) var activeLeftPluginId: String?
     @Published private(set) var activeRight: PluginCompactContent?
@@ -13,76 +15,77 @@ final class PluginSlotArbiter: ObservableObject {
     @Published private(set) var expandedContent: [String: [ExpandedSection]] = [:]
     @Published var currentlyDisplayedExpandedPluginId: String?
 
-    private var leftSlots: [(pluginId: String, content: PluginCompactContent)] = []
-    private var rightSlots: [(pluginId: String, content: PluginCompactContent)] = []
-    private var leftCarouselIndex = 0
-    private var rightCarouselIndex = 0
-    private var coreLeftActive = false
+    // MARK: - Slot assignment (explicit — no more carousel)
+
+    /// plugin ID assigned to right ear, or nil = none
+    @Published var rightEarAssignment: String? {
+        didSet {
+            defaults.set(rightEarAssignment, forKey: Keys.rightEar)
+            recompute()
+        }
+    }
+
+    /// plugin ID assigned to left ear, or nil = none
+    @Published var leftEarAssignment: String? {
+        didSet {
+            defaults.set(leftEarAssignment, forKey: Keys.leftEar)
+            recompute()
+        }
+    }
+
+    // MARK: - Per-plugin latest content cache
+
+    private var rightContents: [String: PluginCompactContent] = [:]
+    private var leftContents:  [String: PluginCompactContent] = [:]
+    private var coreLeftActive  = false
     private var coreRightActive = false
-    private var carouselTimer: Timer?
+
+    private let defaults = UserDefaults.standard
+    private enum Keys {
+        static let rightEar = "PluginSlotArbiter.rightEar.v1"
+        static let leftEar  = "PluginSlotArbiter.leftEar.v1"
+    }
 
     init() {
-        startCarouselTimer()
+        rightEarAssignment = defaults.string(forKey: Keys.rightEar)
+        leftEarAssignment  = defaults.string(forKey: Keys.leftEar)
     }
 
-    private func startCarouselTimer() {
-        carouselTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.tickCarousel()
-            }
-        }
-    }
-
-    private func tickCarousel() {
-        var changed = false
-        if leftSlots.count > 1 {
-            leftCarouselIndex = (leftCarouselIndex + 1) % leftSlots.count
-            changed = true
-        }
-        if rightSlots.count > 1 {
-            rightCarouselIndex = (rightCarouselIndex + 1) % rightSlots.count
-            changed = true
-        }
-        if changed { recompute() }
-    }
+    // MARK: - Public API
 
     func handleCompact(_ update: PluginCompactUpdate) {
         switch update.position {
-        case .left:
-            leftSlots.removeAll { $0.pluginId == update.pluginId }
-            if let content = update.content {
-                leftSlots.append((update.pluginId, sanitize(content)))
-            }
-            leftCarouselIndex = 0
         case .right:
-            rightSlots.removeAll { $0.pluginId == update.pluginId }
             if let content = update.content {
-                rightSlots.append((update.pluginId, sanitize(content)))
+                rightContents[update.pluginId] = sanitize(content)
+            } else {
+                rightContents.removeValue(forKey: update.pluginId)
             }
-            rightCarouselIndex = 0
+        case .left:
+            if let content = update.content {
+                leftContents[update.pluginId] = sanitize(content)
+            } else {
+                leftContents.removeValue(forKey: update.pluginId)
+            }
         }
         recompute()
     }
 
     func handleNotify(_ update: PluginNotifyUpdate) {
-        var sanitized = update
-        if let d = update.content.duration {
-            let clamped = min(max(d, 0.5), 10.0)
-            sanitized = PluginNotifyUpdate(
-                pluginId: update.pluginId,
-                content: PluginNotifyContent(
-                    icon: update.content.icon,
-                    title: update.content.title,
-                    subtitle: update.content.subtitle,
-                    duration: clamped,
-                    actionLabel: update.content.actionLabel,
-                    actionId: update.content.actionId
-                )
+        let clamped = update.content.duration.map { min(max($0, 0.5), 10.0) }
+        let sanitized = PluginNotifyUpdate(
+            pluginId: update.pluginId,
+            content: PluginNotifyContent(
+                icon: update.content.icon,
+                title: update.content.title,
+                subtitle: update.content.subtitle,
+                duration: clamped,
+                actionLabel: update.content.actionLabel,
+                actionId: update.content.actionId
             )
-        }
+        )
         pendingNotifications.append(sanitized)
     }
-
 
     func dequeueNotification() -> PluginNotifyUpdate? {
         guard !pendingNotifications.isEmpty else { return nil }
@@ -106,42 +109,51 @@ final class PluginSlotArbiter: ObservableObject {
     }
 
     func removePlugin(_ pluginId: String) {
-        leftSlots.removeAll { $0.pluginId == pluginId }
-        rightSlots.removeAll { $0.pluginId == pluginId }
+        rightContents.removeValue(forKey: pluginId)
+        leftContents.removeValue(forKey: pluginId)
         expandedContent.removeValue(forKey: pluginId)
         pendingNotifications.removeAll { $0.pluginId == pluginId }
+        // If the removed plugin was assigned, clear the assignment
+        if rightEarAssignment == pluginId { rightEarAssignment = nil }
+        if leftEarAssignment  == pluginId { leftEarAssignment  = nil }
         recompute()
     }
 
-    func advanceCarousel(side: CompactPosition) {
-        switch side {
-        case .left:
-            guard leftSlots.count > 1 else { return }
-            leftCarouselIndex = (leftCarouselIndex + 1) % leftSlots.count
-        case .right:
-            guard rightSlots.count > 1 else { return }
-            rightCarouselIndex = (rightCarouselIndex + 1) % rightSlots.count
-        }
-        recompute()
+    /// All plugin IDs that have pushed compact-right content (for slot picker)
+    var availableRightPlugins: [String] {
+        Array(rightContents.keys).sorted()
     }
+
+    /// All plugin IDs that have pushed compact-left content (for slot picker)
+    var availableLeftPlugins: [String] {
+        Array(leftContents.keys).sorted()
+    }
+
+    // MARK: - Private
 
     private func recompute() {
-        if coreLeftActive || leftSlots.isEmpty {
-            activeLeft = nil
-            activeLeftPluginId = nil
-        } else {
-            let idx = leftCarouselIndex % leftSlots.count
-            activeLeft = leftSlots[idx].content
-            activeLeftPluginId = leftSlots[idx].pluginId
-        }
-
-        if coreRightActive || rightSlots.isEmpty {
+        // Right ear
+        if coreRightActive {
             activeRight = nil
             activeRightPluginId = nil
+        } else if let id = rightEarAssignment, let content = rightContents[id] {
+            activeRight = content
+            activeRightPluginId = id
         } else {
-            let idx = rightCarouselIndex % rightSlots.count
-            activeRight = rightSlots[idx].content
-            activeRightPluginId = rightSlots[idx].pluginId
+            activeRight = nil
+            activeRightPluginId = nil
+        }
+
+        // Left ear
+        if coreLeftActive {
+            activeLeft = nil
+            activeLeftPluginId = nil
+        } else if let id = leftEarAssignment, let content = leftContents[id] {
+            activeLeft = content
+            activeLeftPluginId = id
+        } else {
+            activeLeft = nil
+            activeLeftPluginId = nil
         }
     }
 

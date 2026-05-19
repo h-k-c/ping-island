@@ -4,9 +4,13 @@ struct PluginsSettingsView: View {
     @ObservedObject private var registry = PluginRegistry.shared
     @ObservedObject private var host = PluginHost.shared
     @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var arbiter = PluginSlotArbiter.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            // Slot assignment — always visible
+            slotAssignmentCard
+
             if registry.installedPlugins.isEmpty {
                 emptyCard
             } else {
@@ -39,6 +43,75 @@ struct PluginsSettingsView: View {
     }
 
     // MARK: - Cards
+
+    // MARK: - Slot Assignment Card
+
+    private var slotAssignmentCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("槽位分配")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.primary)
+                .padding(.bottom, 10)
+
+            pluginCard {
+                slotRow(side: "右耳", systemImage: "arrow.right.circle",
+                        assignment: Binding(
+                            get: { arbiter.rightEarAssignment },
+                            set: { arbiter.rightEarAssignment = $0 }
+                        ),
+                        availablePlugins: pluginsWithSlot("compact-right"))
+
+                configDivider()
+
+                slotRow(side: "左耳", systemImage: "arrow.left.circle",
+                        assignment: Binding(
+                            get: { arbiter.leftEarAssignment },
+                            set: { arbiter.leftEarAssignment = $0 }
+                        ),
+                        availablePlugins: pluginsWithSlot("compact-left"))
+            }
+        }
+    }
+
+    private func slotRow(
+        side: String,
+        systemImage: String,
+        assignment: Binding<String?>,
+        availablePlugins: [InstalledPlugin]
+    ) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+
+            Text(side)
+                .font(.system(size: 12, weight: .medium))
+
+            Spacer()
+
+            Picker("", selection: assignment) {
+                Text("不显示").tag(Optional<String>.none)
+                ForEach(availablePlugins, id: \.id) { plugin in
+                    Text(plugin.manifest.name).tag(Optional(plugin.id))
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(maxWidth: 140)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    /// Returns plugins that declare the given slot in their manifest.
+    private func pluginsWithSlot(_ slotRawValue: String) -> [InstalledPlugin] {
+        registry.installedPlugins.filter { plugin in
+            plugin.manifest.slots.contains { $0.rawValue == slotRawValue }
+        }
+    }
+
+    // MARK: - Empty State
 
     private var emptyCard: some View {
         pluginCard {
