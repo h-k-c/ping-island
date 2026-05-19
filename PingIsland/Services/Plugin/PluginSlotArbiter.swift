@@ -19,12 +19,36 @@ final class PluginSlotArbiter: ObservableObject {
     private var rightCarouselIndex = 0
     private var coreLeftActive = false
     private var coreRightActive = false
+    private var carouselTimer: Timer?
 
     /// Special plugin ID for the built-in Claude/Codex session count slot.
     /// NotchView uses this to render SessionCountIndicator instead of IslandPluginRenderer.
     static let systemSessionsPluginId = "__system.sessions__"
 
-    init() {}
+    init() {
+        startCarouselTimer()
+    }
+
+    private func startCarouselTimer() {
+        carouselTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.tickCarousel()
+            }
+        }
+    }
+
+    private func tickCarousel() {
+        var changed = false
+        if leftSlots.count > 1 {
+            leftCarouselIndex = (leftCarouselIndex + 1) % leftSlots.count
+            changed = true
+        }
+        if rightSlots.count > 1 {
+            rightCarouselIndex = (rightCarouselIndex + 1) % rightSlots.count
+            changed = true
+        }
+        if changed { recompute() }
+    }
 
     func handleCompact(_ update: PluginCompactUpdate) {
         switch update.position {
