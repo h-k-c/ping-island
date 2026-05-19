@@ -1,3 +1,4 @@
+import Security
 import SwiftUI
 
 struct PluginsSettingsView: View {
@@ -8,13 +9,16 @@ struct PluginsSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            // Slot assignment — always visible
+            // Slot assignment — always at top
             slotAssignmentCard
+
+            // One card per plugin
+            ForEach(registry.installedPlugins) { plugin in
+                pluginCard(plugin)
+            }
 
             if registry.installedPlugins.isEmpty {
                 emptyCard
-            } else {
-                pluginsCard
             }
 
             // Footer
@@ -42,9 +46,7 @@ struct PluginsSettingsView: View {
         }
     }
 
-    // MARK: - Cards
-
-    // MARK: - Slot Assignment Card
+    // MARK: - Slot Assignment
 
     private var slotAssignmentCard: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -53,47 +55,34 @@ struct PluginsSettingsView: View {
                 .foregroundStyle(.primary)
                 .padding(.bottom, 10)
 
-            pluginCard {
-                slotRow(side: "右耳", systemImage: "arrow.right.circle",
-                        assignment: Binding(
-                            get: { arbiter.rightEarAssignment },
-                            set: { arbiter.rightEarAssignment = $0 }
-                        ),
-                        availablePlugins: pluginsWithSlot("compact-right"))
-
-                configDivider()
-
-                slotRow(side: "左耳", systemImage: "arrow.left.circle",
-                        assignment: Binding(
-                            get: { arbiter.leftEarAssignment },
-                            set: { arbiter.leftEarAssignment = $0 }
-                        ),
-                        availablePlugins: pluginsWithSlot("compact-left"))
+            card {
+                slotRow(side: "右耳", image: "arrow.right.circle",
+                        assignment: Binding(get: { arbiter.rightEarAssignment },
+                                           set: { arbiter.rightEarAssignment = $0 }),
+                        plugins: pluginsWithSlot("compact-right"))
+                rowDivider()
+                slotRow(side: "左耳", image: "arrow.left.circle",
+                        assignment: Binding(get: { arbiter.leftEarAssignment },
+                                           set: { arbiter.leftEarAssignment = $0 }),
+                        plugins: pluginsWithSlot("compact-left"))
             }
         }
     }
 
-    private func slotRow(
-        side: String,
-        systemImage: String,
-        assignment: Binding<String?>,
-        availablePlugins: [InstalledPlugin]
-    ) -> some View {
+    private func slotRow(side: String, image: String,
+                         assignment: Binding<String?>,
+                         plugins: [InstalledPlugin]) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: systemImage)
+            Image(systemName: image)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
-
-            Text(side)
-                .font(.system(size: 12, weight: .medium))
-
+            Text(side).font(.system(size: 12, weight: .medium))
             Spacer()
-
             Picker("", selection: assignment) {
                 Text("不显示").tag(Optional<String>.none)
-                ForEach(availablePlugins, id: \.id) { plugin in
-                    Text(plugin.manifest.name).tag(Optional(plugin.id))
+                ForEach(plugins, id: \.id) { p in
+                    Text(p.manifest.name).tag(Optional(p.id))
                 }
             }
             .pickerStyle(.menu)
@@ -104,28 +93,98 @@ struct PluginsSettingsView: View {
         .padding(.vertical, 10)
     }
 
-    /// Returns plugins that declare the given slot in their manifest.
-    /// "compact" (legacy) is treated as "compact-right" for backward compatibility.
-    private func pluginsWithSlot(_ slotRawValue: String) -> [InstalledPlugin] {
-        registry.installedPlugins.filter { plugin in
-            plugin.manifest.slots.contains { slot in
-                slot.rawValue == slotRawValue
-                    || (slotRawValue == "compact-right" && slot == .compact)
+    // MARK: - Plugin Card
+
+    private func pluginCard(_ plugin: InstalledPlugin) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Card title = plugin name
+            Text(plugin.manifest.name)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.primary)
+                .padding(.bottom, 10)
+
+            card {
+                // Header row
+                pluginHeaderRow(plugin)
+
+                // Config items (always rendered uniformly)
+                if !plugin.manifest.configItems.isEmpty {
+                    rowDivider()
+                    ForEach(Array(plugin.manifest.configItems.enumerated()), id: \.offset) { idx, item in
+                        if idx > 0 { rowDivider() }
+                        PluginConfigItemView(plugin: plugin, item: item,
+                                            claudeRoute: $settings.claudeRoutePromptsToTerminal,
+                                            codexRoute: $settings.codexRoutePromptsToTerminal)
+                    }
+                }
             }
         }
     }
 
-    // MARK: - Empty State
+    private func pluginHeaderRow(_ plugin: InstalledPlugin) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            pluginIcon(plugin).frame(width: 36, height: 36)
+
+            VStack(alignment: .leading, spacing: 3) {
+                // Name row with status badges
+                HStack(spacing: 6) {
+                    Text(plugin.manifest.version)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                    if plugin.manifest.isBuiltIn {
+                        badge("内置", color: .secondary)
+                    }
+                    if case .failed(let r) = host.processStates[plugin.id] {
+                        badge("崩溃", color: .red, filled: true).help(r)
+                    }
+                }
+
+                // Description
+                if let desc = plugin.manifest.description {
+                    Text(desc).font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+
+                // Slot badges
+                if !plugin.manifest.slots.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(plugin.manifest.slots, id: \.rawValue) { slot in
+                            badge(slot.displayName, color: .secondary)
+                        }
+                    }
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            // Toggle / always-on
+            if plugin.manifest.isBuiltIn {
+                Text("始终开启")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            } else {
+                Toggle("", isOn: Binding(
+                    get: { registry.isEnabled(plugin.id) },
+                    set: { registry.setEnabled($0, for: plugin.id) }
+                ))
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    // MARK: - Empty state
 
     private var emptyCard: some View {
-        pluginCard {
+        card {
             VStack(spacing: 10) {
                 Image(systemName: "puzzlepiece.extension")
                     .font(.system(size: 28, weight: .light))
                     .foregroundStyle(.secondary)
                 Text("没有已安装的插件")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.primary)
                 Text("将 .pingplugin 文件放入插件文件夹即可安装")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -136,202 +195,28 @@ struct PluginsSettingsView: View {
         }
     }
 
-    private var pluginsCard: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            ForEach(registry.installedPlugins) { plugin in
-                singlePluginCard(plugin)
-            }
-        }
-    }
-
-    private func singlePluginCard(_ plugin: InstalledPlugin) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Card header: plugin name as title
-            Text(plugin.manifest.name)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(.primary)
-                .padding(.bottom, 10)
-
-            pluginCard {
-                // Main info row
-                HStack(alignment: .center, spacing: 12) {
-                    pluginIcon(plugin)
-                        .frame(width: 36, height: 36)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 6) {
-                            Text(plugin.manifest.version)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.tertiary)
-
-                            if plugin.manifest.isBuiltIn {
-                                capsuleBadge("内置", color: .secondary)
-                            }
-
-                            if case .failed(let reason) = host.processStates[plugin.id] {
-                                capsuleBadge("崩溃", color: .red, fill: true)
-                                    .help(reason)
-                            }
-
-                            // Slot badges
-                            ForEach(plugin.manifest.slots, id: \.rawValue) { slot in
-                                capsuleBadge(slot.displayName, color: .secondary)
-                            }
-                        }
-
-                        if let desc = plugin.manifest.description {
-                            Text(desc)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Spacer(minLength: 8)
-
-                    if plugin.manifest.isBuiltIn {
-                        Text("始终开启")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
-                    } else {
-                        Toggle("", isOn: Binding(
-                            get: { registry.isEnabled(plugin.id) },
-                            set: { registry.setEnabled($0, for: plugin.id) }
-                        ))
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                        .controlSize(.small)
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-
-                // Hook status row
-                if let profile = hookProfile(for: plugin.id) {
-                    configDivider()
-                    hookStatusRow(profile: profile)
-                }
-
-                // Approval routing row
-                if let routeBinding = approvalRouteBinding(for: plugin.id) {
-                    configDivider()
-                    approvalRouteRow(isOn: routeBinding)
-                }
-
-                // Usage plugin auth config
-                if plugin.id == "com.wudanwu.pingisland.usage" {
-                    configDivider()
-                    UsagePluginAuthView()
-                }
-            }
-        }
-    }
-
-    // MARK: - Config Sub-rows
-
-    private func hookStatusRow(profile: ManagedHookClientProfile) -> some View {
-        let installed = HookInstaller.isInstalled(profile)
-        return HStack(spacing: 8) {
-            Image(systemName: installed ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(installed ? Color.green : Color.orange)
-                .frame(width: 16)
-
-            Text(installed ? "Hook 已安装" : "Hook 未安装")
-                .font(.system(size: 11))
-                .foregroundStyle(installed ? Color.secondary : Color.orange)
-
-            Spacer()
-
-            if !installed {
-                Button("安装") { HookInstaller.install(profile) }
-                    .font(.system(size: 11, weight: .medium))
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.blue)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.02))
-    }
-
-    private func approvalRouteRow(isOn: Binding<Bool>) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "arrow.uturn.backward.circle")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
-
-            Text("审批与提问保留在终端")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
-            Toggle("", isOn: isOn)
-                .toggleStyle(.switch)
-                .labelsHidden()
-                .controlSize(.mini)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.02))
-    }
-
     // MARK: - Helpers
 
-    private func approvalRouteBinding(for pluginId: String) -> Binding<Bool>? {
-        switch pluginId {
-        case "com.wudanwu.pingisland.claude": return $settings.claudeRoutePromptsToTerminal
-        case "com.wudanwu.pingisland.codex":  return $settings.codexRoutePromptsToTerminal
-        default: return nil
+    private func pluginsWithSlot(_ rawValue: String) -> [InstalledPlugin] {
+        registry.installedPlugins.filter { p in
+            p.manifest.slots.contains {
+                $0.rawValue == rawValue || (rawValue == "compact-right" && $0 == .compact)
+            }
         }
-    }
-
-    private func hookProfile(for pluginId: String) -> ManagedHookClientProfile? {
-        let profileId: String
-        switch pluginId {
-        case "com.wudanwu.pingisland.claude": profileId = "claude-hooks"
-        case "com.wudanwu.pingisland.codex":  profileId = "codex-hooks"
-        default: return nil
-        }
-        return ClientProfileRegistry.managedHookProfiles.first { $0.id == profileId }
-    }
-
-    @ViewBuilder
-    private func capsuleBadge(_ text: String, color: Color, fill: Bool = false) -> some View {
-        Text(text)
-            .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(fill ? .white : color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(fill ? color : color.opacity(0.14), in: Capsule())
-    }
-
-    private func configDivider() -> some View {
-        Divider()
-            .background(Color.white.opacity(0.05))
-            .padding(.leading, 14)
     }
 
     @ViewBuilder
     private func pluginIcon(_ plugin: InstalledPlugin) -> some View {
+        let meta = iconMeta(for: plugin.manifest.id)
         if let iconPath = plugin.manifest.iconPath,
-           let image = NSImage(contentsOfFile: plugin.bundleURL.appendingPathComponent(iconPath).path) {
-            Image(nsImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
+           let img = NSImage(contentsOfFile: plugin.bundleURL.appendingPathComponent(iconPath).path) {
+            Image(nsImage: img).resizable().aspectRatio(contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } else {
-            let meta = pluginIconMeta(for: plugin.manifest.id)
             ZStack {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [meta.color.opacity(0.85), meta.color.opacity(0.55)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(LinearGradient(colors: [meta.color.opacity(0.85), meta.color.opacity(0.55)],
+                                        startPoint: .topLeading, endPoint: .bottomTrailing))
                 Image(systemName: meta.symbol)
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(.white.opacity(0.9))
@@ -339,15 +224,15 @@ struct PluginsSettingsView: View {
         }
     }
 
-    /// Returns a stable SF Symbol + color for a plugin ID.
-    private func pluginIconMeta(for pluginId: String) -> (symbol: String, color: Color) {
-        switch pluginId {
+    private func iconMeta(for id: String) -> (symbol: String, color: Color) {
+        switch id {
         case "com.wudanwu.pingisland.claude":
             return ("brain.head.profile", Color(red: 0.55, green: 0.36, blue: 0.96))
         case "com.wudanwu.pingisland.codex":
             return ("terminal.fill", Color(red: 0.18, green: 0.72, blue: 0.45))
+        case "com.wudanwu.pingisland.usage":
+            return ("chart.pie.fill", Color(red: 0.20, green: 0.60, blue: 0.90))
         default:
-            // Derive a stable color from the plugin ID hash
             let palette: [(String, Color)] = [
                 ("puzzlepiece.extension.fill", Color(red: 0.20, green: 0.60, blue: 0.90)),
                 ("puzzlepiece.extension.fill", Color(red: 0.95, green: 0.55, blue: 0.20)),
@@ -355,26 +240,216 @@ struct PluginsSettingsView: View {
                 ("puzzlepiece.extension.fill", Color(red: 0.30, green: 0.75, blue: 0.65)),
                 ("puzzlepiece.extension.fill", Color(red: 0.70, green: 0.40, blue: 0.90)),
             ]
-            let index = abs(pluginId.hashValue) % palette.count
-            return palette[index]
+            return palette[abs(id.hashValue) % palette.count]
         }
     }
 
-    // MARK: - Card container (matches SettingsSectionCard style)
+    private func badge(_ text: String, color: Color, filled: Bool = false) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(filled ? .white : color)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(filled ? color : color.opacity(0.14), in: Capsule())
+    }
+
+    private func rowDivider() -> some View {
+        Divider().background(Color.white.opacity(0.05)).padding(.leading, 14)
+    }
 
     @ViewBuilder
-    private func pluginCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(spacing: 0) {
-            content()
+    private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) { content() }
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.045))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+// MARK: - Config Item View (manifest-driven)
+
+private struct PluginConfigItemView: View {
+    let plugin: InstalledPlugin
+    let item: PluginConfigItem
+    @Binding var claudeRoute: Bool
+    @Binding var codexRoute: Bool
+
+    @State private var secretInput = ""
+    @State private var showInput = false
+    @State private var isStored = false
+    @State private var infoExists = false
+
+    var body: some View {
+        Group {
+            switch item.type {
+            case .info:     infoRow
+            case .secret:   secretRow
+            case .toggle:   toggleRow
+            case .text:     textRow
+            }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.045))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
-                )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color.white.opacity(0.02))
+        .onAppear { refreshState() }
+    }
+
+    // MARK: - Row types
+
+    private var infoRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: infoExists || hookInstalled ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(infoExists || hookInstalled ? Color.green : Color.orange)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.label).font(.system(size: 11)).foregroundStyle(.primary)
+                if let hint = item.hint, !hookInstalled && item.infoPath == nil {
+                    Text(hint).font(.system(size: 9)).foregroundStyle(.tertiary)
+                }
+            }
+            Spacer()
+            if let _ = item.hint, !hookInstalled, item.infoPath == nil {
+                Button("安装") { installHook() }
+                    .font(.system(size: 11, weight: .medium))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.blue)
+            }
+        }
+    }
+
+    private var secretRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: isStored ? "checkmark.circle.fill" : "key.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(isStored ? Color.green : Color.orange)
+                    .frame(width: 16)
+                Text(item.label).font(.system(size: 11)).foregroundStyle(.primary)
+                Spacer()
+                if isStored {
+                    Button("重置") { deleteSecret(); showInput = false }
+                        .font(.system(size: 10)).buttonStyle(.plain).foregroundStyle(.red.opacity(0.8))
+                } else {
+                    Button(showInput ? "取消" : "设置") { showInput.toggle(); secretInput = "" }
+                        .font(.system(size: 10)).buttonStyle(.plain).foregroundStyle(.blue)
+                }
+            }
+            if !isStored && !showInput, let hint = item.hint {
+                Text(hint).font(.system(size: 9)).foregroundStyle(.tertiary).fixedSize(horizontal: false, vertical: true)
+            }
+            if showInput {
+                HStack(spacing: 6) {
+                    SecureField("粘贴…", text: $secretInput)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11, design: .monospaced))
+                        .padding(6)
+                        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                    Button("保存") { saveSecret(secretInput.trimmingCharacters(in: .whitespaces)); showInput = false; secretInput = "" }
+                        .font(.system(size: 11, weight: .medium)).buttonStyle(.plain).foregroundStyle(.blue)
+                        .disabled(secretInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+
+    private var toggleRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.uturn.backward.circle")
+                .font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
+            Text(item.label).font(.system(size: 11)).foregroundStyle(.primary)
+            Spacer()
+            Toggle("", isOn: approvalBinding)
+                .toggleStyle(.switch).labelsHidden().controlSize(.mini)
+        }
+    }
+
+    private var textRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "text.cursor")
+                .font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
+            Text(item.label).font(.system(size: 11))
+            Spacer()
+        }
+    }
+
+    // MARK: - Helpers
+
+    private var approvalBinding: Binding<Bool> {
+        switch plugin.id {
+        case "com.wudanwu.pingisland.claude": return $claudeRoute
+        case "com.wudanwu.pingisland.codex":  return $codexRoute
+        default: return .constant(false)
+        }
+    }
+
+    private var hookInstalled: Bool {
+        guard let profileId = item.hint,
+              let profile = ClientProfileRegistry.managedHookProfiles.first(where: { $0.id == profileId })
+        else { return false }
+        return HookInstaller.isInstalled(profile)
+    }
+
+    private func installHook() {
+        guard let profileId = item.hint,
+              let profile = ClientProfileRegistry.managedHookProfiles.first(where: { $0.id == profileId })
+        else { return }
+        HookInstaller.install(profile)
+    }
+
+    private func refreshState() {
+        isStored = loadSecret() != nil
+        if let path = item.infoPath {
+            infoExists = FileManager.default.fileExists(
+                atPath: (NSHomeDirectory() as NSString).appendingPathComponent(path))
+        }
+    }
+
+    private var keychainKey: String { "\(plugin.id).\(item.key)" }
+
+    private func loadSecret() -> String? {
+        let q: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
+                                   kSecAttrAccount: keychainKey as CFString,
+                                   kSecReturnData: true, kSecMatchLimit: kSecMatchLimitOne]
+        var r: AnyObject?
+        guard SecItemCopyMatching(q as CFDictionary, &r) == errSecSuccess,
+              let d = r as? Data, let s = String(data: d, encoding: .utf8), !s.isEmpty
+        else { return nil }
+        return s
+    }
+
+    private func saveSecret(_ value: String) {
+        guard !value.isEmpty else { return }
+        let del: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
+                                     kSecAttrAccount: keychainKey as CFString]
+        SecItemDelete(del as CFDictionary)
+        // For claudeSessionKey, also save with the legacy key ClaudeAPIService expects
+        let legacyKey = item.key
+        if legacyKey != keychainKey {
+            let delLegacy: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
+                                               kSecAttrAccount: legacyKey as CFString]
+            SecItemDelete(delLegacy as CFDictionary)
+            let addLegacy: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
+                                               kSecAttrAccount: legacyKey as CFString,
+                                               kSecValueData: value.data(using: .utf8)!,
+                                               kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
+            SecItemAdd(addLegacy as CFDictionary, nil)
+        }
+        let add: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
+                                     kSecAttrAccount: keychainKey as CFString,
+                                     kSecValueData: value.data(using: .utf8)!,
+                                     kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
+        SecItemAdd(add as CFDictionary, nil)
+        isStored = true
+    }
+
+    private func deleteSecret() {
+        let q: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
+                                   kSecAttrAccount: keychainKey as CFString]
+        SecItemDelete(q as CFDictionary)
+        isStored = false
     }
 }

@@ -4,5 +4,19 @@
   "version": "1.0.0",
   "executable": "PingIslandPlugin",
   "slots": ["compact-right", "expanded"],
-  "description": "监控 Claude 和 Codex 用量与配额"
+  "description": "监控 Claude 和 Codex 用量与配额",
+  "config": [
+    {
+      "key": "claudeSessionKey",
+      "label": "Claude Session Key",
+      "type": "secret",
+      "hint": "claude.ai → F12 → Cookies → sessionKey"
+    },
+    {
+      "key": "codexAuth",
+      "label": "Codex 凭证",
+      "type": "info",
+      "infoPath": ".codex/auth.json"
+    }
+  ]
 }

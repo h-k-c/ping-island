@@ -6,5 +6,18 @@
   "slots": ["compact-right", "notification"],
   "subscriptions": ["hookEvent"],
   "builtIn": true,
-  "description": "监控 OpenAI Codex 会话状态"
+  "description": "监控 OpenAI Codex 会话状态",
+  "config": [
+    {
+      "key": "hookStatus",
+      "label": "Hook 状态",
+      "type": "info",
+      "hint": "codex-hooks"
+    },
+    {
+      "key": "approvalRouting",
+      "label": "审批与提问保留在终端",
+      "type": "toggle"
+    }
+  ]
 }

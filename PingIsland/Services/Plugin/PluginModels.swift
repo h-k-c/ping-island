@@ -13,15 +13,34 @@ struct PluginManifest: Codable, Identifiable, Equatable, Sendable {
     let iconPath: String?
     let subscriptions: [String]?
     let builtIn: Bool?
+    let config: [PluginConfigItem]?   // declarative settings items
 
     var isBuiltIn: Bool { builtIn ?? false }
     var subscribesTo: [String] { subscriptions ?? [] }
+    var configItems: [PluginConfigItem] { config ?? [] }
 
     private enum CodingKeys: String, CodingKey {
         case id, name, version, minIslandVersion, executable, slots, description
         case iconPath = "icon"
-        case subscriptions, builtIn
+        case subscriptions, builtIn, config
     }
+}
+
+// MARK: - Declarative config item
+
+struct PluginConfigItem: Codable, Equatable, Sendable {
+    enum ItemType: String, Codable, Sendable {
+        case secret      // password/key input, stored in Keychain
+        case text        // plain text input, stored in UserDefaults
+        case toggle      // bool toggle, stored in UserDefaults
+        case info        // read-only info row (e.g. file path status)
+    }
+
+    let key: String         // storage key (namespaced by plugin ID internally)
+    let label: String       // display label
+    let type: ItemType
+    let hint: String?       // placeholder or help text
+    let infoPath: String?   // for type=info: file path to check existence
 }
 
 enum PluginSlot: String, Codable, Equatable, Sendable {
