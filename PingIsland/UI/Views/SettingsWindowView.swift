@@ -169,7 +169,6 @@ final class SettingsPanelViewModel: ObservableObject {
     @Published var isExportingLogs = false
     @Published var logExportStatus = AppLocalization.string("导出最近 10 分钟的 Island 诊断日志与配置")
     @Published private(set) var reinstallingHookProfileID: String?
-    @Published private(set) var hookReinstallFeedbacks: [String: HookReinstallFeedback] = [:]
     @Published private(set) var customHookInstallations: [HookInstaller.CustomHookInstallation] = []
     @Published private(set) var qoderCLIHookRefreshStatus: HookInstaller.QoderCLIHookRefreshStatus?
     @Published private(set) var qoderCLIHookRefreshNoticeStatus: HookInstaller.QoderCLIHookRefreshStatus?
@@ -208,26 +207,7 @@ final class SettingsPanelViewModel: ObservableObject {
         self.accessibilitySettingsOpener = accessibilitySettingsOpener
     }
 
-    var visibleHookProfiles: [ManagedHookClientProfile] {
-        let profiles = ClientProfileRegistry.managedHookProfiles.filter { profile in
-            profile.alwaysVisibleInSettings
-                || (profile.id == "qoder-cli-hooks" && qoderCLIHookRefreshStatus != nil)
-                || ClientAppLocator.isInstalled(bundleIdentifiers: profile.localAppBundleIdentifiers)
-        }
 
-        return profiles.filter { $0.id != "gemini-hooks" }
-            + profiles.filter { $0.id == "gemini-hooks" }
-    }
-
-    var visibleIDEExtensionProfiles: [ManagedIDEExtensionProfile] {
-        ClientProfileRegistry.ideExtensionProfiles.filter { profile in
-            profile.showsInSettings
-                && (
-                    profile.alwaysVisibleInSettings
-                || ClientAppLocator.isInstalled(bundleIdentifiers: profile.localAppBundleIdentifiers)
-                )
-        }
-    }
 
     func refreshInitialState() {
         launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -311,160 +291,20 @@ final class SettingsPanelViewModel: ObservableObject {
         hookInstallationStates[profile.id] ?? false
     }
 
-    func isIDEExtensionInstalled(_ profile: ManagedIDEExtensionProfile) -> Bool {
-        ideExtensionInstallationStates[profile.id] ?? false
-    }
 
-    func installHooks(for profile: ManagedHookClientProfile) {
-#if APP_STORE
-        let didInstall = HookInstaller.installWithUserAuthorization(profile)
-        if didInstall {
-            AppSettings.hookInstallOnboardingPending = false
-        }
-#else
-        HookInstaller.install(profile)
-        let didInstall = HookInstaller.isInstalled(profile)
-#endif
-        Task {
-            await TelemetryService.shared.recordHookInstall(
-                profileID: profile.id,
-                result: didInstall,
-                source: AppSettings.hookInstallOnboardingPending ? "first_run" : "settings"
-            )
-        }
-        refreshHookInstallationStates()
-        refreshBridgeHealthStatus()
-    }
 
-    func installHooks(for profile: ManagedHookClientProfile, selection: HookInstallSelection) {
-#if APP_STORE
-        let didInstall = HookInstaller.installWithUserAuthorization(profile, selection: selection)
-        if didInstall {
-            AppSettings.hookInstallOnboardingPending = false
-        }
-#else
-        HookInstaller.install(profile, selection: selection)
-        let didInstall = HookInstaller.isInstalled(profile)
-#endif
-        Task {
-            await TelemetryService.shared.recordHookInstall(
-                profileID: profile.id,
-                result: didInstall,
-                source: AppSettings.hookInstallOnboardingPending ? "first_run" : "settings"
-            )
-        }
-        refreshHookInstallationStates()
-        refreshBridgeHealthStatus()
-    }
 
-    func reinstallHooks(for profile: ManagedHookClientProfile, selection: HookInstallSelection) {
-        guard reinstallingHookProfileID == nil else { return }
-
-        HookInstaller.saveSelection(selection, for: profile)
-
-        hookFeedbackClearTasks[profile.id]?.cancel()
-        hookFeedbackClearTasks[profile.id] = nil
-        hookReinstallFeedbacks[profile.id] = nil
-        reinstallingHookProfileID = profile.id
-
-        Task {
-            await Task.yield()
-
-#if APP_STORE
-            let didInstall = HookInstaller.reinstallWithUserAuthorization(profile, selection: selection)
-#else
-            HookInstaller.reinstall(profile)
-            let didInstall = HookInstaller.isInstalled(profile)
-#endif
-
-            try? await Task.sleep(nanoseconds: 450_000_000)
-
-            refreshHookInstallationStates()
-            refreshBridgeHealthStatus()
-            reinstallingHookProfileID = nil
-            Task {
-                await TelemetryService.shared.recordHookReinstall(profileID: profile.id, result: didInstall)
-            }
-            hookReinstallFeedbacks[profile.id] = HookReinstallFeedback(
-                message: didInstall
-                    ? AppLocalization.string("已更新 Hook 配置")
-                    : AppLocalization.string("更新失败，请稍后重试"),
-                isError: !didInstall
-            )
-
-            hookFeedbackClearTasks[profile.id] = Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
-                guard !Task.isCancelled else { return }
-                hookReinstallFeedbacks[profile.id] = nil
-                hookFeedbackClearTasks[profile.id] = nil
-            }
-        }
-    }
 
     func currentHookSelection(for profile: ManagedHookClientProfile) -> HookInstallSelection {
         HookInstaller.loadSelection(for: profile)
     }
 
-    func reinstallHooks(for profile: ManagedHookClientProfile) {
-        guard reinstallingHookProfileID == nil else { return }
 
-        hookFeedbackClearTasks[profile.id]?.cancel()
-        hookFeedbackClearTasks[profile.id] = nil
-        hookReinstallFeedbacks[profile.id] = nil
-        reinstallingHookProfileID = profile.id
-
-        Task {
-            await Task.yield()
-
-#if APP_STORE
-            let didInstall = HookInstaller.reinstallWithUserAuthorization(profile)
-#else
-            HookInstaller.reinstall(profile)
-            let didInstall = HookInstaller.isInstalled(profile)
-#endif
-
-            try? await Task.sleep(nanoseconds: 450_000_000)
-
-            refreshHookInstallationStates()
-            refreshBridgeHealthStatus()
-            reinstallingHookProfileID = nil
-            hookReinstallFeedbacks[profile.id] = HookReinstallFeedback(
-                message: didInstall
-                    ? AppLocalization.string("重新安装成功")
-                    : AppLocalization.string("重新安装失败，请稍后重试"),
-                isError: !didInstall
-            )
-
-            hookFeedbackClearTasks[profile.id] = Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
-                guard !Task.isCancelled else { return }
-                hookReinstallFeedbacks[profile.id] = nil
-                hookFeedbackClearTasks[profile.id] = nil
-            }
-        }
-    }
-
-    func uninstallHooks(for profile: ManagedHookClientProfile) {
-#if APP_STORE
-        guard HookInstaller.uninstallWithUserAuthorization(profile) else {
-            return
-        }
-#else
-        HookInstaller.uninstall(profile)
-#endif
-        refreshHookInstallationStates()
-        refreshBridgeHealthStatus()
-    }
 
     func installCustomHook(profileID: String, directoryPath: String) {
         HookInstaller.installCustom(profileID: profileID, directoryPath: directoryPath)
-        refreshCustomHookInstallations()
     }
 
-    func uninstallCustomHook(id: String) {
-        HookInstaller.uninstallCustom(id: id)
-        refreshCustomHookInstallations()
-    }
 
     func uninstallAllHooks() {
 #if APP_STORE
@@ -477,14 +317,9 @@ final class SettingsPanelViewModel: ObservableObject {
         for installation in HookInstaller.customInstallations() {
             HookInstaller.uninstallCustom(id: installation.id)
         }
-        refreshHookInstallationStates()
-        refreshCustomHookInstallations()
         refreshBridgeHealthStatus()
     }
 
-    func refreshCustomHookInstallations() {
-        customHookInstallations = HookInstaller.customInstallations()
-    }
 
     func openHookConfigurationDirectory(for profile: ManagedHookClientProfile) {
         guard let directoryURL = hookConfigurationDirectoryURL(for: profile) else {
@@ -494,44 +329,12 @@ final class SettingsPanelViewModel: ObservableObject {
         NSWorkspace.shared.open(directoryURL)
     }
 
-    func installIDEExtension(for profile: ManagedIDEExtensionProfile) {
-        IDEExtensionInstaller.install(profile)
-        refreshIDEExtensionInstallationStates()
-    }
 
-    func reinstallIDEExtension(for profile: ManagedIDEExtensionProfile) {
-        IDEExtensionInstaller.reinstall(profile)
-        refreshIDEExtensionInstallationStates()
-    }
 
-    func uninstallIDEExtension(for profile: ManagedIDEExtensionProfile) {
-        IDEExtensionInstaller.uninstall(profile)
-        refreshIDEExtensionInstallationStates()
-    }
 
-    func isReinstallingHooks(for profile: ManagedHookClientProfile) -> Bool {
-        reinstallingHookProfileID == profile.id
-    }
 
-    func hookReinstallFeedback(for profile: ManagedHookClientProfile) -> HookReinstallFeedback? {
-        hookReinstallFeedbacks[profile.id]
-    }
 
-    func hookNotice(for profile: ManagedHookClientProfile) -> String? {
-        guard profile.id == "qoder-cli-hooks",
-              let status = qoderCLIHookRefreshNoticeStatus else {
-            return nil
-        }
 
-        return AppLocalization.format(
-            "检测到 Qoder CLI %@；启动时会刷新 Island 托管的 Qoder CLI hooks，并保留同一 ~/.qoder/settings.json 内的 Qoder IDE hooks 与其他 JSON 配置。",
-            status.version
-        )
-    }
-
-    func authorizeIDEExtension(for profile: ManagedIDEExtensionProfile) {
-        _ = IDEExtensionInstaller.authorize(profile)
-    }
 
     func openAccessibilitySettings() {
         guard AccessibilityPermissionStatus.isAvailable else {
@@ -597,17 +400,7 @@ final class SettingsPanelViewModel: ObservableObject {
         return formatter.string(from: Date())
     }
 
-    private func refreshHookInstallationStates() {
-        hookInstallationStates = ClientProfileRegistry.managedHookProfiles.reduce(into: [:]) { result, profile in
-            result[profile.id] = HookInstaller.isInstalled(profile)
-        }
-    }
 
-    private func refreshIDEExtensionInstallationStates() {
-        ideExtensionInstallationStates = ClientProfileRegistry.ideExtensionProfiles.reduce(into: [:]) { result, profile in
-            result[profile.id] = IDEExtensionInstaller.isInstalled(profile)
-        }
-    }
 
     private func hookConfigurationDirectoryURL(for profile: ManagedHookClientProfile) -> URL? {
         let fileManager = FileManager.default
