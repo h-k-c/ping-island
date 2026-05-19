@@ -80,9 +80,16 @@ final class PluginHost: ObservableObject {
         registry.stop()
     }
 
-    func sendAction(actionId: String, to pluginId: String) async {
+    func sendAction(actionId: String, value: Any? = nil, to pluginId: String) async {
         if let process = processes[pluginId] {
-            await process.sendAction(actionId: actionId)
+            await process.sendAction(actionId: actionId, value: value)
+        }
+    }
+
+    /// Push a config value change to a running plugin immediately.
+    func notifyConfigUpdate(pluginId: String, key: String, value: Any) async {
+        if let process = processes[pluginId] {
+            await process.sendConfigUpdate(key: key, value: value)
         }
     }
 

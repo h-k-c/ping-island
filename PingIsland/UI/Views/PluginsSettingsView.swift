@@ -462,12 +462,21 @@ private struct PluginConfigItemView: View {
 
     // MARK: - Helpers
 
-    /// Binding for non-secret text/number/select/array/time stored in UserDefaults
+    /// Binding for non-secret text/number/select/array/time stored in UserDefaults.
+    /// Automatically pushes config/update to running plugin on change.
     private var storedTextBinding: Binding<String> {
-        let storageKey = "\(plugin.id).\(item.key)"
+        let pluginId = plugin.id
+        let key = item.key
+        let storageKey = "\(pluginId).\(key)"
         return Binding(
             get: { UserDefaults.standard.string(forKey: storageKey) ?? item.defaultValue ?? "" },
-            set: { UserDefaults.standard.set($0, forKey: storageKey) }
+            set: { newValue in
+                UserDefaults.standard.set(newValue, forKey: storageKey)
+                Task { @MainActor in
+                    await PluginHost.shared.notifyConfigUpdate(
+                        pluginId: pluginId, key: key, value: newValue)
+                }
+            }
         )
     }
 

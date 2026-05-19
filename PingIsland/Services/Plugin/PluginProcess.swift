@@ -74,8 +74,16 @@ actor PluginProcess {
         state = .stopped
     }
 
-    func sendAction(actionId: String) {
-        send(["jsonrpc": "2.0", "method": "action", "params": ["actionId": actionId]])
+    func sendAction(actionId: String, value: Any? = nil) {
+        var params: [String: Any] = ["actionId": actionId]
+        if let value { params["value"] = value }
+        send(["jsonrpc": "2.0", "method": "action", "params": params])
+    }
+
+    /// Push a config value change to the plugin in real-time.
+    func sendConfigUpdate(key: String, value: Any) {
+        send(["jsonrpc": "2.0", "method": "config/update",
+              "params": ["key": key, "value": value]])
     }
 
     private func launchWithRetry() async {
@@ -128,9 +136,13 @@ actor PluginProcess {
         startStdoutReader(stdoutPipe.fileHandleForReading)
         forwardStderr(stderrPipe.fileHandleForReading)
 
+        // Build config dict from PluginStorage — secrets decrypted, defaults applied
+        let configValues: [String: Any] = await MainActor.run {
+            PluginStorage.shared.allConfig(for: InstalledPlugin(manifest: manifest, bundleURL: bundleURL))
+        }
         send([
             "jsonrpc": "2.0", "id": 1, "method": "initialize",
-            "params": ["islandVersion": islandVersion, "pluginId": manifest.id, "config": [:] as [String: Any]]
+            "params": ["islandVersion": islandVersion, "pluginId": manifest.id, "config": configValues]
         ])
 
         let ready = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
