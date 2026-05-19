@@ -3,6 +3,7 @@ import SwiftUI
 struct PluginsSettingsView: View {
     @ObservedObject private var registry = PluginRegistry.shared
     @ObservedObject private var host = PluginHost.shared
+    @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -126,6 +127,11 @@ struct PluginsSettingsView: View {
                 if let hookProfile = hookProfile(for: plugin.id) {
                     hookInstallRow(profile: hookProfile)
                 }
+
+                // Per-plugin approval routing
+                if let routeBinding = approvalRouteBinding(for: plugin.id) {
+                    approvalRouteRow(isOn: routeBinding)
+                }
             }
 
             Spacer()
@@ -145,6 +151,36 @@ struct PluginsSettingsView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    /// Returns binding for per-provider approval routing, if applicable.
+    private func approvalRouteBinding(for pluginId: String) -> Binding<Bool>? {
+        switch pluginId {
+        case "com.wudanwu.pingisland.claude":
+            return $settings.claudeRoutePromptsToTerminal
+        case "com.wudanwu.pingisland.codex":
+            return $settings.codexRoutePromptsToTerminal
+        default:
+            return nil
+        }
+    }
+
+    @ViewBuilder
+    private func approvalRouteRow(isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.uturn.backward.circle")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Text("审批与提问保留在终端")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Toggle("", isOn: isOn)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .controlSize(.mini)
+        }
+        .padding(.top, 2)
     }
 
     /// Maps built-in plugin IDs to their managed hook profiles.

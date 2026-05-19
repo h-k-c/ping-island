@@ -12,7 +12,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     case mascot
     case sound
     case plugins
-    case integration
     case remote
     case labs
     case about
@@ -27,7 +26,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mascot: return "宠物"
         case .sound: return "声音"
         case .plugins: return "插件"
-        case .integration: return "集成"
         case .remote: return "远程"
         case .labs: return "实验室"
         case .about: return "关于"
@@ -42,7 +40,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mascot: return "客户端宠物与动作"
         case .sound: return "通知与提示音"
         case .plugins: return "已安装的岛插件"
-        case .integration: return "审批路由与 IDE 扩展"
         case .remote: return "SSH 主机与远程转发"
         case .labs: return "试验性特性"
         case .about: return "版本与更新"
@@ -57,7 +54,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mascot: return "face.smiling.fill"
         case .sound: return "speaker.wave.2.fill"
         case .plugins: return "puzzlepiece.extension.fill"
-        case .integration: return "link.circle.fill"
         case .remote: return "network.badge.shield.half.filled"
         case .labs: return "flask.fill"
         case .about: return "info.circle.fill"
@@ -72,7 +68,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mascot: return Color(red: 0.91, green: 0.27, blue: 0.81)  // Pink
         case .sound: return Color(red: 0.22, green: 0.83, blue: 0.42)
         case .plugins: return Color(red: 0.55, green: 0.36, blue: 0.96)
-        case .integration: return Color(red: 0.16, green: 0.76, blue: 0.72)
         case .remote: return Color(red: 0.95, green: 0.54, blue: 0.20)
         case .labs: return Color(red: 0.82, green: 0.48, blue: 0.97)
         case .about: return Color(red: 0.17, green: 0.60, blue: 0.96)
@@ -229,10 +224,6 @@ final class SettingsPanelViewModel: ObservableObject {
             + profiles.filter { $0.id == "gemini-hooks" }
     }
 
-    var hasIntegrationNotice: Bool {
-        qoderCLIHookRefreshNoticeStatus != nil
-    }
-
     var visibleIDEExtensionProfiles: [ManagedIDEExtensionProfile] {
         ClientProfileRegistry.ideExtensionProfiles.filter { profile in
             profile.showsInSettings
@@ -260,12 +251,6 @@ final class SettingsPanelViewModel: ObservableObject {
             refreshClosedNotchUsageAvailability()
         case .sound:
             SoundPackCatalog.shared.refresh()
-        case .integration:
-            refreshHookInstallationStates()
-            refreshIDEExtensionInstallationStates()
-            refreshCustomHookInstallations()
-            refreshQoderCLIHookRefreshStatus()
-            refreshBridgeHealthStatus()
         case .general, .shortcuts, .mascot, .plugins, .remote, .labs, .about:
             break
         }
@@ -889,8 +874,6 @@ private struct SettingsCategoryLoadingView: View {
             return AppLocalization.string("正在刷新显示器与用量展示状态")
         case .sound:
             return AppLocalization.string("正在扫描可用声音主题包")
-        case .integration:
-            return AppLocalization.string("正在检查 Hooks、IDE 扩展与客户端安装状态")
         case .general, .shortcuts, .mascot, .plugins, .remote, .labs, .about:
             return AppLocalization.string("马上就好")
         }
@@ -1239,7 +1222,7 @@ private struct SettingsPanelContentView: View {
                                     SidebarItemView(
                                         category: category,
                                         isSelected: selectedCategory == category,
-                                        showsNoticeDot: category == .integration && viewModel.hasIntegrationNotice
+                                        showsNoticeDot: false
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -1361,8 +1344,6 @@ private struct SettingsPanelContentView: View {
                         soundContent
                     case .plugins:
                         PluginsSettingsView()
-                    case .integration:
-                        integrationContent
                     case .remote:
                         remoteContent
                     case .labs:
@@ -1479,7 +1460,7 @@ private struct SettingsPanelContentView: View {
 
     private func shouldShowLoading(for category: SettingsCategory) -> Bool {
         switch category {
-        case .display, .sound, .integration:
+        case .display, .sound:
             return true
         case .general, .shortcuts, .mascot, .plugins, .remote, .labs, .about:
             return false
@@ -1797,34 +1778,34 @@ private struct SettingsPanelContentView: View {
                     EmptyView()
                 }
             }
-        }
-    }
 
-    private var mascotContent: some View {
-        MascotSettingsView()
-    }
+            // IDE 扩展（从集成页迁入）
+            let ideProfiles = viewModel.visibleIDEExtensionProfiles
+            if !ideProfiles.isEmpty {
+                SettingsSectionCard(title: "IDE 扩展") {
+                    let profiles = ideProfiles
+                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
+                        IDEExtensionManagementLine(
+                            profile: profile,
+                            isInstalled: viewModel.isIDEExtensionInstalled(profile),
+                            installAction: { viewModel.installIDEExtension(for: profile) },
+                            reinstallAction: { viewModel.reinstallIDEExtension(for: profile) },
+                            authorizeAction: { viewModel.authorizeIDEExtension(for: profile) },
+                            uninstallAction: { viewModel.uninstallIDEExtension(for: profile) }
+                        )
+                        if index < profiles.count - 1 { SettingsLineDivider() }
+                    }
+                }
+            }
 
-    private var soundContent: some View {
-        SoundSettingsContent()
-    }
-
-    private var integrationContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            SettingsSectionCard(title: "审批与提问") {
-                SettingsToggleLine(
-                    title: "保留终端中的提问与审批",
-                    subtitle: "开启后 Ping Island 不再代答 Claude / Codex 等的工具审批和 AskUserQuestion，所有提问保留在终端中处理；状态指示仍会显示。",
-                    isOn: $settings.routePromptsToTerminal
-                )
-                SettingsLineDivider()
-
+            // 空闲时自动审批路由（全局，影响所有 AI 插件）
+            SettingsSectionCard(title: "空闲审批路由") {
                 SettingsToggleLine(
                     title: "空闲时自动保留到终端",
-                    subtitle: "键盘和鼠标静默达到设定时长后临时开启上方策略；恢复活跃后回到手动设置。",
+                    subtitle: "键盘和鼠标静默达到设定时长后，临时将所有 AI 插件的审批与提问路由回终端；恢复活跃后回到各插件自身设置。",
                     isOn: $settings.autoRoutePromptsToTerminalWhenIdleEnabled
                 )
                 SettingsLineDivider()
-
                 SettingsInfoLine(
                     title: "静默时长",
                     subtitle: settings.idleAutoRoutePromptsToTerminalActive
@@ -1847,9 +1828,7 @@ private struct SettingsPanelContentView: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(TerminalColors.amber)
                 }
-
                 SettingsLineDivider()
-
                 SettingsInfoLine(
                     title: "Bridge 链路自检",
                     subtitle: viewModel.bridgeHealthStatus.message
@@ -1860,48 +1839,58 @@ private struct SettingsPanelContentView: View {
                             .foregroundColor(viewModel.bridgeHealthStatus.isHealthy ? TerminalColors.green : TerminalColors.amber)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill((viewModel.bridgeHealthStatus.isHealthy ? TerminalColors.green : TerminalColors.amber).opacity(0.16))
-                            )
-                            .overlay(
-                                Capsule(style: .continuous)
-                                    .strokeBorder((viewModel.bridgeHealthStatus.isHealthy ? TerminalColors.green : TerminalColors.amber).opacity(0.28), lineWidth: 1)
-                            )
-
-                        HookManagementButton(
-                            title: "重新检测",
-                            tint: TerminalColors.blue,
-                            action: {
-                                viewModel.refreshBridgeHealthStatus()
-                            }
-                        )
+                            .background(Capsule(style: .continuous).fill((viewModel.bridgeHealthStatus.isHealthy ? TerminalColors.green : TerminalColors.amber).opacity(0.16)))
+                            .overlay(Capsule(style: .continuous).strokeBorder((viewModel.bridgeHealthStatus.isHealthy ? TerminalColors.green : TerminalColors.amber).opacity(0.28), lineWidth: 1))
+                        HookManagementButton(title: "重新检测", tint: TerminalColors.blue) {
+                            viewModel.refreshBridgeHealthStatus()
+                        }
                     }
                 }
             }
 #endif
 
-            // Hooks 管理已迁移到「设置 → 插件」各插件行内，此处不再展示。
-
-            let ideProfiles = viewModel.visibleIDEExtensionProfiles
-            if !ideProfiles.isEmpty {
-                SettingsSectionCard(title: "IDE 扩展") {
-                    let profiles = ideProfiles
-                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
-                        IDEExtensionManagementLine(
-                            profile: profile,
-                            isInstalled: viewModel.isIDEExtensionInstalled(profile),
-                            installAction: { viewModel.installIDEExtension(for: profile) },
-                            reinstallAction: { viewModel.reinstallIDEExtension(for: profile) },
-                            authorizeAction: { viewModel.authorizeIDEExtension(for: profile) },
-                            uninstallAction: { viewModel.uninstallIDEExtension(for: profile) }
-                        )
-
-                        if index < profiles.count - 1 {
-                            SettingsLineDivider()
-                        }
-                    }
+#if !APP_STORE
+            SettingsSectionCard(title: "系统权限") {
+                SettingsStatusLine(
+                    title: "辅助功能",
+                    subtitle: viewModel.accessibilityEnabled ? "已授权，可进行窗口聚焦与前台检测" : "未授权，部分自动聚焦能力不可用",
+                    status: viewModel.accessibilityEnabled ? "已开启" : "待开启",
+                    statusColor: viewModel.accessibilityEnabled ? TerminalColors.green : TerminalColors.amber
+                ) {
+                    if !viewModel.accessibilityEnabled { viewModel.openAccessibilitySettings() }
                 }
+            }
+#endif
+
+            Button(action: { showingUninstallAllHooksConfirmation = true }) {
+                HStack(spacing: 7) {
+                    Image(systemName: "trash").font(.system(size: 12, weight: .semibold))
+                    Text(appLocalized: "一键卸载所有 Hooks 配置文件").font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundColor(TerminalColors.red)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(appLocalized: "一键卸载所有 Hooks 配置文件"))
+        }
+    }
+
+    private var mascotContent: some View {
+        MascotSettingsView()
+    }
+
+    private var soundContent: some View {
+        SoundSettingsContent()
+    }
+
+
+
+    private var labsContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            SettingsSectionCard(title: "实验室") {
+                LabsEmptyStateView()
             }
 
             SettingsSectionCard(title: "演示") {
@@ -1913,7 +1902,7 @@ private struct SettingsPanelContentView: View {
                 } accessory: {
                     Image(systemName: "sparkles")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(SettingsCategory.integration.tint.opacity(0.95))
+                        .foregroundColor(SettingsCategory.labs.tint.opacity(0.95))
                 }
                 SettingsLineDivider()
 
@@ -1928,44 +1917,6 @@ private struct SettingsPanelContentView: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(TerminalColors.blue.opacity(0.95))
                 }
-            }
-
-#if !APP_STORE
-            SettingsSectionCard(title: "系统权限") {
-                SettingsStatusLine(
-                    title: "辅助功能",
-                    subtitle: viewModel.accessibilityEnabled ? "已授权，可进行窗口聚焦与前台检测" : "未授权，部分自动聚焦能力不可用",
-                    status: viewModel.accessibilityEnabled ? "已开启" : "待开启",
-                    statusColor: viewModel.accessibilityEnabled ? TerminalColors.green : TerminalColors.amber
-                ) {
-                    if !viewModel.accessibilityEnabled {
-                        viewModel.openAccessibilitySettings()
-                    }
-                }
-            }
-#endif
-
-            Button(action: { showingUninstallAllHooksConfirmation = true }) {
-                HStack(spacing: 7) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text(appLocalized: "一键卸载所有 Hooks 配置文件")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundColor(TerminalColors.red)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text(appLocalized: "一键卸载所有 Hooks 配置文件"))
-        }
-    }
-
-    private var labsContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            SettingsSectionCard(title: "实验室") {
-                LabsEmptyStateView()
             }
         }
     }

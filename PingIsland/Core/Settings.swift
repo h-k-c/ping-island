@@ -407,7 +407,9 @@ final class AppSettingsStore: ObservableObject {
         static let openActiveSessionShortcutDisabled = "openActiveSessionShortcutDisabled"
         static let openSessionListShortcut = "openSessionListShortcut"
         static let openSessionListShortcutDisabled = "openSessionListShortcutDisabled"
-        static let routePromptsToTerminal = "routePromptsToTerminal"
+        static let routePromptsToTerminal = "routePromptsToTerminal"  // legacy global key (migrated)
+        static let claudeRoutePromptsToTerminal = "claudeRoutePromptsToTerminal"
+        static let codexRoutePromptsToTerminal = "codexRoutePromptsToTerminal"
         static let autoRoutePromptsToTerminalWhenIdleEnabled = "autoRoutePromptsToTerminalWhenIdleEnabled"
         static let autoRoutePromptsIdleDelay = "autoRoutePromptsIdleDelay"
         static let analyticsEnabled = AppSettingsDefaultKeys.analyticsEnabled
@@ -880,12 +882,32 @@ final class AppSettingsStore: ObservableObject {
         }
     }
 
+    // Legacy global key — kept for bridge config writes but not exposed in UI.
+    // Derived from per-provider settings.
     @Published var routePromptsToTerminal: Bool {
         didSet {
             guard !isBootstrapping else { return }
             defaults.set(routePromptsToTerminal, forKey: Keys.routePromptsToTerminal)
             recordTelemetrySettingChange(key: Keys.routePromptsToTerminal, value: routePromptsToTerminal.description)
             writeEffectiveBridgeRuntimeConfig()
+        }
+    }
+
+    // Per-provider approval routing settings
+    @Published var claudeRoutePromptsToTerminal: Bool {
+        didSet {
+            guard !isBootstrapping else { return }
+            defaults.set(claudeRoutePromptsToTerminal, forKey: Keys.claudeRoutePromptsToTerminal)
+            // Keep legacy key in sync for bridge compatibility
+            routePromptsToTerminal = claudeRoutePromptsToTerminal || codexRoutePromptsToTerminal
+        }
+    }
+
+    @Published var codexRoutePromptsToTerminal: Bool {
+        didSet {
+            guard !isBootstrapping else { return }
+            defaults.set(codexRoutePromptsToTerminal, forKey: Keys.codexRoutePromptsToTerminal)
+            routePromptsToTerminal = claudeRoutePromptsToTerminal || codexRoutePromptsToTerminal
         }
     }
 
@@ -1424,12 +1446,28 @@ final class AppSettingsStore: ObservableObject {
         _mascotOverrides = Published(initialValue: Self.sanitizedMascotOverrides(mascotOverrideRaw))
         _openActiveSessionShortcut = Published(initialValue: openActiveSessionShortcut)
         _openSessionListShortcut = Published(initialValue: openSessionListShortcut)
-        let routePromptsToTerminal = Self.boolValue(
+        // Migration: if legacy global key was true, seed per-provider keys
+        let legacyRoutePromptsToTerminal = Self.boolValue(
             from: defaults,
             key: Keys.routePromptsToTerminal,
             exists: persistedKeys.contains(Keys.routePromptsToTerminal),
             default: false
         )
+        let claudeRoute = Self.boolValue(
+            from: defaults,
+            key: Keys.claudeRoutePromptsToTerminal,
+            exists: persistedKeys.contains(Keys.claudeRoutePromptsToTerminal),
+            default: legacyRoutePromptsToTerminal  // inherit legacy value
+        )
+        let codexRoute = Self.boolValue(
+            from: defaults,
+            key: Keys.codexRoutePromptsToTerminal,
+            exists: persistedKeys.contains(Keys.codexRoutePromptsToTerminal),
+            default: legacyRoutePromptsToTerminal  // inherit legacy value
+        )
+        _claudeRoutePromptsToTerminal = Published(initialValue: claudeRoute)
+        _codexRoutePromptsToTerminal = Published(initialValue: codexRoute)
+        let routePromptsToTerminal = claudeRoute || codexRoute
         _routePromptsToTerminal = Published(initialValue: routePromptsToTerminal)
         _autoRoutePromptsToTerminalWhenIdleEnabled = Published(initialValue: Self.boolValue(
             from: defaults,
