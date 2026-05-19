@@ -1,0 +1,10 @@
+{
+  "id": "com.wudanwu.pingisland.claude",
+  "name": "Claude 会话",
+  "version": "1.0.0",
+  "executable": "Contents/MacOS/ClaudePlugin",
+  "slots": ["compact-right", "notification"],
+  "subscriptions": ["hookEvent"],
+  "builtIn": true,
+  "description": "监控 Claude Code 会话状态"
+}
