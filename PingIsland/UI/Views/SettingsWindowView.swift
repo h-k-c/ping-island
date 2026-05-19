@@ -925,10 +925,7 @@ private struct SettingsPanelContentView: View {
     @ObservedObject private var updateManager = UpdateManager.shared
     @ObservedObject private var remoteManager = RemoteConnectorManager.shared
     @State private var selectedCategory: SettingsCategory? = .general
-    @State private var pendingHookReinstallProfile: ManagedHookClientProfile?
-    @State private var pendingHookOptionsRequest: HookInstallOptionsRequest?
     @State private var showingUninstallAllHooksConfirmation = false
-    @State private var showingCustomHookInstallSheet = false
     @State private var showingRemoteHostSheet = false
     @State private var remotePasswordPromptRequest: RemotePasswordPromptRequest?
     @State private var showingAnalyticsConsentPrompt = false
@@ -1034,26 +1031,6 @@ private struct SettingsPanelContentView: View {
             Text(appLocalized: "仅发送匿名统计，用于了解启动、功能使用和 Hook 安装成功率。不会包含会话内容、代码、路径或主机信息。")
         }
         .alert(
-            "重新安装 Hooks？",
-            isPresented: Binding(
-                get: { pendingHookReinstallProfile != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        pendingHookReinstallProfile = nil
-                    }
-                }
-            ),
-            presenting: pendingHookReinstallProfile
-        ) { profile in
-            Button("取消", role: .cancel) {}
-            Button("重新安装") {
-                viewModel.reinstallHooks(for: profile)
-                pendingHookReinstallProfile = nil
-            }
-        } message: { profile in
-            Text(verbatim: AppLocalization.format(profile.reinstallDescriptionFormat, profile.title))
-        }
-        .alert(
             AppLocalization.string("一键卸载所有 Hooks 配置文件？"),
             isPresented: $showingUninstallAllHooksConfirmation
         ) {
@@ -1063,30 +1040,6 @@ private struct SettingsPanelContentView: View {
             }
         } message: {
             Text(appLocalized: "这会移除 Island 为所有本机集成写入的托管 Hooks 配置文件，包括自定义配置记录。")
-        }
-        .sheet(isPresented: $showingCustomHookInstallSheet) {
-            CustomHookInstallSheet(viewModel: viewModel) {
-                showingCustomHookInstallSheet = false
-            }
-        }
-        .sheet(item: $pendingHookOptionsRequest) { request in
-            HookInstallOptionsSheet(
-                profile: request.profile,
-                mode: request.mode,
-                initialSelection: viewModel.currentHookSelection(for: request.profile),
-                onConfirm: { selection in
-                    switch request.mode {
-                    case .install:
-                        viewModel.installHooks(for: request.profile, selection: selection)
-                    case .edit:
-                        viewModel.reinstallHooks(for: request.profile, selection: selection)
-                    }
-                    pendingHookOptionsRequest = nil
-                },
-                onDismiss: {
-                    pendingHookOptionsRequest = nil
-                }
-            )
         }
         .sheet(isPresented: $showingRemoteHostSheet) {
             AddRemoteHostSheet(remoteManager: remoteManager) {
@@ -2361,213 +2314,7 @@ private struct SettingsLineDivider: View {
     }
 }
 
-private struct HookManagementLine: View {
-    let profile: ManagedHookClientProfile
-    let isInstalled: Bool
-    let isReinstalling: Bool
-    let reinstallFeedback: SettingsPanelViewModel.HookReinstallFeedback?
-    let noticeMessage: String?
-    let supportsEventSelection: Bool
-    let installAction: () -> Void
-    let configureAction: () -> Void
-    let openConfigurationDirectoryAction: () -> Void
-    let reinstallAction: () -> Void
-    let uninstallAction: () -> Void
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 14) {
-                HookManagementIcon(profile: profile)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(appLocalized: title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-
-                    Text(appLocalized: subtitle)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white.opacity(0.58))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if let noticeMessage {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Circle()
-                                .fill(TerminalColors.amber)
-                                .frame(width: 6, height: 6)
-                                .alignmentGuide(.firstTextBaseline) { context in
-                                    context[VerticalAlignment.center]
-                                }
-
-                            Text(verbatim: noticeMessage)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(TerminalColors.amber.opacity(0.92))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(.top, 2)
-                    }
-                }
-
-                Spacer(minLength: 12)
-
-                Text(appLocalized: isInstalled ? "已安装" : "未安装")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(isInstalled ? tint : .white.opacity(0.65))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill((isInstalled ? tint : .white).opacity(isInstalled ? 0.18 : 0.08))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .strokeBorder((isInstalled ? tint : .white).opacity(isInstalled ? 0.28 : 0.12), lineWidth: 1)
-                    )
-            }
-
-            HStack(spacing: 10) {
-                if isInstalled {
-                    if supportsEventSelection {
-                        HookManagementButton(
-                            title: "配置",
-                            tint: tint,
-                            isDisabled: isReinstalling,
-                            action: configureAction
-                        )
-                    }
-                    HookManagementButton(
-                        title: "打开配置目录",
-                        tint: TerminalColors.blue,
-                        isDisabled: isReinstalling,
-                        action: openConfigurationDirectoryAction
-                    )
-                    HookManagementButton(
-                        title: isReinstalling ? "重新安装中..." : "重新安装",
-                        tint: tint,
-                        isLoading: isReinstalling,
-                        isDisabled: isReinstalling,
-                        action: reinstallAction
-                    )
-                    HookManagementButton(
-                        title: "卸载",
-                        tint: TerminalColors.amber,
-                        isDisabled: isReinstalling,
-                        action: uninstallAction
-                    )
-                } else {
-                    HookManagementButton(
-                        title: "安装",
-                        tint: tint,
-                        isDisabled: isReinstalling,
-                        action: installAction
-                    )
-                }
-            }
-
-            if let reinstallFeedback {
-                HStack(spacing: 8) {
-                    Image(systemName: reinstallFeedback.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(reinstallFeedback.isError ? TerminalColors.amber : TerminalColors.green)
-
-                    Text(reinstallFeedback.message)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.76))
-                }
-                .padding(.horizontal, 2)
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var title: String {
-        profile.title
-    }
-
-    private var subtitle: String {
-        profile.subtitle
-    }
-
-    private var tint: Color {
-        brandTint(profile.brand)
-    }
-}
-
-private struct CustomHookInstallationLine: View {
-    let installation: HookInstaller.CustomHookInstallation
-    let uninstallAction: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 14) {
-                if let profile = ClientProfileRegistry.managedHookProfile(id: installation.profileID) {
-                    HookManagementIcon(profile: profile)
-                } else {
-                    Image(systemName: "folder.badge.gearshape")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 34, height: 34)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.white.opacity(0.08))
-                        )
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(appLocalized: installation.profileTitle)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-
-                        Text(appLocalized: "自定义")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(TerminalColors.blue)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(TerminalColors.blue.opacity(0.18))
-                            )
-                    }
-
-                    Text(installation.customPath)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white.opacity(0.5))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-
-                Spacer(minLength: 12)
-
-                Text(appLocalized: "已安装")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(TerminalColors.green)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(TerminalColors.green.opacity(0.18))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .strokeBorder(TerminalColors.green.opacity(0.28), lineWidth: 1)
-                    )
-            }
-
-            HStack(spacing: 10) {
-                HookManagementButton(
-                    title: "卸载",
-                    tint: TerminalColors.amber,
-                    action: uninstallAction
-                )
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
 
 private struct CustomHookInstallSheet: View {
     @ObservedObject var viewModel: SettingsPanelViewModel
@@ -2806,11 +2553,6 @@ enum HookInstallOptionsMode {
     case edit
 }
 
-struct HookInstallOptionsRequest: Identifiable {
-    let id = UUID()
-    let profile: ManagedHookClientProfile
-    let mode: HookInstallOptionsMode
-}
 
 private struct HookInstallOptionsSheet: View {
     let profile: ManagedHookClientProfile
@@ -3664,86 +3406,7 @@ private struct RemotePasswordPromptSheet: View {
     }
 }
 
-private struct IDEExtensionManagementLine: View {
-    let profile: ManagedIDEExtensionProfile
-    let isInstalled: Bool
-    let installAction: () -> Void
-    let reinstallAction: () -> Void
-    let authorizeAction: () -> Void
-    let uninstallAction: () -> Void
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 14) {
-                IDEExtensionManagementIcon(profile: profile)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(appLocalized: profile.title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-
-                    Text(appLocalized: profile.subtitle)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white.opacity(0.58))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 12)
-
-                Text(appLocalized: isInstalled ? "已安装" : "未安装")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(isInstalled ? tint : .white.opacity(0.65))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill((isInstalled ? tint : .white).opacity(isInstalled ? 0.18 : 0.08))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .strokeBorder((isInstalled ? tint : .white).opacity(isInstalled ? 0.28 : 0.12), lineWidth: 1)
-                    )
-            }
-
-            HStack(spacing: 10) {
-                if isInstalled {
-                    HookManagementButton(title: "重新安装", tint: tint, action: reinstallAction)
-                    HookManagementButton(title: "授权", tint: TerminalColors.blue, action: authorizeAction)
-                    HookManagementButton(title: "卸载", tint: TerminalColors.amber, action: uninstallAction)
-                } else {
-                    HookManagementButton(title: "安装", tint: tint, action: installAction)
-                }
-            }
-
-            if !isInstalled {
-                Text(appLocalized: "安装完成后，如编辑器尚未识别扩展，请重启对应 IDE 再点击“授权”。")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white.opacity(0.44))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var tint: Color {
-        ideTint(profile.id)
-    }
-}
-
-private struct IDEExtensionManagementIcon: View {
-    let profile: ManagedIDEExtensionProfile
-
-    var body: some View {
-        SettingsClientIcon(
-            logoAssetName: profile.logoAssetName,
-            prefersBundledLogoOverAppIcon: profile.prefersBundledLogoOverAppIcon,
-            localAppBundleIdentifiers: profile.localAppBundleIdentifiers,
-            iconSymbolName: profile.iconSymbolName
-        )
-    }
-}
 
 private struct SettingsClientIcon: View {
     let logoAssetName: String?
