@@ -4,13 +4,11 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 
 ## Mission
 
-- `PingIsland` is a macOS menu bar app that surfaces Dynamic Island-style status for Claude Code, Codex, Gemini CLI, Hermes Agent, Qwen Code, Kimi CLI, and compatible hook-driven agent sessions.
+- `PingIsland` is a macOS **Dynamic Island plugin platform** that surfaces AI session status for Claude Code, Codex, Gemini CLI, Hermes Agent, Qwen Code, Kimi CLI, and compatible hook-driven sessions.
+- Third-party apps can display content on the island by installing a `.pingplugin` bundle and communicating via JSON-RPC over stdin/stdout (`island/compact`, `island/notify`, `island/expanded`). Claude and Codex session monitoring are built-in plugins.
 - The main runtime path is:
-  - hook or app-server events
-  - monitoring and service layers
-  - `SessionStore`
-  - `SessionMonitor` and `NotchViewModel`
-  - SwiftUI notch UI
+  - hook or app-server events → `SessionMonitor` → `SessionStore` → `NotchViewModel` → SwiftUI notch UI
+  - hook events also forwarded via `PluginEventBus` → subscribed plugin processes → `PluginSlotArbiter` → notch UI
 - There are two important codepaths:
   - `PingIsland/`: the shipping Xcode app
   - `Prototype/`: a SwiftPM prototype with focused tests and reference implementations
@@ -28,7 +26,8 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - Session bridge for UI: `PingIsland/Services/Session/SessionMonitor.swift`
 - Notch state and layout: `PingIsland/Core/NotchViewModel.swift`, `PingIsland/UI/Views/NotchView.swift`
 - App-wide low-power policy for background polling, event monitoring, UI animation tiers, and silent update gating: `PingIsland/Core/EnergyGovernor.swift`
-- User idle protection for temporarily routing blocking approvals/questions back to terminals: `PingIsland/Core/UserIdleAutoProtection.swift`, `PingIsland/Core/Settings.swift`, `PingIsland/Services/Hooks/BridgeRuntimeConfigWriter.swift`
+- User idle protection and per-provider approval routing (`claudeRoutePromptsToTerminal`, `codexRoutePromptsToTerminal` in `Settings.swift`): `PingIsland/Core/UserIdleAutoProtection.swift`, `PingIsland/Core/Settings.swift`, `PingIsland/Services/Hooks/BridgeRuntimeConfigWriter.swift`
+- **Plugin platform**: `PingIsland/Services/Plugin/` (PluginRegistry, PluginProcess, PluginHost, PluginSlotArbiter, IslandPluginRenderer, PluginEventBus), `PingIslandPlugin/main.swift` (built-in Swift CLI for Claude/Codex plugins), `PingIsland/Resources/PluginBundles/` (built-in plugin manifests)
 - Detached floating capsule: `PingIsland/UI/Window/DetachedIslandWindowController.swift`, `PingIsland/UI/Views/DetachedIslandPanelView.swift`, `PingIsland/UI/Views/IslandOpenedContentView.swift`
   - Detached pet interactions now keep the pet anchored in place while hover/click previews expand sideways as message-bubble lists; trace both the panel layout and window-anchor math together when changing this flow
   - Expanded content routing is shared with the docked notch through `IslandOpenedContentView` + `IslandExpandedRouteResolver`; keep hover/click/notification semantics aligned instead of reintroducing detached-only content priorities
@@ -63,6 +62,9 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - `PingIsland/Services/Update`: Sparkle updater bridge, appcast/release-notes loading, update state publishing
 - `PingIsland/Services/Window/IDEExtensionInstaller.swift`: installs the VS Code-compatible terminal-focus extension used by Cursor / VS Code / CodeBuddy / Qoder style IDE hosts (`QoderWork` is hook-only, not an IDE extension host)
 - `PingIsland/UI`: SwiftUI views, reusable components, AppKit-backed window controllers
+- `PingIsland/Services/Plugin`: plugin protocol infrastructure — registry, subprocess lifecycle, slot arbitration, event bus, SwiftUI renderer
+- `PingIslandPlugin`: Swift CLI target compiled into app bundle; reads `PING_ISLAND_PLUGIN_ID` env var to run Claude or Codex session monitoring logic
+- `PingIsland/Resources/PluginBundles`: built-in plugin manifests (Xcode flattens contents into `Resources/` — each manifest is named `<plugin-id>.manifest.json`)
 - `PingIsland/Resources`: hook assets, entitlements, bundled fonts
 - `Prototype`: Swift package prototype and testbed
 - `Prototype/Tests`: logic-level unit tests plus process/socket e2e coverage for `IslandBridge`, hook mapping, and install flows
@@ -101,7 +103,10 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - If you change background polling, global event monitors, silent update scheduling, or idle animation behavior, inspect `PingIsland/Core/EnergyGovernor.swift` plus the affected service/view so active sessions stay responsive while quiet, locked, or sleeping periods remain low-power.
 - If you change built-in notification sounds or startup audio, inspect `PingIsland/Core/Settings.swift`, `PingIsland/Core/SoundPackCatalog.swift`, `PingIsland/UI/Views/SettingsWindowView.swift`, `PingIsland/App/AppDelegate.swift`, and `PingIsland/Resources/Sounds/` together so mode selection, fixed mappings, previews, and bundled assets stay aligned.
 - If you change client mascot selection or mascot animations, trace through `PingIsland/Models/ClientProfile.swift`, `PingIsland/Core/Settings.swift`, `PingIsland/UI/Components/MascotView.swift`, and the mascot callsites in `NotchView`, `SessionListView`, `SessionHoverPreviewView`, and `MascotSettingsView` so runtime overrides and previews stay aligned.
-- If you change completion-result popup behavior, trace through `SessionStore`, `SessionMonitor`, `PingIsland/UI/Views/NotchView.swift`, and `PingIsland/UI/Views/SessionCompletionNotificationView.swift` so completion detection, queueing, and auto-dismiss timing stay aligned.
+- If you change completion-result popup behavior, trace through `SessionStore`, `SessionMonitor`, `NotchView.swift`, and `SessionCompletionNotificationView.swift` for the legacy session path; also check `PluginSlotArbiter.pendingNotifications` and `NotchView.dequeuePluginNotification()` for the plugin path.
+- If you add or modify a plugin, the entry point is `PingIsland/Services/Plugin/`. `PluginManifest` (in `PluginModels.swift`) declares slots, subscriptions, and builtIn flag. Built-in plugins go in `PingIsland/Resources/PluginBundles/` with `<id>.manifest.json` naming. The `PingIslandPlugin` Swift CLI handles `com.wudanwu.pingisland.claude` and `com.wudanwu.pingisland.codex` via `PING_ISLAND_PLUGIN_ID` env var.
+- If you add a new AI provider hook client, also add a corresponding plugin case to `PingIslandPlugin/main.swift` and a manifest in `PingIsland/Resources/PluginBundles/`.
+- Settings no longer has a dedicated 集成 tab. Hook install status is in the Plugins settings tab (plugin row); IDE extensions, idle routing, and system permissions are in the 通用 tab.
 - If you change tmux or terminal focusing, trace through `Services/Tmux`, `Services/Window`, and `TerminalVisibilityDetector`.
 - If you change IDE terminal jump behavior, inspect both `TerminalSessionFocuser` and `IDEExtensionInstaller`, plus the integration settings UI so install state and URI schemes stay aligned.
 - If you change Codex behavior, verify both the monitor layer under `PingIsland/Services/Codex/` and the UI under `PingIsland/UI/Views/CodexSessionView.swift`.
@@ -120,8 +125,8 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
   - `xcodebuild -project PingIsland.xcodeproj -scheme PingIsland -configuration Release build`
 - Mac App Store unsigned archive validation:
   - `PING_ISLAND_SKIP_APP_STORE_SIGNING=1 ./scripts/build-app-store.sh`
-- Root Xcode unit tests:
-  - `xcodebuild -project PingIsland.xcodeproj -scheme PingIsland -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PingIslandTests`
+- Root Xcode unit tests (CODE_SIGNING_ALLOWED=NO required — no local Mac Development cert):
+  - `xcodebuild -project PingIsland.xcodeproj -scheme PingIsland -destination 'platform=macOS,arch=arm64' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO -skipPackagePluginValidation test -only-testing:PingIslandTests`
 - Root Xcode UI tests:
   - `xcodebuild -project PingIsland.xcodeproj -scheme PingIsland -configuration Debug CODE_SIGN_IDENTITY=- test -only-testing:PingIslandUITests`
   - macOS may block the UI test runner until a valid local signing identity is available; if `PingIslandUITests-Runner` stays launch-suspended, inspect `amfid` and `AppleSystemPolicy` logs before treating it as an app regression
@@ -178,3 +183,5 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - `Prototype/Tests` remains the fastest place for logic-level unit tests plus process/socket e2e coverage.
 - Sparkle update discovery is expected to use the GitHub Releases `latest/download/appcast.xml` asset unless a local override explicitly replaces it.
 - The worktree may already be dirty. Check `git status` before broad edits.
+- PingIsland is a plugin platform. Claude and Codex session monitoring are built-in plugins (`com.wudanwu.pingisland.claude`, `com.wudanwu.pingisland.codex`), not hardcoded UI. Third-party `.pingplugin` bundles install to `~/Library/Application Support/PingIsland/Plugins/`.
+- `SettingsCategory.integration` no longer exists. Hook management lives in the Plugins settings tab; approval routing, IDE extensions, and system permissions are in 通用.
