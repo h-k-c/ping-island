@@ -6,41 +6,107 @@ struct PluginManifest: Codable, Identifiable, Equatable, Sendable {
     let id: String
     let name: String
     let version: String
+    let protocolVersion: String?        // IPP version this plugin targets
     let minIslandVersion: String?
     let executable: String
     let slots: [PluginSlot]
     let description: String?
-    let iconPath: String?
+    let iconPath: String?               // legacy file-based icon
+    let icon: PluginIconDeclaration?    // new: self-declared sfSymbol + color
+    let author: String?
+    let category: PluginCategory?
+    let runMode: PluginRunMode?
+    let allowMultipleInstances: Bool?
+    let acceptsDrop: [String]?         // ["file","text","url"]
+    let permissions: [String]?
     let subscriptions: [String]?
+    let updateURL: String?
     let builtIn: Bool?
-    let config: [PluginConfigItem]?   // declarative settings items
+    let config: [PluginConfigItem]?
 
     var isBuiltIn: Bool { builtIn ?? false }
     var subscribesTo: [String] { subscriptions ?? [] }
     var configItems: [PluginConfigItem] { config ?? [] }
+    var allowsMultiple: Bool { allowMultipleInstances ?? false }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, version, minIslandVersion, executable, slots, description
-        case iconPath = "icon"
-        case subscriptions, builtIn, config
+        case id, name, version, protocolVersion, minIslandVersion, executable
+        case slots, description, author, category, runMode
+        case allowMultipleInstances, acceptsDrop, permissions, subscriptions, updateURL
+        case iconPath            // legacy
+        case icon                // new self-declared icon
+        case builtIn, config
     }
+}
+
+// MARK: - Icon declaration (self-declared by plugin, no hardcoding in app)
+
+struct PluginIconDeclaration: Codable, Equatable, Sendable {
+    let sfSymbol: String
+    let color: String   // hex e.g. "#8B5CF6"
+}
+
+// MARK: - Plugin category
+
+enum PluginCategory: String, Codable, Sendable {
+    case productivity, monitoring, ai, communication, tools, system, entertainment
+}
+
+// MARK: - Run mode
+
+enum PluginRunMode: String, Codable, Sendable {
+    case always     // always running (default)
+    case onDemand   // started only when island opens
+    case scheduled  // woken by cron-style schedule
 }
 
 // MARK: - Declarative config item
 
 struct PluginConfigItem: Codable, Equatable, Sendable {
     enum ItemType: String, Codable, Sendable {
-        case secret      // password/key input, stored in Keychain
-        case text        // plain text input, stored in UserDefaults
-        case toggle      // bool toggle, stored in UserDefaults
-        case info        // read-only info row (e.g. file path status)
+        case secret      // stored in Keychain, shown as SecureField
+        case text        // plain text, stored in UserDefaults
+        case toggle      // Bool, stored in UserDefaults
+        case number      // Double with optional min/max/step
+        case select      // enum picker, requires options
+        case array       // list of text values
+        case time        // HH:mm time picker
+        case info        // read-only status row
     }
 
-    let key: String         // storage key (namespaced by plugin ID internally)
-    let label: String       // display label
+    let key: String
+    let label: String
     let type: ItemType
-    let hint: String?       // placeholder or help text
-    let infoPath: String?   // for type=info: file path to check existence
+    let hint: String?
+    let required: Bool?
+    let defaultValue: String?           // JSON-encoded default
+
+    // number
+    let min: Double?
+    let max: Double?
+    let step: Double?
+    let unit: String?
+
+    // select
+    let options: [PluginConfigOption]?
+
+    // info
+    let infoPath: String?               // file path to check existence
+    let infoHookId: String?             // managed hook profile ID to check
+
+    var isRequired: Bool { required ?? false }
+
+    private enum CodingKeys: String, CodingKey {
+        case key, label, type, hint, required
+        case defaultValue = "default"
+        case min, max, step, unit, options
+        case infoPath, infoHookId
+    }
+}
+
+struct PluginConfigOption: Codable, Equatable, Sendable {
+    let label: String
+    let value: String
 }
 
 enum PluginSlot: String, Codable, Equatable, Sendable {

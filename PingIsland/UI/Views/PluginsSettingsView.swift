@@ -207,12 +207,13 @@ struct PluginsSettingsView: View {
 
     @ViewBuilder
     private func pluginIcon(_ plugin: InstalledPlugin) -> some View {
-        let meta = iconMeta(for: plugin.manifest.id)
+        // Priority: iconPath (file) > manifest.icon (self-declared) > fallback hash palette
         if let iconPath = plugin.manifest.iconPath,
            let img = NSImage(contentsOfFile: plugin.bundleURL.appendingPathComponent(iconPath).path) {
             Image(nsImage: img).resizable().aspectRatio(contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } else {
+            let meta = iconMeta(for: plugin.manifest)
             ZStack {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(LinearGradient(colors: [meta.color.opacity(0.85), meta.color.opacity(0.55)],
@@ -224,24 +225,22 @@ struct PluginsSettingsView: View {
         }
     }
 
-    private func iconMeta(for id: String) -> (symbol: String, color: Color) {
-        switch id {
-        case "com.wudanwu.pingisland.claude":
-            return ("brain.head.profile", Color(red: 0.55, green: 0.36, blue: 0.96))
-        case "com.wudanwu.pingisland.codex":
-            return ("terminal.fill", Color(red: 0.18, green: 0.72, blue: 0.45))
-        case "com.wudanwu.pingisland.usage":
-            return ("chart.pie.fill", Color(red: 0.20, green: 0.60, blue: 0.90))
-        default:
-            let palette: [(String, Color)] = [
-                ("puzzlepiece.extension.fill", Color(red: 0.20, green: 0.60, blue: 0.90)),
-                ("puzzlepiece.extension.fill", Color(red: 0.95, green: 0.55, blue: 0.20)),
-                ("puzzlepiece.extension.fill", Color(red: 0.85, green: 0.25, blue: 0.45)),
-                ("puzzlepiece.extension.fill", Color(red: 0.30, green: 0.75, blue: 0.65)),
-                ("puzzlepiece.extension.fill", Color(red: 0.70, green: 0.40, blue: 0.90)),
-            ]
-            return palette[abs(id.hashValue) % palette.count]
+    /// Returns icon symbol + color from manifest.icon if declared, otherwise falls back to hash palette.
+    /// Zero hardcoding for specific plugin IDs.
+    private func iconMeta(for manifest: PluginManifest) -> (symbol: String, color: Color) {
+        if let decl = manifest.icon {
+            let color = Color(hex: decl.color) ?? Color(red: 0.4, green: 0.4, blue: 0.9)
+            return (decl.sfSymbol, color)
         }
+        // Fallback: deterministic color from plugin ID hash
+        let palette: [(String, Color)] = [
+            ("puzzlepiece.extension.fill", Color(red: 0.20, green: 0.60, blue: 0.90)),
+            ("puzzlepiece.extension.fill", Color(red: 0.95, green: 0.55, blue: 0.20)),
+            ("puzzlepiece.extension.fill", Color(red: 0.85, green: 0.25, blue: 0.45)),
+            ("puzzlepiece.extension.fill", Color(red: 0.30, green: 0.75, blue: 0.65)),
+            ("puzzlepiece.extension.fill", Color(red: 0.70, green: 0.40, blue: 0.90)),
+        ]
+        return palette[abs(manifest.id.hashValue) % palette.count]
     }
 
     private func badge(_ text: String, color: Color, filled: Bool = false) -> some View {
@@ -289,6 +288,10 @@ private struct PluginConfigItemView: View {
             case .secret:   secretRow
             case .toggle:   toggleRow
             case .text:     textRow
+            case .number:   numberRow
+            case .select:   selectRow
+            case .array:    arrayRow
+            case .time:     timeRow
             }
         }
         .padding(.horizontal, 14)
@@ -373,10 +376,100 @@ private struct PluginConfigItemView: View {
                 .font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
             Text(item.label).font(.system(size: 11))
             Spacer()
+            TextField(item.hint ?? "", text: storedTextBinding)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11))
+                .frame(maxWidth: 160)
+                .padding(4)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+        }
+    }
+
+    private var numberRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "number")
+                .font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
+            Text(item.label).font(.system(size: 11))
+            if let unit = item.unit {
+                Text(unit).font(.system(size: 10)).foregroundStyle(.tertiary)
+            }
+            Spacer()
+            TextField("", text: storedTextBinding)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, design: .monospaced))
+                .frame(width: 60)
+                .padding(4)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
+    private var selectRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "list.bullet")
+                .font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
+            Text(item.label).font(.system(size: 11))
+            Spacer()
+            Picker("", selection: storedTextBinding) {
+                Text("请选择").tag("")
+                ForEach(item.options ?? [], id: \.value) { opt in
+                    Text(opt.label).tag(opt.value)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(maxWidth: 140)
+        }
+    }
+
+    private var arrayRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "list.number")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
+                Text(item.label).font(.system(size: 11))
+                Spacer()
+                Button("编辑") { showInput.toggle() }
+                    .font(.system(size: 10)).buttonStyle(.plain).foregroundStyle(.blue)
+            }
+            if showInput {
+                Text("多个值用换行分隔")
+                    .font(.system(size: 9)).foregroundStyle(.tertiary)
+                TextEditor(text: storedTextBinding)
+                    .font(.system(size: 11))
+                    .frame(height: 60)
+                    .padding(4)
+                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+            }
+        }
+    }
+
+    private var timeRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "clock")
+                .font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 16)
+            Text(item.label).font(.system(size: 11))
+            Spacer()
+            TextField("HH:mm", text: storedTextBinding)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, design: .monospaced))
+                .frame(width: 55)
+                .padding(4)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+                .multilineTextAlignment(.center)
         }
     }
 
     // MARK: - Helpers
+
+    /// Binding for non-secret text/number/select/array/time stored in UserDefaults
+    private var storedTextBinding: Binding<String> {
+        let storageKey = "\(plugin.id).\(item.key)"
+        return Binding(
+            get: { UserDefaults.standard.string(forKey: storageKey) ?? item.defaultValue ?? "" },
+            set: { UserDefaults.standard.set($0, forKey: storageKey) }
+        )
+    }
 
     private var approvalBinding: Binding<Bool> {
         switch plugin.id {
@@ -451,5 +544,20 @@ private struct PluginConfigItemView: View {
                                    kSecAttrAccount: keychainKey as CFString]
         SecItemDelete(q as CFDictionary)
         isStored = false
+    }
+}
+
+// MARK: - Color from hex string
+
+extension Color {
+    init?(hex: String) {
+        var s = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.hasPrefix("#") { s.removeFirst() }
+        guard s.count == 6, let value = UInt64(s, radix: 16) else { return nil }
+        self.init(
+            red:   Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8)  & 0xFF) / 255,
+            blue:  Double( value        & 0xFF) / 255
+        )
     }
 }
