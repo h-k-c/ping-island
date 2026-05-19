@@ -19,9 +19,23 @@ struct PluginManifest: Codable, Identifiable, Equatable {
 }
 
 enum PluginSlot: String, Codable, Equatable, Sendable {
-    case compact
+    case compactLeft  = "compact-left"
+    case compactRight = "compact-right"
+    case compact                          // backward compat — treated as compactRight
     case notification
     case expanded
+}
+
+extension PluginSlot {
+    /// Human-readable display name for Settings UI badges
+    var displayName: String {
+        switch self {
+        case .compactLeft:              return "左耳"
+        case .compactRight, .compact:   return "右耳"
+        case .notification:             return "通知"
+        case .expanded:                 return "展开"
+        }
+    }
 }
 
 // MARK: - Icon

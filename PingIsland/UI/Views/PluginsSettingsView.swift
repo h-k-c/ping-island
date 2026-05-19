@@ -115,6 +115,19 @@ struct PluginsSettingsView: View {
                     }
                 }
 
+                if !plugin.manifest.slots.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(plugin.manifest.slots, id: \.rawValue) { slot in
+                            Text(slot.displayName)
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.secondary.opacity(0.12), in: Capsule())
+                        }
+                    }
+                }
+
                 if let desc = plugin.manifest.description {
                     Text(desc)
                         .font(.system(size: 11))

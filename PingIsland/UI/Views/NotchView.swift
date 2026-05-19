@@ -422,6 +422,9 @@ struct NotchView: View {
             .onChange(of: isAnyProcessing) { _, active in
                 PluginSlotArbiter.shared.setCoreActive(active, side: .right)
             }
+            .onChange(of: showsClosedLeadingIcon) { _, showing in
+                PluginSlotArbiter.shared.setCoreActive(showing, side: .left)
+            }
     }
 
     private var visibilityAwareBody: some View {
@@ -653,6 +656,19 @@ struct NotchView: View {
                             .matchedGeometryEffect(id: "pet", in: activityNamespace, isSource: showsClosedLeadingIcon)
                         .frame(width: viewModel.status == .opened ? nil : sideWidth)
                         .padding(.leading, viewModel.status == .opened ? 8 : 0)
+                    }
+
+                    // Plugin left ear — shown when mascot has nothing to display
+                    if viewModel.status != .opened && !showsClosedLeadingIcon,
+                       let pluginContent = pluginArbiter.activeLeft {
+                        IslandPluginRenderer.compactView(content: pluginContent)
+                            .frame(width: sideWidth)
+                            .onTapGesture {
+                                if let pluginId = pluginArbiter.activeLeftPluginId {
+                                    viewModel.contentType = .plugin(pluginId: pluginId)
+                                    viewModel.notchOpen(reason: .click)
+                                }
+                            }
                     }
 
                     // Center content
