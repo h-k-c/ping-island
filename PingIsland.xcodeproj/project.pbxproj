@@ -7,10 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3204F7B0D81C67F62862FD29 /* PingIslandPlugin in Embed PingIslandPlugin */ = {isa = PBXBuildFile; fileRef = 2865B058CB7162F2E19C53D2 /* PingIslandPlugin */; settings = {}; };
+		41842858E0A8BDC3D34759DB /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F0C9474542E5F77EE7ACB7 /* main.swift */; };
 		A1000000000000000000001B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1000000000000000000001C /* Sparkle */; };
+		E3E6617A604BB611E6C6DA77 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CCA620871394B6DF03908D32 /* Cocoa.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		9217B502F42C55241BBBA506 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FD33FD552EDF32D7002A6548 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CCA628FE744E8D71FEB2769E;
+			remoteInfo = PingIslandPlugin;
+		};
 		A1000000000000000000000B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = FD33FD552EDF32D7002A6548 /* Project object */;
@@ -27,13 +37,32 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		17A8198EA30E1DCCA7694B78 /* Embed PingIslandPlugin */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 7;
+			files = (
+				3204F7B0D81C67F62862FD29 /* PingIslandPlugin in Embed PingIslandPlugin */,
+			);
+			name = "Embed PingIslandPlugin";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		2865B058CB7162F2E19C53D2 /* PingIslandPlugin */ = {isa = PBXFileReference; includeInIndex = 0; path = PingIslandPlugin; sourceTree = BUILT_PRODUCTS_DIR; };
+		37DD0FBACB423D066514B0FD /* PingIslandPlugin */ = {isa = PBXFileReference; includeInIndex = 0; path = PingIslandPlugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000001 /* PingIslandTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PingIslandTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000002 /* PingIslandUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PingIslandUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000000000000000000001E /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
 		A1000000000000000000001F /* LocalSecrets.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = LocalSecrets.example.xcconfig; sourceTree = "<group>"; };
 		A10000000000000000000022 /* Ping Island.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Ping Island.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000000000000000000002C /* AppStore.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppStore.xcconfig; sourceTree = "<group>"; };
+		B670336D1CF87A28B004622B /* PingIslandPlugin */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = PingIslandPlugin; sourceTree = "<group>"; };
+		C7F0C9474542E5F77EE7ACB7 /* main.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		CCA620871394B6DF03908D32 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		FD33FD5D2EDF32D7002A6548 /* Ping Island.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Ping Island.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -59,11 +88,15 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10000000000000000000003 /* PingIslandTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = PingIslandTests;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000004 /* PingIslandUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = PingIslandUITests;
 			sourceTree = "<group>";
 		};
@@ -79,6 +112,14 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		101039AF36FF68041A7DA17C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E3E6617A604BB611E6C6DA77 /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A10000000000000000000005 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -111,6 +152,23 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		446138FAB8E0FD3676F3DA22 /* PingIslandPlugin */ = {
+			isa = PBXGroup;
+			children = (
+				C7F0C9474542E5F77EE7ACB7 /* main.swift */,
+			);
+			name = PingIslandPlugin;
+			path = PingIslandPlugin;
+			sourceTree = "<group>";
+		};
+		8843E0CDA3E055A28571262E /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				CCA620871394B6DF03908D32 /* Cocoa.framework */,
+			);
+			name = "OS X";
+			sourceTree = "<group>";
+		};
 		A10000000000000000000020 /* Config */ = {
 			isa = PBXGroup;
 			children = (
@@ -121,6 +179,14 @@
 			path = Config;
 			sourceTree = "<group>";
 		};
+		E0A2632328F15A7483D6E51C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8843E0CDA3E055A28571262E /* OS X */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		FD33FD542EDF32D7002A6548 = {
 			isa = PBXGroup;
 			children = (
@@ -129,6 +195,8 @@
 				A10000000000000000000003 /* PingIslandTests */,
 				A10000000000000000000004 /* PingIslandUITests */,
 				FD33FD5E2EDF32D7002A6548 /* Products */,
+				E0A2632328F15A7483D6E51C /* Frameworks */,
+				446138FAB8E0FD3676F3DA22 /* PingIslandPlugin */,
 			);
 			sourceTree = "<group>";
 		};
@@ -139,6 +207,9 @@
 				A10000000000000000000022 /* Ping Island.app */,
 				A10000000000000000000001 /* PingIslandTests.xctest */,
 				A10000000000000000000002 /* PingIslandUITests.xctest */,
+				37DD0FBACB423D066514B0FD /* PingIslandPlugin */,
+				B670336D1CF87A28B004622B /* PingIslandPlugin */,
+				2865B058CB7162F2E19C53D2 /* PingIslandPlugin */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -163,8 +234,6 @@
 				A10000000000000000000003 /* PingIslandTests */,
 			);
 			name = PingIslandTests;
-			packageProductDependencies = (
-			);
 			productName = PingIslandTests;
 			productReference = A10000000000000000000001 /* PingIslandTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -186,8 +255,6 @@
 				A10000000000000000000004 /* PingIslandUITests */,
 			);
 			name = PingIslandUITests;
-			packageProductDependencies = (
-			);
 			productName = PingIslandUITests;
 			productReference = A10000000000000000000002 /* PingIslandUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -209,11 +276,26 @@
 				FD33FD5F2EDF32D7002A6548 /* PingIsland */,
 			);
 			name = PingIslandAppStore;
-			packageProductDependencies = (
-			);
 			productName = PingIsland;
 			productReference = A10000000000000000000022 /* Ping Island.app */;
 			productType = "com.apple.product-type.application";
+		};
+		CCA628FE744E8D71FEB2769E /* PingIslandPlugin */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F1FE8663713D18E47A73A2FD /* Build configuration list for PBXNativeTarget "PingIslandPlugin" */;
+			buildPhases = (
+				8EC81FD2A301CA30CD8D0191 /* Sources */,
+				101039AF36FF68041A7DA17C /* Frameworks */,
+				E8A0FADB2A2933F8215DAE6E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PingIslandPlugin;
+			productName = PingIslandPlugin;
+			productReference = 2865B058CB7162F2E19C53D2 /* PingIslandPlugin */;
+			productType = "com.apple.product-type.tool";
 		};
 		FD33FD5C2EDF32D7002A6548 /* PingIsland */ = {
 			isa = PBXNativeTarget;
@@ -223,10 +305,12 @@
 				FD33FD5A2EDF32D7002A6548 /* Frameworks */,
 				A10000000000000000000021 /* Embed PingIslandBridge */,
 				FD33FD5B2EDF32D7002A6548 /* Resources */,
+				17A8198EA30E1DCCA7694B78 /* Embed PingIslandPlugin */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				36BAD216AB6A07DB0B683707 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				FD33FD5F2EDF32D7002A6548 /* PingIsland */,
@@ -287,6 +371,7 @@
 				A10000000000000000000028 /* PingIslandAppStore */,
 				A1000000000000000000000F /* PingIslandTests */,
 				A10000000000000000000010 /* PingIslandUITests */,
+				CCA628FE744E8D71FEB2769E /* PingIslandPlugin */,
 			);
 		};
 /* End PBXProject section */
@@ -307,6 +392,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A10000000000000000000026 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E8A0FADB2A2933F8215DAE6E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -364,6 +456,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		8EC81FD2A301CA30CD8D0191 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				41842858E0A8BDC3D34759DB /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A10000000000000000000007 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -395,6 +495,12 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		36BAD216AB6A07DB0B683707 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = PingIslandPlugin;
+			target = CCA628FE744E8D71FEB2769E /* PingIslandPlugin */;
+			targetProxy = 9217B502F42C55241BBBA506 /* PBXContainerItemProxy */;
+		};
 		A1000000000000000000000D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = FD33FD5C2EDF32D7002A6548 /* PingIsland */;
@@ -408,13 +514,29 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		941C8D8DAF0FCE22EBF29793 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_NAME = PingIslandPlugin;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
 		A10000000000000000000014 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5;
-				DEVELOPMENT_TEAM = 2DKS5U9LV4;
+				DEVELOPMENT_TEAM = T6WDQRBX88;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -442,7 +564,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5;
-				DEVELOPMENT_TEAM = 2DKS5U9LV4;
+				DEVELOPMENT_TEAM = T6WDQRBX88;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -469,7 +591,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5;
-				DEVELOPMENT_TEAM = 2DKS5U9LV4;
+				DEVELOPMENT_TEAM = T6WDQRBX88;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -495,7 +617,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5;
-				DEVELOPMENT_TEAM = 2DKS5U9LV4;
+				DEVELOPMENT_TEAM = T6WDQRBX88;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -527,7 +649,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 47;
-				DEVELOPMENT_TEAM = K46RM9974S;
+				DEVELOPMENT_TEAM = T6WDQRBX88;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -565,7 +687,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 47;
-				DEVELOPMENT_TEAM = K46RM9974S;
+				DEVELOPMENT_TEAM = T6WDQRBX88;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -587,6 +709,22 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		D5199186D43C607D9312D262 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_NAME = PingIslandPlugin;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -723,7 +861,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 47;
-				DEVELOPMENT_TEAM = K46RM9974S;
+				DEVELOPMENT_TEAM = T6WDQRBX88;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -760,7 +898,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 47;
-				DEVELOPMENT_TEAM = K46RM9974S;
+				DEVELOPMENT_TEAM = T6WDQRBX88;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -812,6 +950,15 @@
 			buildConfigurations = (
 				A10000000000000000000029 /* Debug */,
 				A1000000000000000000002A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F1FE8663713D18E47A73A2FD /* Build configuration list for PBXNativeTarget "PingIslandPlugin" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D5199186D43C607D9312D262 /* Release */,
+				941C8D8DAF0FCE22EBF29793 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

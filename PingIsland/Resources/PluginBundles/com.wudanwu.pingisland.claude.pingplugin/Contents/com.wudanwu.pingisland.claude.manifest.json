@@ -2,7 +2,7 @@
   "id": "com.wudanwu.pingisland.claude",
   "name": "Claude 会话",
   "version": "1.0.0",
-  "executable": "ClaudePlugin",
+  "executable": "PingIslandPlugin",
   "slots": ["compact-right", "notification"],
   "subscriptions": ["hookEvent"],
   "builtIn": true,

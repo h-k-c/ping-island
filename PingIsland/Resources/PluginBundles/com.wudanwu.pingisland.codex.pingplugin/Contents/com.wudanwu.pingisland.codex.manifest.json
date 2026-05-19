@@ -2,7 +2,7 @@
   "id": "com.wudanwu.pingisland.codex",
   "name": "Codex 会话",
   "version": "1.0.0",
-  "executable": "CodexPlugin",
+  "executable": "PingIslandPlugin",
   "slots": ["compact-right", "notification"],
   "subscriptions": ["hookEvent"],
   "builtIn": true,
