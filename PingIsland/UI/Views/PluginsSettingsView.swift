@@ -105,9 +105,13 @@ struct PluginsSettingsView: View {
     }
 
     /// Returns plugins that declare the given slot in their manifest.
+    /// "compact" (legacy) is treated as "compact-right" for backward compatibility.
     private func pluginsWithSlot(_ slotRawValue: String) -> [InstalledPlugin] {
         registry.installedPlugins.filter { plugin in
-            plugin.manifest.slots.contains { $0.rawValue == slotRawValue }
+            plugin.manifest.slots.contains { slot in
+                slot.rawValue == slotRawValue
+                    || (slotRawValue == "compact-right" && slot == .compact)
+            }
         }
     }
 
