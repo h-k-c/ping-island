@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Manifest
 
-struct PluginManifest: Codable, Identifiable, Equatable {
+struct PluginManifest: Codable, Identifiable, Equatable, Sendable {
     let id: String
     let name: String
     let version: String
@@ -11,10 +11,16 @@ struct PluginManifest: Codable, Identifiable, Equatable {
     let slots: [PluginSlot]
     let description: String?
     let iconPath: String?
+    let subscriptions: [String]?
+    let builtIn: Bool?
+
+    var isBuiltIn: Bool { builtIn ?? false }
+    var subscribesTo: [String] { subscriptions ?? [] }
 
     private enum CodingKeys: String, CodingKey {
         case id, name, version, minIslandVersion, executable, slots, description
         case iconPath = "icon"
+        case subscriptions, builtIn
     }
 }
 

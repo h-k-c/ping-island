@@ -72,7 +72,9 @@ final class PluginProcessTests: XCTestCase {
             executable: "Contents/MacOS/DoesNotExist",
             slots: [.compact],
             description: nil,
-            iconPath: nil
+            iconPath: nil,
+            subscriptions: nil,
+            builtIn: nil
         )
         let bundleURL = tempDir.appendingPathComponent("Missing.pingplugin")
         try FileManager.default.createDirectory(

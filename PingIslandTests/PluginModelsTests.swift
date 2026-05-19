@@ -168,6 +168,47 @@ final class PluginModelsTests: XCTestCase {
         XCTAssertEqual(content.actionId, "open_log")
     }
 
+    // MARK: - subscriptions + builtIn
+
+    func testParsesSubscriptionsField() throws {
+        let json = """
+        {
+          "id": "com.test.hook",
+          "name": "Hook",
+          "version": "1.0.0",
+          "executable": "Contents/MacOS/Hook",
+          "slots": ["compact-right"],
+          "subscriptions": ["hookEvent"]
+        }
+        """.data(using: .utf8)!
+        let manifest = try JSONDecoder().decode(PluginManifest.self, from: json)
+        XCTAssertEqual(manifest.subscriptions, ["hookEvent"])
+        XCTAssertNil(manifest.builtIn)
+    }
+
+    func testParsesBuiltInField() throws {
+        let json = """
+        {
+          "id": "com.test.builtin",
+          "name": "BuiltIn",
+          "version": "1.0.0",
+          "executable": "Contents/MacOS/BuiltIn",
+          "slots": ["compact-right"],
+          "builtIn": true
+        }
+        """.data(using: .utf8)!
+        let manifest = try JSONDecoder().decode(PluginManifest.self, from: json)
+        XCTAssertEqual(manifest.builtIn, true)
+    }
+
+    func testMissingSubscriptionsDefaultsToNil() throws {
+        let json = """
+        {"id":"com.test.x","name":"X","version":"1.0.0","executable":"x","slots":["compact-right"]}
+        """.data(using: .utf8)!
+        let manifest = try JSONDecoder().decode(PluginManifest.self, from: json)
+        XCTAssertNil(manifest.subscriptions)
+    }
+
     // MARK: - ExpandedSection roundtrip
 
     func testExpandedSectionRoundtrip() throws {
