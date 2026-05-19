@@ -42,7 +42,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mascot: return "客户端宠物与动作"
         case .sound: return "通知与提示音"
         case .plugins: return "已安装的岛插件"
-        case .integration: return "Hooks 与 IDE 扩展"
+        case .integration: return "审批路由与 IDE 扩展"
         case .remote: return "SSH 主机与远程转发"
         case .labs: return "试验性特性"
         case .about: return "版本与更新"
@@ -1881,80 +1881,7 @@ private struct SettingsPanelContentView: View {
             }
 #endif
 
-            let hookProfiles = viewModel.visibleHookProfiles
-            if !hookProfiles.isEmpty {
-                SettingsSectionCard(title: "Hooks 管理") {
-                    let profiles = hookProfiles
-                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
-                        HookManagementLine(
-                            profile: profile,
-                            isInstalled: viewModel.isHookInstalled(profile),
-                            isReinstalling: viewModel.isReinstallingHooks(for: profile),
-                            reinstallFeedback: viewModel.hookReinstallFeedback(for: profile),
-                            noticeMessage: viewModel.hookNotice(for: profile),
-                            supportsEventSelection: profile.supportsEventSelection,
-                            installAction: {
-                                if profile.supportsEventSelection {
-                                    pendingHookOptionsRequest = HookInstallOptionsRequest(
-                                        profile: profile,
-                                        mode: .install
-                                    )
-                                } else {
-                                    viewModel.installHooks(for: profile)
-                                }
-                            },
-                            configureAction: {
-                                pendingHookOptionsRequest = HookInstallOptionsRequest(
-                                    profile: profile,
-                                    mode: .edit
-                                )
-                            },
-                            openConfigurationDirectoryAction: {
-                                viewModel.openHookConfigurationDirectory(for: profile)
-                            },
-                            reinstallAction: { pendingHookReinstallProfile = profile },
-                            uninstallAction: { viewModel.uninstallHooks(for: profile) }
-                        )
-
-                        if index < profiles.count - 1
-                            || !viewModel.customHookInstallations.isEmpty {
-                            SettingsLineDivider()
-                        }
-                    }
-
-                    let customInstallations = viewModel.customHookInstallations
-                    ForEach(Array(customInstallations.enumerated()), id: \.element.id) { index, installation in
-                        CustomHookInstallationLine(
-                            installation: installation,
-                            uninstallAction: { viewModel.uninstallCustomHook(id: installation.id) }
-                        )
-
-                        if index < customInstallations.count - 1 {
-                            SettingsLineDivider()
-                        }
-                    }
-
-                    SettingsLineDivider()
-
-                    HStack {
-                        Spacer()
-                        Button(action: { showingCustomHookInstallSheet = true }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 13, weight: .semibold))
-                                Text(appLocalized: "添加自定义配置")
-                                    .font(.system(size: 12, weight: .semibold))
-                            }
-                            .foregroundColor(.white.opacity(0.7))
-                            .padding(.vertical, 4)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        Spacer()
-                    }
-                    .padding(.vertical, 12)
-                }
-            }
+            // Hooks 管理已迁移到「设置 → 插件」各插件行内，此处不再展示。
 
             let ideProfiles = viewModel.visibleIDEExtensionProfiles
             if !ideProfiles.isEmpty {
