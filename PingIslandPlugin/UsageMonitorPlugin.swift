@@ -1,5 +1,6 @@
 // UsageMonitorPlugin — monitors Claude and Codex usage via their APIs.
-// Sends island/compact with current usage percentage and island/expanded with details.
+// Requires claudeSessionKey in Keychain (set via ClaudeMonitor app or manually).
+// Sends island/compact with usage percentage, island/expanded with details.
 
 import Foundation
 
@@ -8,28 +9,33 @@ enum UsageMonitorPlugin {
     private static let refreshInterval: TimeInterval = 300  // 5 minutes
 
     static func run() {
-        // Send initialize response
+        // Initialize
         if let msg = readLine(), let id = msg["id"] {
             sendJSON(["jsonrpc": "2.0", "id": id,
                       "result": ["name": "用量监控", "ready": true]])
         }
 
-        // Push initial empty compact
+        // Push initial empty compact while data loads
         sendCompact(claudePct: nil, codexPct: nil)
 
-        // Start refresh loop in background
-        let timer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { _ in
-            refresh()
+        // Refresh runs on a background thread so it doesn't block stdin reading
+        let refreshQueue = DispatchQueue(label: "usage-refresh", qos: .utility)
+
+        func scheduleRefresh() {
+            refreshQueue.async {
+                refresh()
+                // Schedule next refresh after interval
+                Thread.sleep(forTimeInterval: refreshInterval)
+                scheduleRefresh()
+            }
         }
-        RunLoop.main.add(timer, forMode: .default)
 
         // First refresh immediately
-        DispatchQueue.global().async { refresh() }
+        scheduleRefresh()
 
-        // Main loop for shutdown
+        // Main thread reads stdin for shutdown signal
         while let msg = readLine() {
             if (msg["method"] as? String) == "shutdown" {
-                timer.invalidate()
                 exit(0)
             }
         }
@@ -64,9 +70,8 @@ enum UsageMonitorPlugin {
         codexService.onNeedsLogin = { group.leave() }
         codexService.refresh()
 
-        group.notify(queue: .main) {
-            pushUpdates(claude: claudeData, codex: codexData)
-        }
+        group.wait()  // blocking wait on background thread — OK
+        pushUpdates(claude: claudeData, codex: codexData)
     }
 
     // MARK: - Push updates
@@ -82,24 +87,22 @@ enum UsageMonitorPlugin {
     // MARK: - island/compact
 
     private static func sendCompact(claudePct: Double?, codexPct: Double?) {
-        // Pick the highest usage to show in compact
         let pct = [claudePct, codexPct].compactMap { $0 }.max()
 
         guard let pct else {
+            // No auth / no data — don't occupy the slot
             sendJSON(["jsonrpc": "2.0", "method": "island/compact",
                       "params": ["position": "right", "content": NSNull()]])
             return
         }
 
-        let tint: String
-        let icon: String
-        switch pct {
-        case ..<0.6:  tint = "green";  icon = "chart.pie.fill"
-        case ..<0.9:  tint = "yellow"; icon = "chart.pie.fill"
-        default:      tint = "red";    icon = "exclamationmark.circle.fill"
-        }
-
-        let label = "\(Int(pct * 100))%"
+        let (tint, icon): (String, String) = {
+            switch pct {
+            case ..<0.6: return ("green",  "chart.pie.fill")
+            case ..<0.9: return ("yellow", "chart.pie.fill")
+            default:     return ("red",    "exclamationmark.circle.fill")
+            }
+        }()
 
         sendJSON([
             "jsonrpc": "2.0",
@@ -108,7 +111,7 @@ enum UsageMonitorPlugin {
                 "position": "right",
                 "content": [
                     "icon": ["type": "sf", "name": icon],
-                    "label": label,
+                    "label": "\(Int(pct * 100))%",
                     "tint": tint
                 ]
             ]
@@ -128,13 +131,13 @@ enum UsageMonitorPlugin {
                     "label": "Claude 会话",
                     "value": "\(Int(c.sessionPercentage * 100))%",
                     "icon": ["type": "sf", "name": "brain.head.profile"],
-                    "tint": tintString(c.sessionPercentage)
+                    "tint": tint(c.sessionPercentage)
                 ])
                 sections.append([
                     "type": "progress",
                     "label": "5h 会话用量",
                     "value": c.sessionPercentage,
-                    "tint": tintString(c.sessionPercentage)
+                    "tint": tint(c.sessionPercentage)
                 ])
             }
             if c.messagesLimit > 0 {
@@ -142,19 +145,28 @@ enum UsageMonitorPlugin {
                     "type": "progress",
                     "label": "7d 消息配额",
                     "value": c.weeklyPercentage,
-                    "tint": tintString(c.weeklyPercentage)
+                    "tint": tint(c.weeklyPercentage)
                 ])
             }
             if !c.weeklyResetText.isEmpty {
+                sections.append(["type": "text", "content": c.weeklyResetText, "style": "caption"])
+            }
+            if !c.hasSessionData && c.messagesLimit == 0 {
                 sections.append([
                     "type": "text",
-                    "content": c.weeklyResetText,
+                    "content": "Claude 未登录 — 请在 ClaudeMonitor 中登录后重试",
                     "style": "caption"
                 ])
             }
+        } else {
+            sections.append([
+                "type": "text",
+                "content": "Claude 数据加载中…",
+                "style": "caption"
+            ])
         }
 
-        // Divider between Claude and Codex
+        // Divider
         if claude != nil && codex != nil {
             sections.append(["type": "divider"])
         }
@@ -168,13 +180,13 @@ enum UsageMonitorPlugin {
                     "label": "Codex 会话",
                     "value": "\(cx.primaryUsedPercent)%",
                     "icon": ["type": "sf", "name": "terminal.fill"],
-                    "tint": tintString(pct)
+                    "tint": tint(pct)
                 ])
                 sections.append([
                     "type": "progress",
                     "label": "Primary 用量",
                     "value": pct,
-                    "tint": tintString(pct)
+                    "tint": tint(pct)
                 ])
                 if let reset = cx.primaryResetLabel {
                     sections.append(["type": "text", "content": "\(reset) 后重置", "style": "caption"])
@@ -190,11 +202,10 @@ enum UsageMonitorPlugin {
             }
         }
 
-        // No data fallback
         if sections.isEmpty {
             sections.append([
                 "type": "text",
-                "content": "暂无用量数据，请确认已登录 Claude 和 Codex",
+                "content": "暂无用量数据",
                 "style": "caption"
             ])
         }
@@ -206,7 +217,7 @@ enum UsageMonitorPlugin {
         ])
     }
 
-    private static func tintString(_ pct: Double) -> String {
+    private static func tint(_ pct: Double) -> String {
         switch pct {
         case ..<0.6: return "green"
         case ..<0.9: return "yellow"

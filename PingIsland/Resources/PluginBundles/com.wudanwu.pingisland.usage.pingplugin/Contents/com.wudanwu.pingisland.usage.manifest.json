@@ -4,6 +4,5 @@
   "version": "1.0.0",
   "executable": "PingIslandPlugin",
   "slots": ["compact-right", "expanded"],
-  "builtIn": true,
   "description": "监控 Claude 和 Codex 用量与配额"
 }
