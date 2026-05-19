@@ -145,20 +145,21 @@ final class PluginHost: ObservableObject {
     }
 
     private func listenToPlugin(_ process: PluginProcess) async {
+        let arbiter = self.arbiter
         await withTaskGroup(of: Void.self) { group in
             group.addTask {
                 for await update in process.compactUpdates {
-                    await MainActor.run { PluginSlotArbiter.shared.handleCompact(update) }
+                    await MainActor.run { arbiter.handleCompact(update) }
                 }
             }
             group.addTask {
                 for await update in process.notifyUpdates {
-                    await MainActor.run { PluginSlotArbiter.shared.handleNotify(update) }
+                    await MainActor.run { arbiter.handleNotify(update) }
                 }
             }
             group.addTask {
                 for await update in process.expandedUpdates {
-                    await MainActor.run { PluginSlotArbiter.shared.handleExpanded(update) }
+                    await MainActor.run { arbiter.handleExpanded(update) }
                 }
             }
         }

@@ -80,18 +80,10 @@ enum ClaudeSessionPlugin {
 
         if phase == "ended" {
             guard wasActive else { return }
-            let sessionCwd = activeSessions.removeValue(forKey: sessionId) ?? cwd
+            activeSessions.removeValue(forKey: sessionId)
             sendCompact()
-            let project = sessionCwd.split(separator: "/").last.map(String.init) ?? "项目"
-            sendJSON([
-                "jsonrpc": "2.0", "method": "island/notify",
-                "params": [
-                    "icon": ["type": "sf", "name": "checkmark.circle.fill"],
-                    "title": "会话已完成",
-                    "subtitle": project,
-                    "duration": 4.0
-                ]
-            ])
+            // TODO: send island/notify here once the legacy SessionCompletionNotification
+            // system is removed from NotchView. Until then, the old system fires the popup.
         } else if !wasActive {
             activeSessions[sessionId] = cwd
             sendCompact()
@@ -149,18 +141,9 @@ enum CodexSessionPlugin {
 
         if phase == "ended" {
             guard wasActive else { return }
-            let sessionCwd = activeSessions.removeValue(forKey: sessionId) ?? cwd
+            activeSessions.removeValue(forKey: sessionId)
             sendCompact()
-            let project = sessionCwd.split(separator: "/").last.map(String.init) ?? "项目"
-            sendJSON([
-                "jsonrpc": "2.0", "method": "island/notify",
-                "params": [
-                    "icon": ["type": "sf", "name": "checkmark.circle.fill"],
-                    "title": "Codex 任务完成",
-                    "subtitle": project,
-                    "duration": 4.0
-                ]
-            ])
+            // TODO: send island/notify once the legacy notification system is removed from NotchView
         } else if !wasActive {
             activeSessions[sessionId] = cwd
             sendCompact()

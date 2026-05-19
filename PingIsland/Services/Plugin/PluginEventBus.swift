@@ -52,7 +52,7 @@ final class PluginEventBus {
 
     private func resolvedPhase(from event: HookEvent) -> String {
         switch event.event {
-        case "Stop", "Notification" where event.status == "completed":
+        case "Stop", "SessionEnd", "SubagentStop":
             return "ended"
         case "PreToolUse", "PostToolUse":
             return "processing"
