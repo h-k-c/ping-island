@@ -121,6 +121,11 @@ struct PluginsSettingsView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
+
+                // Hook install status for built-in AI plugins
+                if let hookProfile = hookProfile(for: plugin.id) {
+                    hookInstallRow(profile: hookProfile)
+                }
             }
 
             Spacer()
@@ -140,6 +145,39 @@ struct PluginsSettingsView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    /// Maps built-in plugin IDs to their managed hook profiles.
+    private func hookProfile(for pluginId: String) -> ManagedHookClientProfile? {
+        let profileId: String
+        switch pluginId {
+        case "com.wudanwu.pingisland.claude": profileId = "claude-hooks"
+        case "com.wudanwu.pingisland.codex":  profileId = "codex-hooks"
+        default: return nil
+        }
+        return ClientProfileRegistry.managedHookProfiles.first { $0.id == profileId }
+    }
+
+    @ViewBuilder
+    private func hookInstallRow(profile: ManagedHookClientProfile) -> some View {
+        let installed = HookInstaller.isInstalled(profile)
+        HStack(spacing: 6) {
+            Image(systemName: installed ? "checkmark.circle.fill" : "exclamationmark.circle")
+                .font(.system(size: 10))
+                .foregroundStyle(installed ? Color.green : Color.orange)
+            Text(installed ? "Hook 已安装" : "Hook 未安装")
+                .font(.system(size: 10))
+                .foregroundStyle(installed ? Color.secondary : Color.orange)
+            if !installed {
+                Button("安装") {
+                    HookInstaller.install(profile)
+                }
+                .font(.system(size: 10))
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
+            }
+        }
+        .padding(.top, 2)
     }
 
     @ViewBuilder
