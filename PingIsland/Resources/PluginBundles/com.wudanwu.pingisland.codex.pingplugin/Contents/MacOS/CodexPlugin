@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-ClaudePlugin — Island Plugin Protocol executable.
-Receives hookEvent messages from PingIsland and pushes compact/notify updates.
+CodexPlugin — Island Plugin Protocol executable.
+Tracks OpenAI Codex hook events and pushes compact/notify updates.
 """
 import sys
 import json
 
-active_sessions = {}  # sessionId -> {"provider": str, "cwd": str}
+active_sessions = {}  # sessionId -> {"cwd": str}
 
 def send(msg):
     sys.stdout.write(json.dumps(msg, ensure_ascii=False) + "\n")
@@ -15,11 +15,11 @@ def send(msg):
 def send_compact():
     count = len(active_sessions)
     if count > 0:
-        icon = "brain.head.profile" if count == 1 else "cpu"
+        icon = "terminal" if count == 1 else "terminal.fill"
         content = {
             "icon": {"type": "sf", "name": icon},
             "label": str(count),
-            "tint": "default"
+            "tint": "green"
         }
     else:
         content = None
@@ -33,11 +33,11 @@ def send_compact():
 def handle_hook_event(params):
     session_id = params.get("sessionId", "")
     phase = params.get("phase", "idle")
-    provider = params.get("provider", "claude")
+    provider = params.get("provider", "")
     cwd = params.get("cwd", "")
 
-    # Only track Claude sessions
-    if provider != "claude":
+    # Only track Codex sessions
+    if provider != "codex":
         return
 
     was_active = session_id in active_sessions
@@ -52,14 +52,14 @@ def handle_hook_event(params):
                 "method": "island/notify",
                 "params": {
                     "icon": {"type": "sf", "name": "checkmark.circle.fill"},
-                    "title": "会话已完成",
+                    "title": "Codex 任务完成",
                     "subtitle": project,
                     "duration": 4.0
                 }
             })
     else:
         if not was_active:
-            active_sessions[session_id] = {"provider": provider, "cwd": cwd}
+            active_sessions[session_id] = {"cwd": cwd}
             send_compact()
 
 def main():
@@ -78,7 +78,7 @@ def main():
 
         if method == "initialize":
             send({"jsonrpc": "2.0", "id": req_id or 1,
-                  "result": {"name": "Claude 会话", "ready": True}})
+                  "result": {"name": "Codex 会话", "ready": True}})
             send_compact()
         elif method == "hookEvent":
             handle_hook_event(params)

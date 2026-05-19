@@ -46,17 +46,23 @@ final class PluginRegistry: ObservableObject {
     func rescan() {
         var found: [InstalledPlugin] = []
 
-        // Built-in plugins: Xcode copies PluginBundles contents flat into Resources/
-        // Each built-in plugin has its manifest.json and executable directly in Resources.
-        // We load them by reading manifest.json from Resources and checking builtIn == true.
-        if let resourcesURL = Self.appBundleResourcesURL {
-            let manifestURL = resourcesURL.appendingPathComponent("manifest.json")
-            if let data = try? Data(contentsOf: manifestURL),
-               let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data),
-               manifest.isBuiltIn {
-                // bundleURL = resourcesURL so executable resolves to Resources/ClaudePlugin
-                found.append(InstalledPlugin(manifest: manifest, bundleURL: resourcesURL))
-            }
+        // Built-in plugins: Xcode flattens PluginBundles contents into Resources/.
+        // Each plugin uses a unique filename: {plugin-id}.manifest.json
+        // This avoids filename collisions between multiple built-in plugins.
+        if let resourcesURL = Self.appBundleResourcesURL,
+           let contents = try? FileManager.default.contentsOfDirectory(
+               at: resourcesURL, includingPropertiesForKeys: nil) {
+            let builtIns = contents
+                .filter { $0.lastPathComponent.hasSuffix(".manifest.json") }
+                .compactMap { manifestURL -> InstalledPlugin? in
+                    guard
+                        let data = try? Data(contentsOf: manifestURL),
+                        let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data),
+                        manifest.isBuiltIn
+                    else { return nil }
+                    return InstalledPlugin(manifest: manifest, bundleURL: resourcesURL)
+                }
+            found.append(contentsOf: builtIns)
         }
 
         // User-installed plugins (full .pingplugin bundle directories)
