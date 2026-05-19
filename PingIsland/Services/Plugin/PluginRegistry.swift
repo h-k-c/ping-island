@@ -18,6 +18,11 @@ final class PluginRegistry: ObservableObject {
             .appendingPathComponent("PingIsland/Plugins", isDirectory: true)
     }
 
+    nonisolated static var builtInPluginsDirectoryURL: URL? {
+        Bundle.main.bundleURL
+            .appendingPathComponent("Contents/Resources/PluginBundles", isDirectory: true)
+    }
+
     init(
         pluginsDirectoryURL: URL = PluginRegistry.defaultPluginsDirectoryURL,
         defaults: UserDefaults = .standard
@@ -38,31 +43,45 @@ final class PluginRegistry: ObservableObject {
     }
 
     func rescan() {
-        let fm = FileManager.default
-        guard let contents = try? fm.contentsOfDirectory(
-            at: pluginsDirectoryURL,
-            includingPropertiesForKeys: nil
-        ) else {
-            installedPlugins = []
-            return
+        var found: [InstalledPlugin] = []
+
+        // Built-in plugins from app bundle
+        if let builtInURL = Self.builtInPluginsDirectoryURL,
+           let contents = try? FileManager.default.contentsOfDirectory(
+               at: builtInURL, includingPropertiesForKeys: nil) {
+            found += contents
+                .filter { $0.pathExtension == "pingplugin" }
+                .compactMap { loadPlugin(at: $0) }
         }
 
-        installedPlugins = contents
-            .filter { $0.pathExtension == "pingplugin" }
-            .compactMap { bundleURL -> InstalledPlugin? in
-                let manifestURL = bundleURL
-                    .appendingPathComponent("Contents")
-                    .appendingPathComponent("manifest.json")
-                guard
-                    let data = try? Data(contentsOf: manifestURL),
-                    let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data)
-                else { return nil }
-                return InstalledPlugin(manifest: manifest, bundleURL: bundleURL)
-            }
+        // User-installed plugins
+        if let contents = try? FileManager.default.contentsOfDirectory(
+            at: pluginsDirectoryURL, includingPropertiesForKeys: nil) {
+            found += contents
+                .filter { $0.pathExtension == "pingplugin" }
+                .compactMap { loadPlugin(at: $0) }
+        }
+
+        installedPlugins = found
     }
 
     func isEnabled(_ pluginId: String) -> Bool {
-        enabledMap[pluginId] ?? true
+        if let plugin = installedPlugins.first(where: { $0.id == pluginId }),
+           plugin.manifest.isBuiltIn {
+            return true
+        }
+        return enabledMap[pluginId] ?? true
+    }
+
+    private func loadPlugin(at bundleURL: URL) -> InstalledPlugin? {
+        let manifestURL = bundleURL
+            .appendingPathComponent("Contents")
+            .appendingPathComponent("manifest.json")
+        guard
+            let data = try? Data(contentsOf: manifestURL),
+            let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data)
+        else { return nil }
+        return InstalledPlugin(manifest: manifest, bundleURL: bundleURL)
     }
 
     func setEnabled(_ enabled: Bool, for pluginId: String) {
