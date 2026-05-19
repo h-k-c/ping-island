@@ -1,4 +1,5 @@
 import Combine
+import CoreServices
 import Foundation
 
 @MainActor
@@ -12,6 +13,7 @@ final class PluginRegistry: ObservableObject {
     private let defaults: UserDefaults
     private let enabledKey = "PluginRegistry.enabled.v1"
     private var watchSource: DispatchSourceFileSystemObject?
+    private var fsEventStream: FSEventStreamRef?
 
     nonisolated static var defaultPluginsDirectoryURL: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -41,6 +43,12 @@ final class PluginRegistry: ObservableObject {
     func stop() {
         watchSource?.cancel()
         watchSource = nil
+        if let stream = fsEventStream {
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            fsEventStream = nil
+        }
     }
 
     func rescan() {
@@ -114,18 +122,34 @@ final class PluginRegistry: ObservableObject {
     }
 
     private func startWatching() {
-        let path = pluginsDirectoryURL.path
-        let fd = open(path, O_EVTONLY)
-        guard fd >= 0 else { return }
-
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fd,
-            eventMask: [.write, .delete, .link, .rename],
-            queue: .main
+        // Use FSEventStream for reliable directory-tree monitoring.
+        // DispatchSource.makeFileSystemObjectSource only watches the directory inode
+        // and misses sub-bundle additions on some macOS versions.
+        let paths = [pluginsDirectoryURL.path] as CFArray
+        var ctx = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passUnretained(self).toOpaque(),
+            retain: nil,
+            release: nil,
+            copyDescription: nil
         )
-        source.setEventHandler { [weak self] in self?.rescan() }
-        source.setCancelHandler { close(fd) }
-        source.resume()
-        watchSource = source
+
+        guard let stream = FSEventStreamCreate(
+            nil,
+            { _, info, _, _, _, _ in
+                guard let info else { return }
+                let registry = Unmanaged<PluginRegistry>.fromOpaque(info).takeUnretainedValue()
+                DispatchQueue.main.async { registry.rescan() }
+            },
+            &ctx,
+            paths,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            0.5,   // latency: coalesce events within 0.5s
+            FSEventStreamCreateFlags(kFSEventStreamCreateFlagNone)
+        ) else { return }
+
+        FSEventStreamScheduleWithRunLoop(stream, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
+        FSEventStreamStart(stream)
+        fsEventStream = stream
     }
 }
