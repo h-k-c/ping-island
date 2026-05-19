@@ -419,9 +419,8 @@ struct NotchView: View {
                 handleWaitingForInputChange(instances)
                 handleCompletionNotificationChange(instances)
             }
-            .onChange(of: isAnyProcessing) { _, active in
-                PluginSlotArbiter.shared.setCoreActive(active, side: .right)
-            }
+            // NOTE: isAnyProcessing no longer suppresses right ear —
+            // session count is now part of the carousel alongside third-party plugins.
             .onChange(of: showsClosedLeadingIcon) { _, showing in
                 PluginSlotArbiter.shared.setCoreActive(showing, side: .left)
             }
