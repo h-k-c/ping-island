@@ -18,9 +18,10 @@ final class PluginRegistry: ObservableObject {
             .appendingPathComponent("PingIsland/Plugins", isDirectory: true)
     }
 
-    nonisolated static var builtInPluginsDirectoryURL: URL? {
-        Bundle.main.bundleURL
-            .appendingPathComponent("Contents/Resources/PluginBundles", isDirectory: true)
+    /// Xcode flattens bundle contents into Resources/, so built-in plugins
+    /// have their manifest.json and executable directly in Resources.
+    nonisolated static var appBundleResourcesURL: URL? {
+        Bundle.main.resourceURL
     }
 
     init(
@@ -45,16 +46,20 @@ final class PluginRegistry: ObservableObject {
     func rescan() {
         var found: [InstalledPlugin] = []
 
-        // Built-in plugins from app bundle
-        if let builtInURL = Self.builtInPluginsDirectoryURL,
-           let contents = try? FileManager.default.contentsOfDirectory(
-               at: builtInURL, includingPropertiesForKeys: nil) {
-            found += contents
-                .filter { $0.pathExtension == "pingplugin" }
-                .compactMap { loadPlugin(at: $0) }
+        // Built-in plugins: Xcode copies PluginBundles contents flat into Resources/
+        // Each built-in plugin has its manifest.json and executable directly in Resources.
+        // We load them by reading manifest.json from Resources and checking builtIn == true.
+        if let resourcesURL = Self.appBundleResourcesURL {
+            let manifestURL = resourcesURL.appendingPathComponent("manifest.json")
+            if let data = try? Data(contentsOf: manifestURL),
+               let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data),
+               manifest.isBuiltIn {
+                // bundleURL = resourcesURL so executable resolves to Resources/ClaudePlugin
+                found.append(InstalledPlugin(manifest: manifest, bundleURL: resourcesURL))
+            }
         }
 
-        // User-installed plugins
+        // User-installed plugins (full .pingplugin bundle directories)
         if let contents = try? FileManager.default.contentsOfDirectory(
             at: pluginsDirectoryURL, includingPropertiesForKeys: nil) {
             found += contents
