@@ -31,25 +31,9 @@ struct PluginsSettingsView: View {
                 .buttonStyle(.plain)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-
-                Button("重启插件") {
-                    Task {
-                        await PluginHost.shared.stop()
-                        await PluginHost.shared.start()
-                    }
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 11))
-                .foregroundStyle(.orange)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
-
-            Text(PluginRegistry.defaultPluginsDirectoryURL.path)
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary.opacity(0.5))
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
         }
     }
 
@@ -100,13 +84,23 @@ struct PluginsSettingsView: View {
                             .background(.secondary.opacity(0.12), in: Capsule())
                     }
 
-                    // Process state badge
-                    Text(processStateLabel(for: plugin.id))
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(processStateColor(for: plugin.id))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(processStateColor(for: plugin.id).opacity(0.12), in: Capsule())
+                    // Only show badge for non-ready states
+                    if case .failed(let reason) = host.processStates[plugin.id] {
+                        Text("崩溃")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.red, in: Capsule())
+                            .help(reason)
+                    } else if host.processStates[plugin.id] == nil, !plugin.manifest.isBuiltIn {
+                        Text("未启动")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.secondary.opacity(0.12), in: Capsule())
+                    }
                 }
 
                 if !plugin.manifest.slots.isEmpty {
@@ -146,25 +140,6 @@ struct PluginsSettingsView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-    }
-
-    private func processStateLabel(for pluginId: String) -> String {
-        switch host.processStates[pluginId] {
-        case .ready:           return "运行中"
-        case .starting:        return "启动中"
-        case .failed(let r):   return "失败: \(r)"
-        case .stopped:         return "已停止"
-        case nil:              return "未启动"
-        }
-    }
-
-    private func processStateColor(for pluginId: String) -> Color {
-        switch host.processStates[pluginId] {
-        case .ready:    return .green
-        case .starting: return .yellow
-        case .failed:   return .red
-        default:        return .secondary
-        }
     }
 
     @ViewBuilder
