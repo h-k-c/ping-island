@@ -425,6 +425,12 @@ struct NotchView: View {
             .onChange(of: showsClosedLeadingIcon) { _, showing in
                 PluginSlotArbiter.shared.setCoreActive(showing, side: .left)
             }
+            .onChange(of: activeSessionCount) { _, count in
+                PluginSlotArbiter.shared.updateSystemSessionCount(count)
+            }
+            .onAppear {
+                PluginSlotArbiter.shared.updateSystemSessionCount(activeSessionCount)
+            }
     }
 
     private var visibilityAwareBody: some View {
@@ -690,16 +696,18 @@ struct NotchView: View {
                                     providerTitle: closedTrailingUsageProviderTitle,
                                     window: usageWindow
                                 )
-                            } else if activeSessionCount > 0 {
-                                SessionCountIndicator(count: activeSessionCount)
-                            } else if let pluginContent = pluginArbiter.activeRight {
-                                IslandPluginRenderer.compactView(content: pluginContent)
-                                    .onTapGesture {
-                                        if let pluginId = pluginArbiter.activeRightPluginId {
+                            } else if let pluginContent = pluginArbiter.activeRight,
+                                      let pluginId = pluginArbiter.activeRightPluginId {
+                                // Fair carousel: session count + third-party plugins compete equally
+                                if pluginId == PluginSlotArbiter.systemSessionsPluginId {
+                                    SessionCountIndicator(count: activeSessionCount)
+                                } else {
+                                    IslandPluginRenderer.compactView(content: pluginContent)
+                                        .onTapGesture {
                                             viewModel.contentType = .plugin(pluginId: pluginId)
                                             viewModel.notchOpen(reason: .click)
                                         }
-                                    }
+                                }
                             }
                         }
                         .frame(width: closedTrailingWidth, alignment: .trailing)
