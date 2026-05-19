@@ -7,7 +7,6 @@ import UniformTypeIdentifiers
 
 enum SettingsCategory: String, CaseIterable, Identifiable {
     case general
-    case shortcuts
     case display
     case mascot
     case sound
@@ -21,7 +20,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .general: return "通用"
-        case .shortcuts: return "快捷键"
         case .display: return "显示"
         case .mascot: return "宠物"
         case .sound: return "声音"
@@ -35,7 +33,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .general: return "系统与基础行为"
-        case .shortcuts: return "全局展开与自定义"
         case .display: return "显示器与位置"
         case .mascot: return "客户端宠物与动作"
         case .sound: return "通知与提示音"
@@ -49,7 +46,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .general: return "gearshape.fill"
-        case .shortcuts: return "command.square.fill"
         case .display: return "rectangle.on.rectangle"
         case .mascot: return "face.smiling.fill"
         case .sound: return "speaker.wave.2.fill"
@@ -63,7 +59,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     var tint: Color {
         switch self {
         case .general: return Color(red: 0.12, green: 0.42, blue: 0.95)
-        case .shortcuts: return Color(red: 0.25, green: 0.82, blue: 0.46)
         case .display: return Color(red: 0.46, green: 0.40, blue: 0.96)
         case .mascot: return Color(red: 0.91, green: 0.27, blue: 0.81)  // Pink
         case .sound: return Color(red: 0.22, green: 0.83, blue: 0.42)
@@ -251,7 +246,7 @@ final class SettingsPanelViewModel: ObservableObject {
             refreshClosedNotchUsageAvailability()
         case .sound:
             SoundPackCatalog.shared.refresh()
-        case .general, .shortcuts, .mascot, .plugins, .remote, .labs, .about:
+        case .general, .mascot, .plugins, .remote, .labs, .about:
             break
         }
     }
@@ -874,7 +869,7 @@ private struct SettingsCategoryLoadingView: View {
             return AppLocalization.string("正在刷新显示器与用量展示状态")
         case .sound:
             return AppLocalization.string("正在扫描可用声音主题包")
-        case .general, .shortcuts, .mascot, .plugins, .remote, .labs, .about:
+        case .general, .mascot, .plugins, .remote, .labs, .about:
             return AppLocalization.string("马上就好")
         }
     }
@@ -1334,8 +1329,6 @@ private struct SettingsPanelContentView: View {
                     switch currentCategory {
                     case .general:
                         generalContent
-                    case .shortcuts:
-                        shortcutsContent
                     case .display:
                         displayContent
                     case .mascot:
@@ -1462,7 +1455,7 @@ private struct SettingsPanelContentView: View {
         switch category {
         case .display, .sound:
             return true
-        case .general, .shortcuts, .mascot, .plugins, .remote, .labs, .about:
+        case .general, .mascot, .plugins, .remote, .labs, .about:
             return false
         }
     }
@@ -1573,45 +1566,6 @@ private struct SettingsPanelContentView: View {
                     Image(systemName: "power")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white.opacity(0.72))
-                }
-            }
-
-            // IDE 扩展（从集成页迁入）
-            let ideProfiles = viewModel.visibleIDEExtensionProfiles
-            if !ideProfiles.isEmpty {
-                SettingsSectionCard(title: "IDE 扩展") {
-                    let profiles = ideProfiles
-                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
-                        IDEExtensionManagementLine(
-                            profile: profile,
-                            isInstalled: viewModel.isIDEExtensionInstalled(profile),
-                            installAction: { viewModel.installIDEExtension(for: profile) },
-                            reinstallAction: { viewModel.reinstallIDEExtension(for: profile) },
-                            authorizeAction: { viewModel.authorizeIDEExtension(for: profile) },
-                            uninstallAction: { viewModel.uninstallIDEExtension(for: profile) }
-                        )
-                        if index < profiles.count - 1 { SettingsLineDivider() }
-                    }
-                }
-            }
-
-            // 空闲时自动审批路由（全局，影响所有 AI 插件）
-            SettingsSectionCard(title: "空闲审批路由") {
-                SettingsToggleLine(
-                    title: "空闲时自动保留到终端",
-                    subtitle: "键盘和鼠标静默达到设定时长后，临时将所有 AI 插件的审批与提问路由回终端；恢复活跃后回到各插件自身设置。",
-                    isOn: $settings.autoRoutePromptsToTerminalWhenIdleEnabled
-                )
-                SettingsLineDivider()
-                SettingsInfoLine(
-                    title: "静默时长",
-                    subtitle: settings.idleAutoRoutePromptsToTerminalActive
-                        ? "当前已进入空闲保护，后续新审批和提问会保留在终端。"
-                        : "达到该时长后自动进入空闲保护。"
-                ) {
-                    AutoRoutePromptsIdleDelayPicker(delay: $settings.autoRoutePromptsIdleDelay)
-                        .disabled(!settings.autoRoutePromptsToTerminalWhenIdleEnabled)
-                        .opacity(settings.autoRoutePromptsToTerminalWhenIdleEnabled ? 1 : 0.45)
                 }
             }
 
@@ -1836,48 +1790,6 @@ private struct SettingsPanelContentView: View {
         }
     }
 
-    private var shortcutsContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            SettingsSectionCard(title: "全局快捷键") {
-                ShortcutSettingsLine(
-                    action: .openActiveSession,
-                    shortcut: shortcutBinding(for: .openActiveSession)
-                )
-                SettingsLineDivider()
-                ShortcutSettingsLine(
-                    action: .openSessionList,
-                    shortcut: shortcutBinding(for: .openSessionList)
-                )
-            }
-
-            SettingsSectionCard(title: "说明") {
-                SettingsInfoLine(
-                    title: "默认键位",
-                    subtitle: "默认使用 Option + J 打开活跃会话，Option + L 展开会话列表。"
-                ) {
-                    EmptyView()
-                }
-                SettingsLineDivider()
-
-                SettingsInfoLine(
-                    title: "录制规则",
-                    subtitle: "录制状态下直接按新组合键即可；清空会关闭对应全局快捷键，重置按钮才会恢复默认。"
-                ) {
-                    EmptyView()
-                }
-                SettingsLineDivider()
-
-                SettingsInfoLine(
-                    title: "列表键盘操作",
-                    subtitle: "呼出会话列表后，可用 ↑ / ↓ 选中会话，按 Enter 打开对应窗口。"
-                ) {
-                    EmptyView()
-                }
-            }
-
-
-        }
-    }
 
     private var mascotContent: some View {
         MascotSettingsView()
