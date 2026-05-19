@@ -42,9 +42,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 queue: .main
             ) { notification in
                 guard let actionId = notification.userInfo?["actionId"] as? String else { return }
+                let value = notification.userInfo?["value"]
+                let actionType = notification.userInfo?["actionType"] as? String ?? "callback"
                 Task { @MainActor in
-                    guard let pluginId = PluginSlotArbiter.shared.currentlyDisplayedExpandedPluginId else { return }
-                    await PluginHost.shared.sendAction(actionId: actionId, to: pluginId)
+                    // Handle platform-level action types first
+                    switch actionType {
+                    case "openURL":
+                        if let urlStr = value as? String, let url = URL(string: urlStr) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    case "writeClipboard":
+                        if let str = value as? String {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(str, forType: .string)
+                        }
+                    default:
+                        // callback — forward to plugin
+                        guard let pluginId = PluginSlotArbiter.shared.currentlyDisplayedExpandedPluginId else { return }
+                        await PluginHost.shared.sendAction(actionId: actionId, value: value, to: pluginId)
+                    }
                 }
             }
         }

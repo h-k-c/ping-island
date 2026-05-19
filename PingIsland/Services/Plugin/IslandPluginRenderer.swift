@@ -154,11 +154,13 @@ enum IslandPluginRenderer {
     @ViewBuilder
     private static func buttonView(_ s: ButtonSection) -> some View {
         Button(s.label) {
-            NotificationCenter.default.post(
-                name: .pluginButtonTapped,
-                object: nil,
-                userInfo: ["actionId": s.actionId]
-            )
+            var info: [String: Any] = ["actionId": s.actionId]
+            // Support action types: callback (default), openURL, writeClipboard
+            if let actionType = s.actionType {
+                info["actionType"] = actionType
+                if let actionValue = s.actionValue { info["value"] = actionValue }
+            }
+            NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: info)
         }
         .buttonStyle(IslandPluginButtonStyle(destructive: s.style == .destructive))
     }

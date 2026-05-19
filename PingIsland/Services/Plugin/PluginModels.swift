@@ -384,16 +384,24 @@ struct ButtonSection: Equatable, Sendable {
     let label: String
     let actionId: String
     let style: Style?
+    /// "callback" (default) | "openURL" | "writeClipboard" | "runShortcut" | "emitEvent"
+    let actionType: String?
+    /// Associated value for the action type (URL, clipboard text, shortcut name, etc.)
+    let actionValue: String?
 }
 
 extension ButtonSection: Codable {
-    private enum CodingKeys: String, CodingKey { case type, label, actionId, style }
+    private enum CodingKeys: String, CodingKey {
+        case type, label, actionId, style, actionType, actionValue
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        label    = try c.decode(String.self, forKey: .label)
-        actionId = try c.decode(String.self, forKey: .actionId)
-        style    = try c.decodeIfPresent(Style.self, forKey: .style)
+        label       = try c.decode(String.self, forKey: .label)
+        actionId    = try c.decode(String.self, forKey: .actionId)
+        style       = try c.decodeIfPresent(Style.self, forKey: .style)
+        actionType  = try c.decodeIfPresent(String.self, forKey: .actionType)
+        actionValue = try c.decodeIfPresent(String.self, forKey: .actionValue)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -402,6 +410,8 @@ extension ButtonSection: Codable {
         try c.encode(label, forKey: .label)
         try c.encode(actionId, forKey: .actionId)
         try c.encodeIfPresent(style, forKey: .style)
+        try c.encodeIfPresent(actionType, forKey: .actionType)
+        try c.encodeIfPresent(actionValue, forKey: .actionValue)
     }
 }
 

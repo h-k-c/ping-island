@@ -260,6 +260,50 @@ actor PluginProcess {
                 expandedCont.yield(PluginExpandedUpdate(pluginId: manifest.id, sections: p.sections))
             }
 
+        // ── Storage API ────────────────────────────────────────────────
+        case "storage/get":
+            struct GetParams: Decodable { let key: String; let id: Int? }
+            if let p = try? decoder.decode(GetParams.self, from: paramsData) {
+                let value = await MainActor.run {
+                    PluginStorage.shared.get(pluginId: manifest.id, key: p.key)
+                }
+                let responseId = json["id"] ?? (p.id as Any? ?? 0)
+                if let value {
+                    send(["jsonrpc": "2.0", "id": responseId, "result": ["value": value]])
+                } else {
+                    send(["jsonrpc": "2.0", "id": responseId, "result": ["value": NSNull()]])
+                }
+            }
+
+        case "storage/set":
+            struct SetParams: Decodable { let key: String; let value: AnyCodable? }
+            if let p = try? decoder.decode(SetParams.self, from: paramsData) {
+                await MainActor.run {
+                    PluginStorage.shared.set(pluginId: manifest.id, key: p.key, value: p.value?.value)
+                }
+            }
+
+        case "storage/delete":
+            struct DelParams: Decodable { let key: String }
+            if let p = try? decoder.decode(DelParams.self, from: paramsData) {
+                await MainActor.run {
+                    PluginStorage.shared.delete(pluginId: manifest.id, key: p.key)
+                }
+            }
+
+        // ── Plugin-to-plugin event emission ───────────────────────────
+        case "event/emit":
+            struct EmitParams: Decodable { let name: String; let payload: AnyCodable? }
+            if let p = try? decoder.decode(EmitParams.self, from: paramsData) {
+                let eventName = "pluginEvent.\(manifest.id).\(p.name)"
+                await MainActor.run {
+                    PluginEventBus.shared.dispatchPluginEvent(
+                        name: eventName,
+                        payload: p.payload?.value as? [String: Any] ?? [:]
+                    )
+                }
+            }
+
         default:
             logger.debug("Unknown method from plugin \(self.manifest.id, privacy: .public): \(method, privacy: .public)")
         }

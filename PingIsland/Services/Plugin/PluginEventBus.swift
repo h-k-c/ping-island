@@ -50,6 +50,19 @@ final class PluginEventBus {
         return ["jsonrpc": "2.0", "method": "hookEvent", "params": params]
     }
 
+    /// Forward a plugin-emitted event to all other plugins subscribed to it.
+    /// Event name format: "pluginEvent.<sourcePluginId>.<eventName>"
+    func dispatchPluginEvent(name: String, payload: [String: Any]) {
+        let json: [String: Any] = [
+            "jsonrpc": "2.0",
+            "method": "event",
+            "params": ["type": name, "payload": payload]
+        ]
+        for process in PluginHost.shared.subscribedProcesses(for: name) {
+            Task { await process.send(json) }
+        }
+    }
+
     private func resolvedPhase(from event: HookEvent) -> String {
         switch event.event {
         case "Stop", "SessionEnd", "SubagentStop":
