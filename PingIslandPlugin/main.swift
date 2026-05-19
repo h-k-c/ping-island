@@ -31,6 +31,8 @@ case "com.wudanwu.pingisland.claude":
     ClaudeSessionPlugin.run()
 case "com.wudanwu.pingisland.codex":
     CodexSessionPlugin.run()
+case "com.wudanwu.pingisland.usage":
+    UsageMonitorPlugin.run()
 default:
     // Unknown plugin — respond to initialize and stay alive
     for msg in AnySequence({ AnyIterator { readLine() } }) {
