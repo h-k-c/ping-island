@@ -33,7 +33,7 @@ actor PluginProcess {
         manifest: PluginManifest,
         bundleURL: URL,
         islandVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
-        initializeTimeoutSeconds: Double = 15.0
+        initializeTimeoutSeconds: Double = 8.0
     ) {
         self.manifest = manifest
         self.bundleURL = bundleURL

@@ -39,8 +39,13 @@ final class PluginHost: ObservableObject {
 
         registry.start()
 
-        for plugin in registry.installedPlugins where registry.isEnabled(plugin.id) {
-            await startPlugin(plugin)
+        // Start all plugins concurrently — each has its own timeout and retry logic
+        await withTaskGroup(of: Void.self) { group in
+            for plugin in registry.installedPlugins where registry.isEnabled(plugin.id) {
+                group.addTask { [weak self] in
+                    await self?.startPlugin(plugin)
+                }
+            }
         }
 
         registryCancellable = registry.$installedPlugins
