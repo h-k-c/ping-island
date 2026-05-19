@@ -239,13 +239,41 @@ struct PluginsSettingsView: View {
                 .aspectRatio(contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } else {
+            let meta = pluginIconMeta(for: plugin.manifest.id)
             ZStack {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.white.opacity(0.08))
-                Image(systemName: "puzzlepiece.extension.fill")
-                    .font(.system(size: 16, weight: .light))
-                    .foregroundStyle(.secondary)
+                    .fill(
+                        LinearGradient(
+                            colors: [meta.color.opacity(0.85), meta.color.opacity(0.55)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                Image(systemName: meta.symbol)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
             }
+        }
+    }
+
+    /// Returns a stable SF Symbol + color for a plugin ID.
+    private func pluginIconMeta(for pluginId: String) -> (symbol: String, color: Color) {
+        switch pluginId {
+        case "com.wudanwu.pingisland.claude":
+            return ("brain.head.profile", Color(red: 0.55, green: 0.36, blue: 0.96))
+        case "com.wudanwu.pingisland.codex":
+            return ("terminal.fill", Color(red: 0.18, green: 0.72, blue: 0.45))
+        default:
+            // Derive a stable color from the plugin ID hash
+            let palette: [(String, Color)] = [
+                ("puzzlepiece.extension.fill", Color(red: 0.20, green: 0.60, blue: 0.90)),
+                ("puzzlepiece.extension.fill", Color(red: 0.95, green: 0.55, blue: 0.20)),
+                ("puzzlepiece.extension.fill", Color(red: 0.85, green: 0.25, blue: 0.45)),
+                ("puzzlepiece.extension.fill", Color(red: 0.30, green: 0.75, blue: 0.65)),
+                ("puzzlepiece.extension.fill", Color(red: 0.70, green: 0.40, blue: 0.90)),
+            ]
+            let index = abs(pluginId.hashValue) % palette.count
+            return palette[index]
         }
     }
 
