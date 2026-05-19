@@ -71,47 +71,11 @@ struct PluginsSettingsView: View {
 
     private var pluginList: some View {
         VStack(spacing: 0) {
-            builtInRow
-            Divider()
-
             ForEach(registry.installedPlugins) { plugin in
                 pluginRow(plugin)
                 Divider().padding(.leading, 52)
             }
         }
-    }
-
-    private var builtInRow: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "brain.head.profile")
-                .font(.system(size: 20))
-                .foregroundStyle(.secondary)
-                .frame(width: 32, height: 32)
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text("Claude 会话")
-                        .font(.system(size: 13, weight: .medium))
-                    Text("内置")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(.secondary.opacity(0.15), in: Capsule())
-                }
-                Text("任务进度、通知与对话管理")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Text("始终开启")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
     }
 
     private func pluginRow(_ plugin: InstalledPlugin) -> some View {
@@ -127,7 +91,16 @@ struct PluginsSettingsView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
 
-                    // Debug: always show process state
+                    if plugin.manifest.isBuiltIn {
+                        Text("内置")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.secondary.opacity(0.12), in: Capsule())
+                    }
+
+                    // Process state badge
                     Text(processStateLabel(for: plugin.id))
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(processStateColor(for: plugin.id))
@@ -158,12 +131,18 @@ struct PluginsSettingsView: View {
 
             Spacer()
 
-            Toggle("", isOn: Binding(
-                get: { registry.isEnabled(plugin.id) },
-                set: { registry.setEnabled($0, for: plugin.id) }
-            ))
-            .toggleStyle(.switch)
-            .labelsHidden()
+            if plugin.manifest.isBuiltIn {
+                Text("始终开启")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            } else {
+                Toggle("", isOn: Binding(
+                    get: { registry.isEnabled(plugin.id) },
+                    set: { registry.setEnabled($0, for: plugin.id) }
+                ))
+                .toggleStyle(.switch)
+                .labelsHidden()
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

@@ -57,6 +57,8 @@ struct NotchView: View {
     @State private var activeCompletionNotification: SessionCompletionNotification?
     @State private var completionNotificationDismissWorkItem: DispatchWorkItem?
     @State private var shouldDismissCompletionNotificationOnHoverExit: Bool = false
+    @State private var activePluginNotification: PluginNotifyUpdate?
+    @State private var pluginNotificationDismissWork: DispatchWorkItem?
     @State private var isShowingDetachmentHint: Bool = false
     @State private var detachmentHintDismissWorkItem: DispatchWorkItem?
     @State private var detachmentHintPresentationWorkItem: DispatchWorkItem?
@@ -424,11 +426,10 @@ struct NotchView: View {
             .onChange(of: showsClosedLeadingIcon) { _, showing in
                 PluginSlotArbiter.shared.setCoreActive(showing, side: .left)
             }
-            .onChange(of: activeSessionCount) { _, count in
-                PluginSlotArbiter.shared.updateSystemSessionCount(count)
-            }
-            .onAppear {
-                PluginSlotArbiter.shared.updateSystemSessionCount(activeSessionCount)
+            .onChange(of: pluginArbiter.pendingNotifications) { _, notifications in
+                if activePluginNotification == nil, !notifications.isEmpty {
+                    dequeuePluginNotification()
+                }
             }
     }
 
@@ -695,18 +696,14 @@ struct NotchView: View {
                                     providerTitle: closedTrailingUsageProviderTitle,
                                     window: usageWindow
                                 )
-                            } else if let pluginContent = pluginArbiter.activeRight,
-                                      let pluginId = pluginArbiter.activeRightPluginId {
-                                // Fair carousel: session count + third-party plugins compete equally
-                                if pluginId == PluginSlotArbiter.systemSessionsPluginId {
-                                    SessionCountIndicator(count: activeSessionCount)
-                                } else {
-                                    IslandPluginRenderer.compactView(content: pluginContent)
-                                        .onTapGesture {
+                            } else if let pluginContent = pluginArbiter.activeRight {
+                                IslandPluginRenderer.compactView(content: pluginContent)
+                                    .onTapGesture {
+                                        if let pluginId = pluginArbiter.activeRightPluginId {
                                             viewModel.contentType = .plugin(pluginId: pluginId)
                                             viewModel.notchOpen(reason: .click)
                                         }
-                                }
+                                    }
                             }
                         }
                         .frame(width: closedTrailingWidth, alignment: .trailing)
@@ -1125,6 +1122,24 @@ struct NotchView: View {
             uniqueKeysWithValues: instances.map { ($0.stableId, $0.phase) }
         )
         synchronizeCompletionNotifications(with: instances)
+    }
+
+    // MARK: - Plugin notifications
+
+    private func dequeuePluginNotification() {
+        guard let update = PluginSlotArbiter.shared.dequeueNotification() else { return }
+        activePluginNotification = update
+        viewModel.notchOpen(reason: .notification)
+
+        let duration = update.content.duration ?? 4.0
+        let work = DispatchWorkItem { [self] in
+            withAnimation(.smooth) { activePluginNotification = nil }
+            if completionNotificationQueue.isEmpty && activeCompletionNotification == nil {
+                viewModel.notchClose()
+            }
+        }
+        pluginNotificationDismissWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
     }
 
     private func handleCompletionNotificationChange(_ instances: [SessionState]) {

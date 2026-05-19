@@ -21,10 +21,6 @@ final class PluginSlotArbiter: ObservableObject {
     private var coreRightActive = false
     private var carouselTimer: Timer?
 
-    /// Special plugin ID for the built-in Claude/Codex session count slot.
-    /// NotchView uses this to render SessionCountIndicator instead of IslandPluginRenderer.
-    static let systemSessionsPluginId = "__system.sessions__"
-
     init() {
         startCarouselTimer()
     }
@@ -87,33 +83,6 @@ final class PluginSlotArbiter: ObservableObject {
         pendingNotifications.append(sanitized)
     }
 
-    /// Feed the built-in session count into the right-ear carousel.
-    /// count == 0 removes it from the carousel; count > 0 adds/updates it.
-    func updateSystemSessionCount(_ count: Int) {
-        let update: PluginCompactUpdate
-        if count > 0 {
-            // The actual rendering is done by SessionCountIndicator in NotchView,
-            // so this content is just a placeholder to hold the slot.
-            let content = PluginCompactContent(
-                icon: .sf(name: ""),
-                label: "\(count)",
-                badge: nil,
-                tint: .default
-            )
-            update = PluginCompactUpdate(
-                pluginId: Self.systemSessionsPluginId,
-                position: .right,
-                content: content
-            )
-        } else {
-            update = PluginCompactUpdate(
-                pluginId: Self.systemSessionsPluginId,
-                position: .right,
-                content: nil
-            )
-        }
-        handleCompact(update)
-    }
 
     func dequeueNotification() -> PluginNotifyUpdate? {
         guard !pendingNotifications.isEmpty else { return nil }
