@@ -6,184 +6,204 @@ struct PluginsSettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 18) {
             if registry.installedPlugins.isEmpty {
-                emptyState
+                emptyCard
             } else {
-                pluginList
+                pluginsCard
             }
 
-            Divider()
-                .padding(.vertical, 8)
-
+            // Footer
             HStack {
-                Button("打开插件文件夹") {
+                Button {
                     NSWorkspace.shared.open(PluginRegistry.defaultPluginsDirectoryURL)
+                } label: {
+                    Label("打开插件文件夹", systemImage: "folder")
+                        .font(.system(size: 11))
                 }
                 .buttonStyle(.plain)
-                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
 
                 Spacer()
 
-                Button("刷新") {
+                Button {
                     PluginRegistry.shared.rescan()
+                } label: {
+                    Label("刷新", systemImage: "arrow.clockwise")
+                        .font(.system(size: 11))
                 }
                 .buttonStyle(.plain)
-                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 12)
         }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "puzzlepiece.extension")
-                .font(.system(size: 32))
-                .foregroundStyle(.secondary)
-            Text("没有已安装的插件")
-                .font(.headline)
-            Text("将 .pingplugin 文件放入插件文件夹即可安装。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+    // MARK: - Cards
+
+    private var emptyCard: some View {
+        pluginCard {
+            VStack(spacing: 10) {
+                Image(systemName: "puzzlepiece.extension")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(.secondary)
+                Text("没有已安装的插件")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
+                Text("将 .pingplugin 文件放入插件文件夹即可安装")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 28)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
     }
 
-    private var pluginList: some View {
-        VStack(spacing: 0) {
+    private var pluginsCard: some View {
+        VStack(alignment: .leading, spacing: 18) {
             ForEach(registry.installedPlugins) { plugin in
-                pluginRow(plugin)
-                Divider().padding(.leading, 52)
+                singlePluginCard(plugin)
             }
         }
     }
 
-    private func pluginRow(_ plugin: InstalledPlugin) -> some View {
-        HStack(spacing: 12) {
-            pluginIcon(plugin)
-                .frame(width: 32, height: 32)
+    private func singlePluginCard(_ plugin: InstalledPlugin) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Card header: plugin name as title
+            Text(plugin.manifest.name)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.primary)
+                .padding(.bottom, 10)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(plugin.manifest.name)
-                        .font(.system(size: 13, weight: .medium))
-                    Text(plugin.manifest.version)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+            pluginCard {
+                // Main info row
+                HStack(alignment: .center, spacing: 12) {
+                    pluginIcon(plugin)
+                        .frame(width: 36, height: 36)
 
-                    if plugin.manifest.isBuiltIn {
-                        Text("内置")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(.secondary.opacity(0.12), in: Capsule())
-                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(plugin.manifest.version)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
 
-                    // Only show badge for non-ready states
-                    if case .failed(let reason) = host.processStates[plugin.id] {
-                        Text("崩溃")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(Color.red, in: Capsule())
-                            .help(reason)
-                    } else if host.processStates[plugin.id] == nil, !plugin.manifest.isBuiltIn {
-                        Text("未启动")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(.secondary.opacity(0.12), in: Capsule())
-                    }
-                }
+                            if plugin.manifest.isBuiltIn {
+                                capsuleBadge("内置", color: .secondary)
+                            }
 
-                if !plugin.manifest.slots.isEmpty {
-                    HStack(spacing: 4) {
-                        ForEach(plugin.manifest.slots, id: \.rawValue) { slot in
-                            Text(slot.displayName)
-                                .font(.system(size: 9, weight: .medium))
+                            if case .failed(let reason) = host.processStates[plugin.id] {
+                                capsuleBadge("崩溃", color: .red, fill: true)
+                                    .help(reason)
+                            }
+
+                            // Slot badges
+                            ForEach(plugin.manifest.slots, id: \.rawValue) { slot in
+                                capsuleBadge(slot.displayName, color: .secondary)
+                            }
+                        }
+
+                        if let desc = plugin.manifest.description {
+                            Text(desc)
+                                .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(.secondary.opacity(0.12), in: Capsule())
                         }
                     }
+
+                    Spacer(minLength: 8)
+
+                    if plugin.manifest.isBuiltIn {
+                        Text("始终开启")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                    } else {
+                        Toggle("", isOn: Binding(
+                            get: { registry.isEnabled(plugin.id) },
+                            set: { registry.setEnabled($0, for: plugin.id) }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .controlSize(.small)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+
+                // Hook status row
+                if let profile = hookProfile(for: plugin.id) {
+                    configDivider()
+                    hookStatusRow(profile: profile)
                 }
 
-                if let desc = plugin.manifest.description {
-                    Text(desc)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-
-                // Hook install status for built-in AI plugins
-                if let hookProfile = hookProfile(for: plugin.id) {
-                    hookInstallRow(profile: hookProfile)
-                }
-
-                // Per-plugin approval routing
+                // Approval routing row
                 if let routeBinding = approvalRouteBinding(for: plugin.id) {
+                    configDivider()
                     approvalRouteRow(isOn: routeBinding)
                 }
             }
+        }
+    }
+
+    // MARK: - Config Sub-rows
+
+    private func hookStatusRow(profile: ManagedHookClientProfile) -> some View {
+        let installed = HookInstaller.isInstalled(profile)
+        return HStack(spacing: 8) {
+            Image(systemName: installed ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(installed ? Color.green : Color.orange)
+                .frame(width: 16)
+
+            Text(installed ? "Hook 已安装" : "Hook 未安装")
+                .font(.system(size: 11))
+                .foregroundStyle(installed ? Color.secondary : Color.orange)
 
             Spacer()
 
-            if plugin.manifest.isBuiltIn {
-                Text("始终开启")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            } else {
-                Toggle("", isOn: Binding(
-                    get: { registry.isEnabled(plugin.id) },
-                    set: { registry.setEnabled($0, for: plugin.id) }
-                ))
-                .toggleStyle(.switch)
-                .labelsHidden()
+            if !installed {
+                Button("安装") { HookInstaller.install(profile) }
+                    .font(.system(size: 11, weight: .medium))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.blue)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color.white.opacity(0.02))
     }
 
-    /// Returns binding for per-provider approval routing, if applicable.
-    private func approvalRouteBinding(for pluginId: String) -> Binding<Bool>? {
-        switch pluginId {
-        case "com.wudanwu.pingisland.claude":
-            return $settings.claudeRoutePromptsToTerminal
-        case "com.wudanwu.pingisland.codex":
-            return $settings.codexRoutePromptsToTerminal
-        default:
-            return nil
-        }
-    }
-
-    @ViewBuilder
     private func approvalRouteRow(isOn: Binding<Bool>) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Image(systemName: "arrow.uturn.backward.circle")
-                .font(.system(size: 10))
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
+                .frame(width: 16)
+
             Text("审批与提问保留在终端")
-                .font(.system(size: 10))
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
+
             Spacer()
+
             Toggle("", isOn: isOn)
                 .toggleStyle(.switch)
                 .labelsHidden()
                 .controlSize(.mini)
         }
-        .padding(.top, 2)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color.white.opacity(0.02))
     }
 
-    /// Maps built-in plugin IDs to their managed hook profiles.
+    // MARK: - Helpers
+
+    private func approvalRouteBinding(for pluginId: String) -> Binding<Bool>? {
+        switch pluginId {
+        case "com.wudanwu.pingisland.claude": return $settings.claudeRoutePromptsToTerminal
+        case "com.wudanwu.pingisland.codex":  return $settings.codexRoutePromptsToTerminal
+        default: return nil
+        }
+    }
+
     private func hookProfile(for pluginId: String) -> ManagedHookClientProfile? {
         let profileId: String
         switch pluginId {
@@ -195,25 +215,19 @@ struct PluginsSettingsView: View {
     }
 
     @ViewBuilder
-    private func hookInstallRow(profile: ManagedHookClientProfile) -> some View {
-        let installed = HookInstaller.isInstalled(profile)
-        HStack(spacing: 6) {
-            Image(systemName: installed ? "checkmark.circle.fill" : "exclamationmark.circle")
-                .font(.system(size: 10))
-                .foregroundStyle(installed ? Color.green : Color.orange)
-            Text(installed ? "Hook 已安装" : "Hook 未安装")
-                .font(.system(size: 10))
-                .foregroundStyle(installed ? Color.secondary : Color.orange)
-            if !installed {
-                Button("安装") {
-                    HookInstaller.install(profile)
-                }
-                .font(.system(size: 10))
-                .buttonStyle(.plain)
-                .foregroundStyle(.blue)
-            }
-        }
-        .padding(.top, 2)
+    private func capsuleBadge(_ text: String, color: Color, fill: Bool = false) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(fill ? .white : color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(fill ? color : color.opacity(0.14), in: Capsule())
+    }
+
+    private func configDivider() -> some View {
+        Divider()
+            .background(Color.white.opacity(0.05))
+            .padding(.leading, 14)
     }
 
     @ViewBuilder
@@ -223,11 +237,33 @@ struct PluginsSettingsView: View {
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } else {
-            Image(systemName: "puzzlepiece.extension.fill")
-                .font(.system(size: 20))
-                .foregroundStyle(.secondary)
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.white.opacity(0.08))
+                Image(systemName: "puzzlepiece.extension.fill")
+                    .font(.system(size: 16, weight: .light))
+                    .foregroundStyle(.secondary)
+            }
         }
+    }
+
+    // MARK: - Card container (matches SettingsSectionCard style)
+
+    @ViewBuilder
+    private func pluginCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            content()
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.045))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
