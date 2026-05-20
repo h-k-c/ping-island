@@ -45,13 +45,20 @@ enum IslandPluginRenderer {
     @ViewBuilder
     static func sectionView(_ section: ExpandedSection) -> some View {
         switch section {
-        case .stat(let s):     statView(s)
-        case .text(let s):     textView(s)
-        case .list(let s):     listView(s)
-        case .progress(let s): progressView(s)
-        case .chart(let s):    chartView(s)
-        case .button(let s):   buttonView(s)
-        case .divider:         Divider().background(.white.opacity(0.1))
+        case .stat(let s):         statView(s)
+        case .text(let s):         textView(s)
+        case .list(let s):         listView(s)
+        case .progress(let s):     progressView(s)
+        case .chart(let s):        chartView(s)
+        case .button(let s):       buttonView(s)
+        case .divider:             Divider().background(.white.opacity(0.1))
+        case .checkbox(let s):     checkboxView(s)
+        case .input(let s):        inputView(s)
+        case .image(let s):        imageView(s)
+        case .slider(let s):       sliderView(s)
+        case .media(let s):        mediaView(s)
+        case .step(let s):         stepView(s)
+        case .actionToggle(let s): actionToggleView(s)
         }
     }
 
@@ -193,6 +200,136 @@ enum IslandPluginRenderer {
         .frame(maxWidth: .infinity, alignment: .bottom)
     }
 
+    // MARK: - New section renderers
+
+    @ViewBuilder
+    private static func checkboxView(_ s: CheckboxSection) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: s.checked ? "checkmark.square.fill" : "square")
+                .font(.system(size: 13))
+                .foregroundStyle(s.checked ? Color.blue : Color.white.opacity(0.4))
+            Text(s.label).font(.system(size: 11)).foregroundStyle(.white.opacity(0.8))
+            Spacer()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            var info: [String: Any] = ["actionId": s.actionId, "value": !s.checked]
+            NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: info)
+        }
+    }
+
+    @ViewBuilder
+    private static func inputView(_ s: InputSection) -> some View {
+        _InputSectionView(section: s)
+    }
+
+    @ViewBuilder
+    private static func imageView(_ s: ImageSection) -> some View {
+        if let url = URL(string: s.url) {
+            AsyncImage(url: url) { image in
+                image.resizable().aspectRatio(s.aspectRatio ?? 1, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            } placeholder: {
+                RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.1))
+                    .frame(height: 80)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private static func sliderView(_ s: SliderSection) -> some View {
+        _SliderSectionView(section: s)
+    }
+
+    @ViewBuilder
+    private static func mediaView(_ s: MediaSection) -> some View {
+        VStack(spacing: 6) {
+            if let imgURL = s.imageURL, let url = URL(string: imgURL) {
+                AsyncImage(url: url) { img in
+                    img.resizable().aspectRatio(1, contentMode: .fill)
+                        .frame(width: 48, height: 48).clipShape(RoundedRectangle(cornerRadius: 6))
+                } placeholder: {
+                    RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.1)).frame(width: 48, height: 48)
+                }
+            }
+            Text(s.title).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+            if let sub = s.subtitle {
+                Text(sub).font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            if let actions = s.actions {
+                HStack(spacing: 16) {
+                    if let prev = actions.previous {
+                        Button { NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: ["actionId": prev]) } label: {
+                            Image(systemName: "backward.fill").font(.system(size: 14))
+                        }.buttonStyle(.plain).foregroundStyle(.white.opacity(0.8))
+                    }
+                    if let tog = actions.toggle {
+                        Button { NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: ["actionId": tog]) } label: {
+                            Image(systemName: s.isPlaying == true ? "pause.fill" : "play.fill").font(.system(size: 18))
+                        }.buttonStyle(.plain).foregroundStyle(.white)
+                    }
+                    if let nxt = actions.next {
+                        Button { NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: ["actionId": nxt]) } label: {
+                            Image(systemName: "forward.fill").font(.system(size: 14))
+                        }.buttonStyle(.plain).foregroundStyle(.white.opacity(0.8))
+                    }
+                }
+            }
+            if let progress = s.progress {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2).fill(Color.white.opacity(0.15))
+                        RoundedRectangle(cornerRadius: 2).fill(Color.white.opacity(0.7))
+                            .frame(width: geo.size.width * CGFloat(max(0, min(1, progress))))
+                    }
+                }.frame(height: 3)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private static func stepView(_ s: StepSection) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(s.steps.enumerated()), id: \.offset) { _, step in
+                HStack(spacing: 8) {
+                    stepStatusIcon(step.status)
+                    Text(step.label).font(.system(size: 11)).foregroundStyle(.white.opacity(0.8))
+                    Spacer()
+                    if let dur = step.duration {
+                        Text(dur).font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private static func stepStatusIcon(_ status: String) -> some View {
+        switch status {
+        case "success": Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        case "failed":  Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+        case "running": Image(systemName: "arrow.clockwise").foregroundStyle(.blue)
+        case "skipped": Image(systemName: "minus.circle").foregroundStyle(.secondary)
+        default:        Image(systemName: "circle").foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private static func actionToggleView(_ s: ActionToggleSection) -> some View {
+        HStack(spacing: 8) {
+            Text(s.label).font(.system(size: 11)).foregroundStyle(.primary)
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { s.active },
+                set: { newVal in
+                    NotificationCenter.default.post(name: .pluginButtonTapped, object: nil,
+                                                    userInfo: ["actionId": s.actionId, "value": newVal])
+                }
+            ))
+            .toggleStyle(.switch).labelsHidden().controlSize(.mini)
+        }
+    }
+
     @ViewBuilder
     static func iconView(_ icon: PluginIcon, size: CGFloat) -> some View {
         switch icon {
@@ -257,4 +394,60 @@ private struct IslandPluginButtonStyle: ButtonStyle {
 
 extension Notification.Name {
     static let pluginButtonTapped = Notification.Name("PluginButtonTapped")
+}
+
+// MARK: - Stateful helper views for Input and Slider sections
+
+private struct _InputSectionView: View {
+    let section: InputSection
+    @State private var text = ""
+    var body: some View {
+        HStack(spacing: 6) {
+            Group {
+                if section.secure == true {
+                    SecureField(section.placeholder ?? "输入…", text: $text)
+                } else {
+                    TextField(section.placeholder ?? "输入…", text: $text)
+                }
+            }
+            .textFieldStyle(.plain)
+            .font(.system(size: 11))
+            .padding(6)
+            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            Button("→") {
+                NotificationCenter.default.post(name: .pluginButtonTapped, object: nil,
+                    userInfo: ["actionId": section.actionId, "value": text])
+                text = ""
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.blue)
+            .font(.system(size: 12, weight: .semibold))
+        }
+    }
+}
+
+private struct _SliderSectionView: View {
+    let section: SliderSection
+    @State private var value: Double
+    init(section: SliderSection) {
+        self.section = section
+        _value = State(initialValue: section.value)
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if let label = section.label {
+                HStack {
+                    Text(label).font(.system(size: 10)).foregroundStyle(.secondary)
+                    Spacer()
+                    Text(String(format: "%.0f", value)).font(.system(size: 10, design: .monospaced)).foregroundStyle(.white.opacity(0.7))
+                }
+            }
+            Slider(value: $value, in: (section.min ?? 0)...(section.max ?? 1))
+                .accentColor(.white)
+                .onChange(of: value) { _, newVal in
+                    NotificationCenter.default.post(name: .pluginButtonTapped, object: nil,
+                        userInfo: ["actionId": section.actionId, "value": newVal])
+                }
+        }
+    }
 }

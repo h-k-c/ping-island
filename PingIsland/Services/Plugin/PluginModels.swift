@@ -211,6 +211,7 @@ struct PluginExpandedUpdate: Equatable, Sendable {
 }
 
 enum ExpandedSection: Codable, Equatable, Sendable {
+    // Existing
     case stat(StatSection)
     case text(TextSection)
     case list(ListSection)
@@ -218,19 +219,34 @@ enum ExpandedSection: Codable, Equatable, Sendable {
     case chart(ChartSection)
     case button(ButtonSection)
     case divider
+    // New interactive / rich types
+    case checkbox(CheckboxSection)
+    case input(InputSection)
+    case image(ImageSection)
+    case slider(SliderSection)
+    case media(MediaSection)
+    case step(StepSection)
+    case actionToggle(ActionToggleSection)
 
     private enum TypeKey: String, CodingKey { case type }
 
     init(from decoder: Decoder) throws {
         let t = try decoder.container(keyedBy: TypeKey.self)
         switch try t.decode(String.self, forKey: .type) {
-        case "stat":     self = .stat(try StatSection(from: decoder))
-        case "text":     self = .text(try TextSection(from: decoder))
-        case "list":     self = .list(try ListSection(from: decoder))
-        case "progress": self = .progress(try ProgressSection(from: decoder))
-        case "chart":    self = .chart(try ChartSection(from: decoder))
-        case "button":   self = .button(try ButtonSection(from: decoder))
-        case "divider":  self = .divider
+        case "stat":         self = .stat(try StatSection(from: decoder))
+        case "text":         self = .text(try TextSection(from: decoder))
+        case "list":         self = .list(try ListSection(from: decoder))
+        case "progress":     self = .progress(try ProgressSection(from: decoder))
+        case "chart":        self = .chart(try ChartSection(from: decoder))
+        case "button":       self = .button(try ButtonSection(from: decoder))
+        case "divider":      self = .divider
+        case "checkbox":     self = .checkbox(try CheckboxSection(from: decoder))
+        case "input":        self = .input(try InputSection(from: decoder))
+        case "image":        self = .image(try ImageSection(from: decoder))
+        case "slider":       self = .slider(try SliderSection(from: decoder))
+        case "media":        self = .media(try MediaSection(from: decoder))
+        case "step":         self = .step(try StepSection(from: decoder))
+        case "actionToggle": self = .actionToggle(try ActionToggleSection(from: decoder))
         default:
             throw DecodingError.dataCorruptedError(forKey: .type, in: t,
                 debugDescription: "Unknown section type")
@@ -239,15 +255,22 @@ enum ExpandedSection: Codable, Equatable, Sendable {
 
     func encode(to encoder: Encoder) throws {
         switch self {
-        case .stat(let s):     try s.encode(to: encoder)
-        case .text(let s):     try s.encode(to: encoder)
-        case .list(let s):     try s.encode(to: encoder)
-        case .progress(let s): try s.encode(to: encoder)
-        case .chart(let s):    try s.encode(to: encoder)
-        case .button(let s):   try s.encode(to: encoder)
+        case .stat(let s):         try s.encode(to: encoder)
+        case .text(let s):         try s.encode(to: encoder)
+        case .list(let s):         try s.encode(to: encoder)
+        case .progress(let s):     try s.encode(to: encoder)
+        case .chart(let s):        try s.encode(to: encoder)
+        case .button(let s):       try s.encode(to: encoder)
         case .divider:
             var c = encoder.container(keyedBy: TypeKey.self)
             try c.encode("divider", forKey: .type)
+        case .checkbox(let s):     try s.encode(to: encoder)
+        case .input(let s):        try s.encode(to: encoder)
+        case .image(let s):        try s.encode(to: encoder)
+        case .slider(let s):       try s.encode(to: encoder)
+        case .media(let s):        try s.encode(to: encoder)
+        case .step(let s):         try s.encode(to: encoder)
+        case .actionToggle(let s): try s.encode(to: encoder)
         }
     }
 }
@@ -431,4 +454,148 @@ struct InstalledPlugin: Identifiable, Equatable, Sendable {
     let bundleURL: URL
 
     var id: String { manifest.id }
+}
+
+// MARK: - New expanded section types
+
+struct CheckboxSection: Equatable, Sendable, Codable {
+    let label: String
+    let checked: Bool
+    let actionId: String
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CK.self)
+        try c.encode("checkbox", forKey: .type); try c.encode(label, forKey: .label)
+        try c.encode(checked, forKey: .checked); try c.encode(actionId, forKey: .actionId)
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CK.self)
+        label    = try c.decode(String.self, forKey: .label)
+        checked  = try c.decodeIfPresent(Bool.self, forKey: .checked) ?? false
+        actionId = try c.decode(String.self, forKey: .actionId)
+    }
+    private enum CK: String, CodingKey { case type, label, checked, actionId }
+}
+
+struct InputSection: Equatable, Sendable, Codable {
+    let placeholder: String?
+    let actionId: String
+    let secure: Bool?
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CK.self)
+        try c.encode("input", forKey: .type); try c.encodeIfPresent(placeholder, forKey: .placeholder)
+        try c.encode(actionId, forKey: .actionId); try c.encodeIfPresent(secure, forKey: .secure)
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CK.self)
+        placeholder = try c.decodeIfPresent(String.self, forKey: .placeholder)
+        actionId    = try c.decode(String.self, forKey: .actionId)
+        secure      = try c.decodeIfPresent(Bool.self, forKey: .secure)
+    }
+    private enum CK: String, CodingKey { case type, placeholder, actionId, secure }
+}
+
+struct ImageSection: Equatable, Sendable, Codable {
+    let url: String          // file:// or https:// or data:base64
+    let aspectRatio: Double?
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CK.self)
+        try c.encode("image", forKey: .type); try c.encode(url, forKey: .url)
+        try c.encodeIfPresent(aspectRatio, forKey: .aspectRatio)
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CK.self)
+        url         = try c.decode(String.self, forKey: .url)
+        aspectRatio = try c.decodeIfPresent(Double.self, forKey: .aspectRatio)
+    }
+    private enum CK: String, CodingKey { case type, url, aspectRatio }
+}
+
+struct SliderSection: Equatable, Sendable, Codable {
+    let label: String?
+    let value: Double
+    let min: Double?
+    let max: Double?
+    let actionId: String
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CK.self)
+        try c.encode("slider", forKey: .type); try c.encodeIfPresent(label, forKey: .label)
+        try c.encode(value, forKey: .value); try c.encodeIfPresent(min, forKey: .min)
+        try c.encodeIfPresent(max, forKey: .max); try c.encode(actionId, forKey: .actionId)
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CK.self)
+        label    = try c.decodeIfPresent(String.self, forKey: .label)
+        value    = try c.decodeIfPresent(Double.self, forKey: .value) ?? 0
+        min      = try c.decodeIfPresent(Double.self, forKey: .min)
+        max      = try c.decodeIfPresent(Double.self, forKey: .max)
+        actionId = try c.decode(String.self, forKey: .actionId)
+    }
+    private enum CK: String, CodingKey { case type, label, value, min, max, actionId }
+}
+
+struct MediaSection: Equatable, Sendable, Codable {
+    struct Actions: Codable, Equatable, Sendable {
+        let previous: String?
+        let toggle: String?
+        let next: String?
+    }
+    let title: String
+    let subtitle: String?
+    let imageURL: String?
+    let isPlaying: Bool?
+    let progress: Double?
+    let actions: Actions?
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CK.self)
+        try c.encode("media", forKey: .type); try c.encode(title, forKey: .title)
+        try c.encodeIfPresent(subtitle, forKey: .subtitle); try c.encodeIfPresent(imageURL, forKey: .imageURL)
+        try c.encodeIfPresent(isPlaying, forKey: .isPlaying); try c.encodeIfPresent(progress, forKey: .progress)
+        try c.encodeIfPresent(actions, forKey: .actions)
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CK.self)
+        title     = try c.decode(String.self, forKey: .title)
+        subtitle  = try c.decodeIfPresent(String.self, forKey: .subtitle)
+        imageURL  = try c.decodeIfPresent(String.self, forKey: .imageURL)
+        isPlaying = try c.decodeIfPresent(Bool.self, forKey: .isPlaying)
+        progress  = try c.decodeIfPresent(Double.self, forKey: .progress)
+        actions   = try c.decodeIfPresent(Actions.self, forKey: .actions)
+    }
+    private enum CK: String, CodingKey { case type, title, subtitle, imageURL, isPlaying, progress, actions }
+}
+
+struct StepSection: Equatable, Sendable, Codable {
+    struct Step: Codable, Equatable, Sendable {
+        let label: String
+        let status: String  // "pending"|"running"|"success"|"failed"|"skipped"
+        let duration: String?
+    }
+    let steps: [Step]
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CK.self)
+        try c.encode("step", forKey: .type); try c.encode(steps, forKey: .steps)
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CK.self)
+        steps = try c.decode([Step].self, forKey: .steps)
+    }
+    private enum CK: String, CodingKey { case type, steps }
+}
+
+struct ActionToggleSection: Equatable, Sendable, Codable {
+    let label: String
+    let active: Bool
+    let actionId: String
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CK.self)
+        try c.encode("actionToggle", forKey: .type); try c.encode(label, forKey: .label)
+        try c.encode(active, forKey: .active); try c.encode(actionId, forKey: .actionId)
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CK.self)
+        label    = try c.decode(String.self, forKey: .label)
+        active   = try c.decodeIfPresent(Bool.self, forKey: .active) ?? false
+        actionId = try c.decode(String.self, forKey: .actionId)
+    }
+    private enum CK: String, CodingKey { case type, label, active, actionId }
 }
