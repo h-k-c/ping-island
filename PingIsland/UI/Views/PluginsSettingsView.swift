@@ -112,9 +112,7 @@ struct PluginsSettingsView: View {
                     rowDivider()
                     ForEach(Array(plugin.manifest.configItems.enumerated()), id: \.offset) { idx, item in
                         if idx > 0 { rowDivider() }
-                        PluginConfigItemView(plugin: plugin, item: item,
-                                            claudeRoute: $settings.claudeRoutePromptsToTerminal,
-                                            codexRoute: $settings.codexRoutePromptsToTerminal)
+                        PluginConfigItemView(plugin: plugin, item: item)
                     }
                 }
             }
@@ -273,8 +271,6 @@ struct PluginsSettingsView: View {
 private struct PluginConfigItemView: View {
     let plugin: InstalledPlugin
     let item: PluginConfigItem
-    @Binding var claudeRoute: Bool
-    @Binding var codexRoute: Bool
 
     @State private var secretInput = ""
     @State private var showInput = false
@@ -480,23 +476,41 @@ private struct PluginConfigItemView: View {
         )
     }
 
+    /// Generic toggle binding backed by PluginStorage — no hardcoded plugin IDs.
+    /// Falls back to AppSettings for legacy approval routing keys.
     private var approvalBinding: Binding<Bool> {
-        switch plugin.id {
-        case "com.wudanwu.pingisland.claude": return $claudeRoute
-        case "com.wudanwu.pingisland.codex":  return $codexRoute
-        default: return .constant(false)
-        }
+        let pluginId = plugin.id
+        let key = item.key
+        let storageKey = "\(pluginId).\(key)"
+        return Binding(
+            get: {
+                if let stored = UserDefaults.standard.object(forKey: storageKey) as? Bool {
+                    return stored
+                }
+                return item.defaultValue == "true"
+            },
+            set: { newValue in
+                UserDefaults.standard.set(newValue, forKey: storageKey)
+                Task { @MainActor in
+                    await PluginHost.shared.notifyConfigUpdate(
+                        pluginId: pluginId, key: key, value: newValue)
+                }
+            }
+        )
     }
 
+    /// Check hook install status using infoHookId first, then hint (backward compat).
     private var hookInstalled: Bool {
-        guard let profileId = item.hint,
+        let profileId = item.infoHookId ?? item.hint
+        guard let profileId,
               let profile = ClientProfileRegistry.managedHookProfiles.first(where: { $0.id == profileId })
         else { return false }
         return HookInstaller.isInstalled(profile)
     }
 
     private func installHook() {
-        guard let profileId = item.hint,
+        let profileId = item.infoHookId ?? item.hint
+        guard let profileId,
               let profile = ClientProfileRegistry.managedHookProfiles.first(where: { $0.id == profileId })
         else { return }
         HookInstaller.install(profile)
@@ -546,6 +560,11 @@ private struct PluginConfigItemView: View {
                                      kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
         SecItemAdd(add as CFDictionary, nil)
         isStored = true
+        // Push config/update so the running plugin gets the new value
+        let pid = plugin.id; let k = item.key
+        Task { @MainActor in
+            await PluginHost.shared.notifyConfigUpdate(pluginId: pid, key: k, value: value)
+        }
     }
 
     private func deleteSecret() {
