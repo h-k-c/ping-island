@@ -2,22 +2,17 @@
   "id": "com.wudanwu.pingisland.codex",
   "name": "Codex 会话",
   "version": "1.0.0",
+  "protocolVersion": "2.0",
+  "author": "PingIsland",
+  "category": "ai",
   "executable": "PingIslandPlugin",
   "slots": ["compact-right", "notification"],
   "subscriptions": ["hookEvent"],
   "builtIn": true,
   "description": "监控 OpenAI Codex 会话状态",
+  "icon": { "sfSymbol": "terminal.fill", "color": "#2DB96F" },
   "config": [
-    {
-      "key": "hookStatus",
-      "label": "Hook 状态",
-      "type": "info",
-      "hint": "codex-hooks"
-    },
-    {
-      "key": "approvalRouting",
-      "label": "审批与提问保留在终端",
-      "type": "toggle"
-    }
+    { "key": "hookStatus", "label": "Hook 状态", "type": "info", "infoHookId": "codex-hooks" },
+    { "key": "routeToTerminal", "label": "审批与提问保留在终端", "type": "toggle", "default": "false" }
   ]
 }

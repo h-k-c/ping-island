@@ -2,21 +2,37 @@
   "id": "com.wudanwu.pingisland.usage",
   "name": "用量监控",
   "version": "1.0.0",
+  "protocolVersion": "2.0",
+  "author": "PingIsland",
+  "category": "monitoring",
   "executable": "PingIslandPlugin",
   "slots": ["compact-right", "expanded"],
+  "permissions": ["network", "keychain"],
   "description": "监控 Claude 和 Codex 用量与配额",
+  "icon": { "sfSymbol": "chart.pie.fill", "color": "#3399E6" },
   "config": [
     {
       "key": "claudeSessionKey",
       "label": "Claude Session Key",
       "type": "secret",
-      "hint": "claude.ai → F12 → Cookies → sessionKey"
+      "hint": "claude.ai → F12 → Cookies → sessionKey",
+      "required": false
     },
     {
       "key": "codexAuth",
       "label": "Codex 凭证",
       "type": "info",
       "infoPath": ".codex/auth.json"
+    },
+    {
+      "key": "refreshInterval",
+      "label": "刷新间隔",
+      "type": "number",
+      "default": "300",
+      "min": 60,
+      "max": 3600,
+      "step": 60,
+      "unit": "秒"
     }
   ]
 }
