@@ -235,8 +235,8 @@ private struct ProcMonitorIslandPanelView: View {
     @State private var showSystem = false
     @State private var expandedPids: Set<Int> = []
 
-    private let rowLimit = 10
-    private let cardRadius: CGFloat = 14
+    private let rowLimit = 8
+    private let cardRadius: CGFloat = 13
 
     private var groups: [ProcMonitorIslandGroup] {
         monitor.groups(showSystem: showSystem, sortByMemory: showMemory)
@@ -264,9 +264,9 @@ private struct ProcMonitorIslandPanelView: View {
         .clipShape(RoundedRectangle(cornerRadius: cardRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: cardRadius, style: .continuous)
-                .stroke(Color.white.opacity(0.42), lineWidth: 0.8)
+                .stroke(ProcMonitorIslandStyle.edge, lineWidth: 0.8)
         )
-        .shadow(color: .black.opacity(0.16), radius: 18, x: 0, y: 14)
+        .shadow(color: .black.opacity(0.34), radius: 16, x: 0, y: 12)
         .onAppear { monitor.start() }
         .onDisappear { monitor.stop() }
     }
@@ -274,9 +274,9 @@ private struct ProcMonitorIslandPanelView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 8) {
             Image(systemName: "cpu")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(ProcMonitorIslandStyle.text.opacity(0.82))
-                .frame(width: 32, height: 30, alignment: .leading)
+                .frame(width: 30, height: 28, alignment: .leading)
 
             metricButton(
                 title: "内存",
@@ -289,7 +289,7 @@ private struct ProcMonitorIslandPanelView: View {
 
             Rectangle()
                 .fill(ProcMonitorIslandStyle.hairline)
-                .frame(width: 1, height: 30)
+                .frame(width: 1, height: 26)
 
             metricButton(
                 title: "CPU",
@@ -300,9 +300,9 @@ private struct ProcMonitorIslandPanelView: View {
                 showMemory = false
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 9)
-        .padding(.bottom, 7)
+        .padding(.horizontal, 11)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
     }
 
     private var columnHeader: some View {
@@ -310,14 +310,16 @@ private struct ProcMonitorIslandPanelView: View {
             Text("应用进程")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(ProcMonitorIslandStyle.text.opacity(0.42))
-                .padding(.leading, 42)
+                .padding(.leading, 39)
             Spacer()
             Text(showMemory ? "内存占用" : "CPU 占用")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(ProcMonitorIslandStyle.text.opacity(0.42))
-                .frame(width: 112, alignment: .trailing)
+                .frame(width: 108, alignment: .trailing)
+            Text("")
+                .frame(width: 30)
         }
-        .frame(height: 24)
+        .frame(height: 22)
         .background(ProcMonitorIslandStyle.band.opacity(0.32))
     }
 
@@ -340,7 +342,8 @@ private struct ProcMonitorIslandPanelView: View {
                         childCount: group.children.count,
                         isExpanded: expandedPids.contains(group.parent.pid),
                         isChild: false,
-                        onToggle: { toggle(group.parent.pid, hasChildren: !group.children.isEmpty) }
+                        onToggle: { toggle(group.parent.pid, hasChildren: !group.children.isEmpty) },
+                        onTerminate: { monitor.terminate(pid: group.parent.pid) }
                     )
 
                     if expandedPids.contains(group.parent.pid) {
@@ -355,7 +358,8 @@ private struct ProcMonitorIslandPanelView: View {
                                 childCount: 0,
                                 isExpanded: false,
                                 isChild: true,
-                                onToggle: {}
+                                onToggle: {},
+                                onTerminate: { monitor.terminate(pid: child.pid) }
                             )
                         }
                     }
@@ -401,8 +405,8 @@ private struct ProcMonitorIslandPanelView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 7)
         .background(ProcMonitorIslandStyle.band.opacity(0.28))
     }
 
@@ -416,17 +420,17 @@ private struct ProcMonitorIslandPanelView: View {
         Button(action: action) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(title)
-                    .font(.system(size: 12, weight: active ? .semibold : .medium))
+                    .font(.system(size: 11, weight: active ? .semibold : .medium))
                 Text(value)
-                    .font(.system(size: 11, weight: active ? .semibold : .medium).monospacedDigit())
+                    .font(.system(size: 10, weight: active ? .semibold : .medium).monospacedDigit())
                     .opacity(active ? 0.76 : 0.66)
                     .lineLimit(1)
                     .minimumScaleFactor(0.86)
             }
             .foregroundStyle(active ? ProcMonitorIslandStyle.text : ProcMonitorIslandStyle.muted)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, minHeight: 30)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, minHeight: 28)
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(active ? accent.opacity(0.16) : Color.white.opacity(0.04))
@@ -440,7 +444,7 @@ private struct ProcMonitorIslandPanelView: View {
             .fill(ProcMonitorIslandStyle.background)
             .overlay(alignment: .top) {
                 RoundedRectangle(cornerRadius: cardRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.36), lineWidth: 0.8)
+                    .stroke(Color.white.opacity(0.18), lineWidth: 0.8)
                     .mask(LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom))
             }
     }
@@ -465,8 +469,10 @@ private struct ProcMonitorIslandRow: View {
     let isExpanded: Bool
     let isChild: Bool
     let onToggle: () -> Void
+    let onTerminate: () -> Void
 
     @State private var hovering = false
+    @State private var terminateHovering = false
 
     private var memoryPercent: CGFloat {
         totalMemoryBytes > 0 ? CGFloat(Double(memoryBytes) / Double(totalMemoryBytes)) : 0
@@ -479,13 +485,13 @@ private struct ProcMonitorIslandRow: View {
     var body: some View {
         HStack(spacing: 0) {
             icon
-                .padding(.leading, isChild ? 28 : 12)
+                .padding(.leading, isChild ? 24 : 10)
                 .opacity(isChild ? 0.7 : 1)
 
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 5) {
                     Text(process.displayName)
-                        .font(.system(size: isChild ? 12 : 13, weight: isChild ? .regular : .medium))
+                        .font(.system(size: isChild ? 11 : 12, weight: isChild ? .regular : .medium))
                         .foregroundStyle(isChild ? ProcMonitorIslandStyle.text.opacity(0.7) : ProcMonitorIslandStyle.text)
                         .lineLimit(1)
 
@@ -503,26 +509,30 @@ private struct ProcMonitorIslandRow: View {
                 }
 
                 Text(process.subtitle)
-                    .font(.system(size: 10))
+                    .font(.system(size: 9))
                     .foregroundStyle(ProcMonitorIslandStyle.muted.opacity(0.58))
                     .lineLimit(1)
             }
-            .padding(.leading, 7)
-            .frame(width: 166, alignment: .leading)
+            .padding(.leading, 6)
+            .frame(width: 144, alignment: .leading)
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 6)
 
             metric
-                .frame(width: 116)
+                .frame(width: 106)
+
+            terminateButton
+                .frame(width: 28)
+                .padding(.trailing, 4)
         }
-        .frame(height: isChild ? 32 : 39)
+        .frame(height: isChild ? 28 : 34)
         .background {
             if hovering {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(.white.opacity(0.48))
+                    .fill(.white.opacity(0.08))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(.white.opacity(0.68), lineWidth: 0.8)
+                            .stroke(.white.opacity(0.16), lineWidth: 0.8)
                     )
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -540,16 +550,16 @@ private struct ProcMonitorIslandRow: View {
                 Image(nsImage: image)
                     .resizable()
                     .interpolation(.high)
-                    .frame(width: 26, height: 26)
-                    .cornerRadius(7)
+                    .frame(width: 23, height: 23)
+                    .cornerRadius(6)
             } else {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 7).fill(ProcMonitorIslandStyle.tagBackground)
+                    RoundedRectangle(cornerRadius: 6).fill(ProcMonitorIslandStyle.tagBackground)
                     Image(systemName: "gearshape.fill")
-                        .font(.system(size: 12))
+                        .font(.system(size: 11))
                         .foregroundStyle(ProcMonitorIslandStyle.muted)
                 }
-                .frame(width: 26, height: 26)
+                .frame(width: 23, height: 23)
             }
         }
     }
@@ -567,13 +577,43 @@ private struct ProcMonitorIslandRow: View {
                         )
                 }
             }
-            .frame(width: 58, height: 3)
+            .frame(width: 52, height: 3)
 
             Text(showMemory ? ProcMonitorIslandStyle.formatBytes(memoryBytes) : String(format: "%.1f%%", cpu))
-                .font(.system(size: 11, weight: .medium).monospacedDigit())
+                .font(.system(size: 10, weight: .medium).monospacedDigit())
                 .foregroundStyle(isChild ? ProcMonitorIslandStyle.muted : ProcMonitorIslandStyle.text)
-                .frame(width: 52, alignment: .trailing)
+                .frame(width: 48, alignment: .trailing)
         }
+    }
+
+    private var terminateButton: some View {
+        Button {
+            if process.isSystem {
+                let alert = NSAlert()
+                alert.messageText = "结束系统进程「\(process.displayName)」？"
+                alert.informativeText = "\(process.description)\n\n结束系统进程可能导致系统不稳定、应用崩溃，甚至需要重启。"
+                alert.alertStyle = .critical
+                alert.addButton(withTitle: "取消")
+                let terminate = alert.addButton(withTitle: "强制结束")
+                terminate.hasDestructiveAction = true
+                if alert.runModal() == .alertSecondButtonReturn {
+                    onTerminate()
+                }
+            } else {
+                onTerminate()
+            }
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(
+                    terminateHovering
+                        ? (process.isSystem ? ProcMonitorIslandStyle.amber : ProcMonitorIslandStyle.red)
+                        : ProcMonitorIslandStyle.muted.opacity(0.32)
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { terminateHovering = $0 }
+        .help(process.isSystem ? "警告：结束系统进程可能导致系统不稳定" : "结束进程")
     }
 }
 
@@ -629,6 +669,16 @@ private final class ProcMonitorIslandModel: ObservableObject {
             sortByMemory ? $0.totalResidentBytes > $1.totalResidentBytes : $0.totalCPU > $1.totalCPU
         }
         return groups
+    }
+
+    func terminate(pid: Int) {
+        Darwin.kill(pid_t(pid), SIGTERM)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if Darwin.kill(pid_t(pid), 0) == 0 {
+                Darwin.kill(pid_t(pid), SIGKILL)
+            }
+            self.refresh()
+        }
     }
 
     private func refresh() {
@@ -793,15 +843,16 @@ private struct ProcMonitorIslandGroup: Identifiable {
 }
 
 private enum ProcMonitorIslandStyle {
-    static let background = Color(red: 0.961, green: 0.965, blue: 0.980)
-    static let text = Color(red: 0.102, green: 0.102, blue: 0.180)
-    static let muted = Color(red: 0.600, green: 0.600, blue: 0.667)
-    static let tagBackground = Color(red: 0.918, green: 0.918, blue: 0.937)
-    static let green = Color(red: 0.204, green: 0.780, blue: 0.349)
-    static let amber = Color(red: 0.980, green: 0.620, blue: 0.020)
-    static let red = Color(red: 0.871, green: 0.161, blue: 0.063)
-    static let hairline = Color.white.opacity(0.18)
-    static let band = Color.white.opacity(0.035)
+    static let background = Color.black.opacity(0.94)
+    static let text = Color.white.opacity(0.92)
+    static let muted = Color.white.opacity(0.50)
+    static let tagBackground = Color.white.opacity(0.11)
+    static let green = Color(red: 0.23, green: 0.86, blue: 0.48)
+    static let amber = Color(red: 1.00, green: 0.66, blue: 0.17)
+    static let red = Color(red: 1.00, green: 0.31, blue: 0.25)
+    static let edge = Color.white.opacity(0.18)
+    static let hairline = Color.white.opacity(0.13)
+    static let band = Color.white.opacity(0.07)
 
     static let systemNames: Set<String> = [
         "loginwindow", "WindowServer", "kernel_task", "launchd", "UserEventAgent",

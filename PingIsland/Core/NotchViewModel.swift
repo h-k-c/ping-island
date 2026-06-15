@@ -235,7 +235,7 @@ class NotchViewModel: ObservableObject {
 
     private var pluginPreferredFallbackHeight: CGFloat? {
         guard case .plugin(Self.procMonitorPluginId) = contentType else { return nil }
-        return 520
+        return 445
     }
 
     private var dockedPanelWidth: CGFloat {
@@ -243,7 +243,7 @@ class NotchViewModel: ObservableObject {
             return min(screenRect.width - 64, 600)
         }
         if case .plugin(Self.procMonitorPluginId) = contentType {
-            return min(screenRect.width - 64, 450)
+            return min(screenRect.width - 64, 414)
         }
         return min(
             screenRect.width * Self.clickedInstancesPanelWidthRatio,
