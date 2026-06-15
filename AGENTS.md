@@ -21,7 +21,7 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - First-run surface-mode onboarding and mode-switch UI: `PingIsland/App/AppDelegate.swift`, `PingIsland/UI/Window/SettingsWindowController.swift`, `PingIsland/UI/Views/SettingsWindowView.swift`
 - Main state hub: `PingIsland/Services/State/SessionStore.swift`
 - Session association cache: `PingIsland/Services/State/SessionAssociationStore.swift`
-- Usage/quota display is now the built-in `com.wudanwu.pingisland.usage` plugin under `PingIslandPlugin/Usage/`, surfaced through the plugin host.
+- AI Monitor usage/quota display is the built-in `com.wudanwu.pingisland.usage` tool plugin under `PingIslandPlugin/Usage/`, surfaced through the plugin host.
 - Native runtime rollout scaffold: `PingIsland/Services/Runtime/`, `PingIsland/Core/FeatureFlags.swift`
 - Session bridge for UI: `PingIsland/Services/Session/SessionMonitor.swift`
 - Notch state and layout: `PingIsland/Core/NotchViewModel.swift`, `PingIsland/UI/Views/NotchView.swift`
@@ -55,7 +55,7 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - `PingIsland/Core`: notch geometry, shared state, app settings, selectors
 - `PingIsland/Models`: domain models for sessions, events, tools, phases
 - `PingIsland/Services`: ingestion, socket handling, state management, tmux, windows, updates
-- `PingIslandPlugin/Usage`: built-in usage plugin logic for Claude and Codex quota summaries
+- `PingIslandPlugin/Usage`: built-in AI Monitor usage logic for Claude and Codex quota summaries
 - `PingIsland/Services/Runtime`: isolated native Claude/Codex runtime work. This path should coexist with the current implementation behind feature flags until parity is proven.
 - `PingIsland/Services/Remote`: remote endpoint persistence, SSH bootstrap / attach, and remote hook forwarding
   - Remote bootstrap currently covers JSON hook configs, managed hook directories, and managed plugin directories (for example remote Hermes installs under `~/.hermes/plugins/ping_island`)
@@ -183,5 +183,5 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - `Prototype/Tests` remains the fastest place for logic-level unit tests plus process/socket e2e coverage.
 - Sparkle update discovery is expected to use the GitHub Releases `latest/download/appcast.xml` asset unless a local override explicitly replaces it.
 - The worktree may already be dirty. Check `git status` before broad edits.
-- PingIsland is a plugin platform. Claude, Codex, and Usage monitoring are built-in plugins (`com.wudanwu.pingisland.claude`, `com.wudanwu.pingisland.codex`, `com.wudanwu.pingisland.usage`), not hardcoded UI. Third-party `.pingplugin` bundles install to `~/Library/Application Support/PingIsland/Plugins/`.
+- PingIsland is a plugin platform. Claude and Codex realtime session monitoring are core built-ins hidden from the user-facing tool list; AI Monitor usage monitoring is the built-in tool plugin (`com.wudanwu.pingisland.usage`). Third-party `.pingplugin` bundles install to `~/Library/Application Support/PingIsland/Plugins/`.
 - `SettingsCategory.integration` no longer exists. Hook management lives in the Plugins settings tab; approval routing, IDE extensions, and system permissions are in 通用.

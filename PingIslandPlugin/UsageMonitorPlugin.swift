@@ -1,214 +1,309 @@
-// UsageMonitorPlugin — monitors Claude and Codex usage via their APIs.
-// Requires claudeSessionKey in Keychain (set via ClaudeMonitor app or manually).
-// Sends island/compact with usage percentage, island/expanded with details.
+// UsageMonitorPlugin — built-in AI Monitor island tool.
+// Monitors Claude and Codex usage via their APIs and renders compact/expanded IPP.
 
 import Foundation
 
 enum UsageMonitorPlugin {
 
-    private static let refreshInterval: TimeInterval = 300  // 5 minutes
+    private static var refreshInterval: TimeInterval = 300  // 5 minutes
+    private static let refreshQueue = DispatchQueue(label: "ai-monitor-refresh", qos: .utility)
+    private static var refreshTimer: DispatchSourceTimer?
+    private static var isRefreshing = false
 
-    static func run() {
-        // Initialize
-        if let msg = readLine(), let id = msg["id"] {
-            sendJSON(["jsonrpc": "2.0", "id": id,
-                      "result": ["name": "用量监控", "ready": true]])
-        }
+    private struct ProviderResult<T> {
+        var data: T?
+        var needsLogin = false
+        var errorMessage: String?
 
-        // Push initial empty compact while data loads
-        sendCompact(claudePct: nil, codexPct: nil)
+        var isConnected: Bool { data != nil && !needsLogin && errorMessage == nil }
+    }
 
-        // Refresh runs on a background thread so it doesn't block stdin reading
-        let refreshQueue = DispatchQueue(label: "usage-refresh", qos: .utility)
+    private struct RefreshSnapshot {
+        var claude: ProviderResult<UsageData>
+        var codex: ProviderResult<CodexUsageData>
+        var todayTokens: Int
+        var lastUpdated: Date
+    }
 
-        func scheduleRefresh() {
-            refreshQueue.async {
-                refresh()
-                // Schedule next refresh after interval
-                Thread.sleep(forTimeInterval: refreshInterval)
-                scheduleRefresh()
-            }
-        }
+    private final class Once {
+        private let lock = NSLock()
+        private var didRun = false
 
-        // First refresh immediately
-        scheduleRefresh()
-
-        // Main thread reads stdin for shutdown signal
-        while let msg = readLine() {
-            if (msg["method"] as? String) == "shutdown" {
-                exit(0)
-            }
+        func run(_ block: () -> Void) {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !didRun else { return }
+            didRun = true
+            block()
         }
     }
 
-    // MARK: - Refresh
+    static func run() {
+        guard let initialMessage = readLine() else { return }
+        handleInitialize(initialMessage)
+
+        sendLoadingState()
+        scheduleRefresh(immediate: true)
+
+        DispatchQueue.global(qos: .utility).async {
+            while let msg = readLine() {
+                handleMessage(msg)
+            }
+            exit(0)
+        }
+
+        dispatchMain()
+    }
+
+    private static func handleInitialize(_ msg: [String: Any]) {
+        if let config = (msg["params"] as? [String: Any])?["config"] as? [String: Any] {
+            applyConfig(config)
+        }
+
+        let id = msg["id"] ?? 1
+        sendJSON(["jsonrpc": "2.0", "id": id,
+                  "result": ["name": "AI Monitor", "ready": true]])
+    }
+
+    private static func handleMessage(_ msg: [String: Any]) {
+        switch msg["method"] as? String {
+        case "shutdown":
+            refreshTimer?.cancel()
+            exit(0)
+        case "action":
+            let actionId = (msg["params"] as? [String: Any])?["actionId"] as? String
+            if actionId == "refresh" { scheduleRefresh(immediate: true) }
+        case "config/update":
+            if let params = msg["params"] as? [String: Any],
+               let key = params["key"] as? String {
+                applyConfig([key: params["value"] as Any])
+                if key == "refreshInterval" {
+                    scheduleRefresh(immediate: true)
+                }
+            }
+        default:
+            break
+        }
+    }
+
+    private static func applyConfig(_ config: [String: Any]) {
+        if let interval = timeInterval(config["refreshInterval"]) {
+            refreshInterval = min(max(interval, 60), 3600)
+        }
+
+        if let sessionKey = config["claudeSessionKey"] as? String, !sessionKey.isEmpty {
+            try? KeychainHelper.save(key: "claudeSessionKey", value: sessionKey)
+        }
+    }
+
+    private static func timeInterval(_ value: Any?) -> TimeInterval? {
+        if let number = value as? NSNumber { return number.doubleValue }
+        if let double = value as? Double { return double }
+        if let string = value as? String { return Double(string) }
+        return nil
+    }
+
+    private static func scheduleRefresh(immediate: Bool) {
+        DispatchQueue.main.async {
+            refreshTimer?.cancel()
+
+            if immediate {
+                refreshQueue.async { refresh() }
+            }
+
+            let timer = DispatchSource.makeTimerSource(queue: refreshQueue)
+            timer.schedule(deadline: .now() + refreshInterval, repeating: refreshInterval)
+            timer.setEventHandler { refresh() }
+            refreshTimer = timer
+            timer.resume()
+        }
+    }
 
     private static func refresh() {
-        let group = DispatchGroup()
-        var claudeData: UsageData?
-        var codexData: CodexUsageData?
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
 
-        // Fetch Claude usage
+        let group = DispatchGroup()
+        var claude = ProviderResult<UsageData>()
+        var codex = ProviderResult<CodexUsageData>()
+
         group.enter()
+        let finishClaude = Once()
         let claudeService = ClaudeAPIService()
         claudeService.onUsageUpdated = { data in
-            claudeData = data
-            group.leave()
+            claude.data = data
+            claude.needsLogin = false
+            claude.errorMessage = nil
+            finishClaude.run { group.leave() }
         }
-        claudeService.onError = { _ in group.leave() }
-        claudeService.onNeedsLogin = { group.leave() }
+        claudeService.onError = { message in
+            claude.errorMessage = message
+            finishClaude.run { group.leave() }
+        }
+        claudeService.onNeedsLogin = {
+            claude.needsLogin = true
+            finishClaude.run { group.leave() }
+        }
         claudeService.refresh()
 
-        // Fetch Codex usage
         group.enter()
+        let finishCodex = Once()
         let codexService = CodexAPIService()
         codexService.onUsageUpdated = { data in
-            codexData = data
-            group.leave()
+            codex.data = data
+            codex.needsLogin = false
+            codex.errorMessage = nil
+            finishCodex.run { group.leave() }
         }
-        codexService.onError = { _ in group.leave() }
-        codexService.onNeedsLogin = { group.leave() }
+        codexService.onError = { message in
+            codex.errorMessage = message
+            finishCodex.run { group.leave() }
+        }
+        codexService.onNeedsLogin = {
+            codex.needsLogin = true
+            finishCodex.run { group.leave() }
+        }
         codexService.refresh()
 
-        group.wait()  // blocking wait on background thread — OK
-        pushUpdates(claude: claudeData, codex: codexData)
+        _ = group.wait(timeout: .now() + 20)
+        let snapshot = RefreshSnapshot(
+            claude: claude,
+            codex: codex,
+            todayTokens: loadTodayTokens(),
+            lastUpdated: Date()
+        )
+        pushUpdates(snapshot)
+    }
+
+    private static func loadTodayTokens() -> Int {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let candidates = [
+            home.appendingPathComponent("Library/Application Support/Claude/buddy-tokens.json"),
+            home.appendingPathComponent(".claude/buddy-tokens.json"),
+            home.appendingPathComponent(".config/claude/buddy-tokens.json"),
+        ]
+
+        guard let url = candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) }) else {
+            return 0
+        }
+
+        let maxSize: UInt64 = 1_000_000
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let fileSize = attrs[.size] as? UInt64,
+           fileSize > maxSize {
+            return 0
+        }
+
+        guard let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let today = json["tokens-today"] as? [String: Any],
+              let tokens = today["tokens"] as? Int else { return 0 }
+        return tokens
     }
 
     // MARK: - Push updates
 
-    private static func pushUpdates(claude: UsageData?, codex: CodexUsageData?) {
-        let claudePct = claude?.sessionPercentage
-        let codexPct: Double? = codex.map { $0.primaryFraction }
-
-        sendCompact(claudePct: claudePct, codexPct: codexPct)
-        sendExpanded(claude: claude, codex: codex)
+    private static func pushUpdates(_ snapshot: RefreshSnapshot) {
+        sendCompact(snapshot)
+        sendExpanded(snapshot)
     }
 
-    // MARK: - island/compact
-
-    private static func sendCompact(claudePct: Double?, codexPct: Double?) {
-        let pct = [claudePct, codexPct].compactMap { $0 }.max()
-
-        guard let pct else {
-            // No auth / no data — don't occupy the slot
-            sendJSON(["jsonrpc": "2.0", "method": "island/compact",
-                      "params": ["position": "right", "content": NSNull()]])
-            return
-        }
-
-        let (tint, icon): (String, String) = {
-            switch pct {
-            case ..<0.6: return ("green",  "chart.pie.fill")
-            case ..<0.9: return ("yellow", "chart.pie.fill")
-            default:     return ("red",    "exclamationmark.circle.fill")
-            }
-        }()
-
+    private static func sendLoadingState() {
         sendJSON([
             "jsonrpc": "2.0",
             "method": "island/compact",
             "params": [
                 "position": "right",
                 "content": [
-                    "icon": ["type": "sf", "name": icon],
-                    "label": "\(Int(pct * 100))%",
-                    "tint": tint
+                    "icon": ["type": "sf", "name": "chart.pie.fill"],
+                    "label": "AI",
+                    "tint": "default"
                 ]
+            ]
+        ])
+
+        sendJSON([
+            "jsonrpc": "2.0",
+            "method": "island/expanded",
+            "params": [
+                "sections": [
+                    ["type": "text", "content": "AI Monitor", "style": "heading"],
+                    ["type": "text", "content": "正在获取 Claude / Codex 用量…", "style": "caption"]
+                ]
+            ]
+        ])
+    }
+
+    // MARK: - island/compact
+
+    private static func sendCompact(_ snapshot: RefreshSnapshot) {
+        let percentages = usagePercentages(snapshot)
+
+        let content: [String: Any]
+        if let pct = percentages.max() {
+            let (tint, icon): (String, String) = {
+                switch pct {
+                case ..<0.6: return ("green",  "chart.pie.fill")
+                case ..<0.9: return ("yellow", "chart.pie.fill")
+                default:     return ("red",    "exclamationmark.circle.fill")
+                }
+            }()
+            content = [
+                "icon": ["type": "sf", "name": icon],
+                "label": "\(Int((pct * 100).rounded()))%",
+                "tint": tint
+            ]
+        } else if snapshot.claude.errorMessage != nil || snapshot.codex.errorMessage != nil {
+            content = [
+                "icon": ["type": "sf", "name": "exclamationmark.triangle.fill"],
+                "label": "错误",
+                "tint": "red"
+            ]
+        } else if snapshot.claude.needsLogin || snapshot.codex.needsLogin {
+            content = [
+                "icon": ["type": "sf", "name": "person.crop.circle.badge.exclamationmark"],
+                "label": "登录",
+                "tint": "orange"
+            ]
+        } else {
+            content = [
+                "icon": ["type": "sf", "name": "chart.pie.fill"],
+                "label": "AI",
+                "tint": "default"
+            ]
+        }
+
+        sendJSON([
+            "jsonrpc": "2.0",
+            "method": "island/compact",
+            "params": [
+                "position": "right",
+                "content": content
             ]
         ])
     }
 
     // MARK: - island/expanded
 
-    private static func sendExpanded(claude: UsageData?, codex: CodexUsageData?) {
+    private static func sendExpanded(_ snapshot: RefreshSnapshot) {
         var sections: [[String: Any]] = []
 
-        // Claude section
-        if let c = claude {
-            if c.hasSessionData {
-                sections.append([
-                    "type": "stat",
-                    "label": "Claude 会话",
-                    "value": "\(Int(c.sessionPercentage * 100))%",
-                    "icon": ["type": "sf", "name": "brain.head.profile"],
-                    "tint": tint(c.sessionPercentage)
-                ])
-                sections.append([
-                    "type": "progress",
-                    "label": "5h 会话用量",
-                    "value": c.sessionPercentage,
-                    "tint": tint(c.sessionPercentage)
-                ])
-            }
-            if c.messagesLimit > 0 {
-                sections.append([
-                    "type": "progress",
-                    "label": "7d 消息配额",
-                    "value": c.weeklyPercentage,
-                    "tint": tint(c.weeklyPercentage)
-                ])
-            }
-            if !c.weeklyResetText.isEmpty {
-                sections.append(["type": "text", "content": c.weeklyResetText, "style": "caption"])
-            }
-            if !c.hasSessionData && c.messagesLimit == 0 {
-                sections.append([
-                    "type": "text",
-                    "content": "Claude 未登录 — 请在 ClaudeMonitor 中登录后重试",
-                    "style": "caption"
-                ])
-            }
-        } else {
-            sections.append([
-                "type": "text",
-                "content": "Claude 数据加载中…",
-                "style": "caption"
-            ])
-        }
-
-        // Divider
-        if claude != nil && codex != nil {
-            sections.append(["type": "divider"])
-        }
-
-        // Codex section
-        if let cx = codex {
-            if cx.hasPrimaryData {
-                let pct = cx.primaryFraction
-                sections.append([
-                    "type": "stat",
-                    "label": "Codex 会话",
-                    "value": "\(cx.primaryUsedPercent)%",
-                    "icon": ["type": "sf", "name": "terminal.fill"],
-                    "tint": tint(pct)
-                ])
-                sections.append([
-                    "type": "progress",
-                    "label": "Primary 用量",
-                    "value": pct,
-                    "tint": tint(pct)
-                ])
-                if let reset = cx.primaryResetLabel {
-                    sections.append(["type": "text", "content": "\(reset) 后重置", "style": "caption"])
-                }
-            }
-            if let balance = cx.creditBalance, balance > 0 {
-                sections.append([
-                    "type": "stat",
-                    "label": "Credits 余额",
-                    "value": String(format: "$%.2f", balance),
-                    "icon": ["type": "sf", "name": "dollarsign.circle"]
-                ])
-            }
-        }
-
-        if sections.isEmpty {
-            sections.append([
-                "type": "text",
-                "content": "暂无用量数据",
-                "style": "caption"
-            ])
-        }
+        sections.append(["type": "text", "content": "AI Monitor", "style": "heading"])
+        appendClaudeSections(to: &sections, result: snapshot.claude, todayTokens: snapshot.todayTokens)
+        sections.append(["type": "divider"])
+        appendCodexSections(to: &sections, result: snapshot.codex)
+        sections.append(["type": "divider"])
+        sections.append([
+            "type": "text",
+            "content": "更新于 \(timeString(snapshot.lastUpdated))",
+            "style": "caption"
+        ])
+        sections.append([
+            "type": "button",
+            "label": "刷新",
+            "actionId": "refresh"
+        ])
 
         sendJSON([
             "jsonrpc": "2.0",
@@ -217,11 +312,165 @@ enum UsageMonitorPlugin {
         ])
     }
 
+    private static func appendClaudeSections(
+        to sections: inout [[String: Any]],
+        result: ProviderResult<UsageData>,
+        todayTokens: Int
+    ) {
+        sections.append([
+            "type": "stat",
+            "label": "Claude 状态",
+            "value": statusText(result, connectedLabel: result.data?.planType),
+            "icon": ["type": "sf", "name": "brain.head.profile"],
+            "tint": statusTint(result)
+        ])
+
+        if let c = result.data {
+            appendProgress(&sections, label: "Claude 5小时", value: c.sessionPercentage, available: c.hasSessionData)
+            appendProgress(&sections, label: "Claude 7日", value: c.weeklyPercentage, available: c.messagesLimit > 0)
+            sections.append([
+                "type": "stat",
+                "label": "今日 Tokens",
+                "value": formatTokens(todayTokens),
+                "icon": ["type": "sf", "name": "number"],
+                "tint": "blue"
+            ])
+            if let reset = c.sessionResetLabel {
+                sections.append(["type": "text", "content": "Claude 5小时 \(reset)", "style": "caption"])
+            }
+            if let reset = c.weeklyResetLabel {
+                sections.append(["type": "text", "content": "Claude 7日 \(reset)", "style": "caption"])
+            }
+        } else if let message = result.errorMessage {
+            sections.append(["type": "text", "content": "Claude 错误：\(message)", "style": "caption"])
+        } else if result.needsLogin {
+            sections.append([
+                "type": "text",
+                "content": "Claude 未登录：请在插件设置中填写 Claude Session Key",
+                "style": "caption"
+            ])
+        }
+    }
+
+    private static func appendCodexSections(
+        to sections: inout [[String: Any]],
+        result: ProviderResult<CodexUsageData>
+    ) {
+        sections.append([
+            "type": "stat",
+            "label": "Codex 状态",
+            "value": statusText(result, connectedLabel: result.data?.planType),
+            "icon": ["type": "sf", "name": "terminal.fill"],
+            "tint": statusTint(result)
+        ])
+
+        if let cx = result.data {
+            appendProgress(&sections, label: "Codex 5小时", value: cx.primaryFraction, available: cx.hasPrimaryData)
+            appendProgress(&sections, label: "Codex 7日", value: cx.secondaryFraction, available: cx.hasSecondaryData)
+            sections.append([
+                "type": "stat",
+                "label": "Credits",
+                "value": cx.creditBalance.map { String(format: "$%.2f", $0) } ?? "--",
+                "icon": ["type": "sf", "name": "dollarsign.circle"],
+                "tint": "orange"
+            ])
+            if let reset = cx.primaryResetLabel {
+                sections.append(["type": "text", "content": "Codex 5小时 \(reset) 后重置", "style": "caption"])
+            }
+            if let reset = cx.secondaryResetLabel {
+                sections.append(["type": "text", "content": "Codex 7日 \(reset) 后重置", "style": "caption"])
+            }
+            if cx.limitReached || !cx.allowed {
+                sections.append(["type": "text", "content": "Codex 当前已到达限额", "style": "caption"])
+            }
+        } else if let message = result.errorMessage {
+            sections.append(["type": "text", "content": "Codex 错误：\(message)", "style": "caption"])
+        } else if result.needsLogin {
+            sections.append([
+                "type": "text",
+                "content": "Codex 未登录：请先在终端运行 codex 完成 ChatGPT 登录",
+                "style": "caption"
+            ])
+        }
+    }
+
+    private static func appendProgress(
+        _ sections: inout [[String: Any]],
+        label: String,
+        value: Double,
+        available: Bool
+    ) {
+        guard available else {
+            sections.append([
+                "type": "stat",
+                "label": label,
+                "value": "--",
+                "icon": ["type": "sf", "name": "chart.bar"],
+                "tint": "default"
+            ])
+            return
+        }
+
+        sections.append([
+            "type": "progress",
+            "label": label,
+            "value": min(max(value, 0), 1),
+            "tint": tint(value)
+        ])
+    }
+
+    private static func usagePercentages(_ snapshot: RefreshSnapshot) -> [Double] {
+        var percentages: [Double] = []
+        if let c = snapshot.claude.data {
+            if c.hasSessionData { percentages.append(c.sessionPercentage) }
+            if c.messagesLimit > 0 { percentages.append(c.weeklyPercentage) }
+        }
+        if let cx = snapshot.codex.data {
+            if cx.hasPrimaryData { percentages.append(cx.primaryFraction) }
+            if cx.hasSecondaryData { percentages.append(cx.secondaryFraction) }
+        }
+        return percentages
+    }
+
+    private static func statusText<T>(_ result: ProviderResult<T>, connectedLabel: String?) -> String {
+        if result.isConnected {
+            let label = connectedLabel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return label.isEmpty || label.lowercased() == "unknown" ? "已连接" : label
+        }
+        if result.errorMessage != nil { return "错误" }
+        if result.needsLogin { return "未登录" }
+        return "加载中"
+    }
+
+    private static func statusTint<T>(_ result: ProviderResult<T>) -> String {
+        if result.isConnected { return "green" }
+        if result.errorMessage != nil { return "red" }
+        if result.needsLogin { return "orange" }
+        return "default"
+    }
+
     private static func tint(_ pct: Double) -> String {
         switch pct {
         case ..<0.6: return "green"
         case ..<0.9: return "yellow"
         default:     return "red"
         }
+    }
+
+    private static func formatTokens(_ value: Int) -> String {
+        switch value {
+        case 1_000_000...:
+            return String(format: "%.1fM", Double(value) / 1_000_000)
+        case 1_000...:
+            return String(format: "%.1fK", Double(value) / 1_000)
+        default:
+            return "\(value)"
+        }
+    }
+
+    private static func timeString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
