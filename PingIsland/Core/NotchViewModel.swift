@@ -73,6 +73,7 @@ class NotchViewModel: ObservableObject {
         defaultClosedWidth - ScreenNotchMetrics.fallbackNotchWidth
     private static let clickedInstancesPanelWidthRatio: CGFloat = 0.44
     private static let clickedInstancesPanelMaximumWidth: CGFloat = 520
+    private static let procMonitorPluginId = "com.wudanwu.pingisland.procmonitor"
     private static let detachmentLongPressNarrowedWidthScale: CGFloat = 0.82
     private static let detachmentLongPressMaximumShrink: CGFloat = 56
     private static let closedCenterInteractionReduction: CGFloat = 40
@@ -211,18 +212,13 @@ class NotchViewModel: ObservableObject {
                 )
             }
         case .instances, .plugin:
-            let fallbackHeight: CGFloat = openReason == .hover ? 150 : 170
+            let fallbackHeight: CGFloat = pluginPreferredFallbackHeight ?? (openReason == .hover ? 150 : 170)
             let measuredHeight = openedMeasuredHeight ?? fallbackHeight
 
             switch style {
             case .docked:
                 return CGSize(
-                    width: openReason == .hover
-                        ? min(screenRect.width - 64, 600)
-                        : min(
-                            screenRect.width * Self.clickedInstancesPanelWidthRatio,
-                            Self.clickedInstancesPanelMaximumWidth
-                        ),
+                    width: dockedPanelWidth,
                     height: min(maxAllowedHeight, max(closedHeight + 24, measuredHeight))
                 )
             case .detached:
@@ -235,6 +231,24 @@ class NotchViewModel: ObservableObject {
                 )
             }
         }
+    }
+
+    private var pluginPreferredFallbackHeight: CGFloat? {
+        guard case .plugin(Self.procMonitorPluginId) = contentType else { return nil }
+        return 520
+    }
+
+    private var dockedPanelWidth: CGFloat {
+        if openReason == .hover {
+            return min(screenRect.width - 64, 600)
+        }
+        if case .plugin(Self.procMonitorPluginId) = contentType {
+            return min(screenRect.width - 64, 450)
+        }
+        return min(
+            screenRect.width * Self.clickedInstancesPanelWidthRatio,
+            Self.clickedInstancesPanelMaximumWidth
+        )
     }
 
     private var compactDetachedSize: CGSize {

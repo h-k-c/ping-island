@@ -457,7 +457,8 @@ struct NotchView: View {
                     return
                 }
 
-                if case .instances = viewModel.contentType {
+                switch viewModel.contentType {
+                case .instances, .plugin:
                     let effectiveHeight = activeCompletionNotification == nil
                         ? height
                         : max(height, SessionCompletionNotificationView.minimumContentHeight)
@@ -465,7 +466,7 @@ struct NotchView: View {
                         ? closedNotchSize.height + effectiveHeight + 12
                         : nil
                     viewModel.updateOpenedMeasuredHeight(measuredHeight)
-                } else {
+                case .chat:
                     viewModel.updateOpenedMeasuredHeight(nil)
                 }
             }
