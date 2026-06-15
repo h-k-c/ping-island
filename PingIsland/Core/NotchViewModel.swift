@@ -75,7 +75,9 @@ class NotchViewModel: ObservableObject {
     private static let clickedInstancesPanelMaximumWidth: CGFloat = 520
     private static let detachmentLongPressNarrowedWidthScale: CGFloat = 0.82
     private static let detachmentLongPressMaximumShrink: CGFloat = 56
-    private static let closedHorizontalContentInset: CGFloat = 14
+    private static let closedCenterInteractionReduction: CGFloat = 40
+    private static let closedCenterInteractionMinimumWidth: CGFloat = 132
+    private static let closedToolHitPadding: CGFloat = 10
     @Published private(set) var closedWidth: CGFloat
 
     private enum ClosedEarClickTarget {
@@ -771,7 +773,10 @@ class NotchViewModel: ObservableObject {
         if shouldHideClosedPresentation {
             return fullscreenRevealTriggerRect.contains(point)
         }
-        return isPointInClosedNotch(point)
+        if hoverExpansionAllowed {
+            return isPointInClosedNotch(point)
+        }
+        return closedCenterInteractionRect.insetBy(dx: 0, dy: -5).contains(point)
     }
 
     private func isPointInClosedNotch(_ point: CGPoint) -> Bool {
@@ -782,38 +787,51 @@ class NotchViewModel: ObservableObject {
         guard !hoverExpansionAllowed else { return nil }
         guard closedScreenRect.insetBy(dx: -10, dy: -5).contains(point) else { return nil }
 
-        let contentRect = closedScreenRect.insetBy(dx: Self.closedHorizontalContentInset, dy: 0)
-        let protectedCenterWidth = min(
+        let arbiter = PluginSlotArbiter.shared
+        if closedLeftToolInteractionRect.contains(point) {
+            return .left(pluginId: arbiter.activeLeftPluginId ?? arbiter.leftEarAssignment)
+        }
+        if closedRightToolInteractionRect.contains(point) {
+            return .right(pluginId: arbiter.activeRightPluginId ?? arbiter.rightEarAssignment)
+        }
+        return nil
+    }
+
+    private var closedCenterInteractionRect: CGRect {
+        let detectedCenterWidth = min(
             closedScreenRect.width,
             max(geometry.notchScreenRect.width, ScreenNotchMetrics.fallbackNotchWidth)
         )
-        let protectedCenterRect = CGRect(
+        let protectedCenterWidth = max(
+            Self.closedCenterInteractionMinimumWidth,
+            detectedCenterWidth - Self.closedCenterInteractionReduction
+        )
+        return CGRect(
             x: screenRect.midX - protectedCenterWidth / 2,
             y: closedScreenRect.minY,
             width: protectedCenterWidth,
             height: closedScreenRect.height
         )
-        let leftEarRect = CGRect(
-            x: closedScreenRect.minX - 10,
-            y: contentRect.minY - 5,
-            width: max(0, protectedCenterRect.minX - closedScreenRect.minX),
-            height: contentRect.height + 10
-        )
-        let rightEarRect = CGRect(
-            x: protectedCenterRect.maxX,
-            y: contentRect.minY - 5,
-            width: max(0, closedScreenRect.maxX - protectedCenterRect.maxX) + 10,
-            height: contentRect.height + 10
-        )
+    }
 
-        let arbiter = PluginSlotArbiter.shared
-        if leftEarRect.contains(point) {
-            return .left(pluginId: arbiter.activeLeftPluginId ?? arbiter.leftEarAssignment)
-        }
-        if rightEarRect.contains(point) {
-            return .right(pluginId: arbiter.activeRightPluginId ?? arbiter.rightEarAssignment)
-        }
-        return nil
+    private var closedLeftToolInteractionRect: CGRect {
+        let centerRect = closedCenterInteractionRect
+        return CGRect(
+            x: closedScreenRect.minX - Self.closedToolHitPadding,
+            y: closedScreenRect.minY - 5,
+            width: max(0, centerRect.minX - closedScreenRect.minX) + Self.closedToolHitPadding,
+            height: closedScreenRect.height + 10
+        )
+    }
+
+    private var closedRightToolInteractionRect: CGRect {
+        let centerRect = closedCenterInteractionRect
+        return CGRect(
+            x: centerRect.maxX,
+            y: closedScreenRect.minY - 5,
+            width: max(0, closedScreenRect.maxX - centerRect.maxX) + Self.closedToolHitPadding,
+            height: closedScreenRect.height + 10
+        )
     }
 
     func updateIdleAutoHiddenState(hasVisibleSessionActivity: Bool) {
