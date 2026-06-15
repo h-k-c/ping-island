@@ -9,5 +9,5 @@
   "slots": ["compact", "expanded"],
   "builtIn": true,
   "description": "只读展示系统内存占用和 Top 进程",
-  "icon": { "sfSymbol": "memorychip.fill", "color": "#34C759" }
+  "icon": { "sfSymbol": "cpu.fill", "color": "#34C759" }
 }

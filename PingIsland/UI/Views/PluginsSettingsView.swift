@@ -31,6 +31,19 @@ struct PluginsSettingsView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
 
+                if let resourcesURL = PluginRegistry.appBundleResourcesURL {
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([
+                            resourcesURL.appendingPathComponent("com.wudanwu.pingisland.usage.manifest.json")
+                        ])
+                    } label: {
+                        Label("内置插件资源", systemImage: "shippingbox")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+
                 Spacer()
 
                 Button {
@@ -224,9 +237,9 @@ struct PluginsSettingsView: View {
         case "com.example.weatherdemo":
             return ("sun.max.fill", Color(red: 1.0, green: 0.62, blue: 0.16))
         case "com.wudanwu.pingisland.procmonitor":
-            return ("memorychip.fill", Color(red: 0.20, green: 0.78, blue: 0.35))
+            return ("cpu.fill", Color(red: 0.22, green: 0.82, blue: 0.52))
         case "com.wudanwu.pingisland.usage":
-            return ("chart.pie.fill", Color(red: 0.20, green: 0.60, blue: 0.90))
+            return ("chart.xyaxis.line", Color(red: 0.32, green: 0.62, blue: 0.96))
         default:
             break
         }
@@ -292,9 +305,9 @@ struct RealtimeNotificationsSettingsView: View {
     private var sourceCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("实时通知源")
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(.primary)
-                .padding(.bottom, 10)
+                .padding(.bottom, 8)
 
             card {
                 ForEach(Array(realtimeNotificationSources.enumerated()), id: \.element.id) { index, source in
@@ -312,9 +325,9 @@ struct RealtimeNotificationsSettingsView: View {
                     .font(.system(size: 28, weight: .light))
                     .foregroundStyle(.secondary)
                 Text("没有实时通知源")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                 Text("安装默认 Hooks 后，Claude、Codex 等会话源会显示在这里")
-                    .font(.system(size: 11))
+                    .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -326,21 +339,21 @@ struct RealtimeNotificationsSettingsView: View {
     private func realtimeNotificationRow(_ source: ManagedHookClientProfile) -> some View {
         HStack(spacing: 10) {
             RealtimeSourceMascotIcon(profile: source)
-                .frame(width: 34, height: 34)
+                .frame(width: 30, height: 30)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(source.title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 10.8, weight: .semibold))
                     .foregroundStyle(.primary)
                 Text("默认来源宠物")
-                    .font(.system(size: 10))
+                    .font(.system(size: 9.4))
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
     }
 
     private var realtimeNotificationSources: [ManagedHookClientProfile] {
@@ -372,7 +385,7 @@ private struct RealtimeSourceMascotIcon: View {
         MascotView(
             kind: settings.mascotKind(for: mascotClient),
             status: .idle,
-            size: 28
+            size: 25
         )
     }
 

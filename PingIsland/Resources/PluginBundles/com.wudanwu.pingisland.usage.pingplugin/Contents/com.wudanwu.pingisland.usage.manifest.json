@@ -10,7 +10,7 @@
   "builtIn": true,
   "permissions": ["network", "keychain"],
   "description": "监控 Claude 和 Codex 用量与配额",
-  "icon": { "sfSymbol": "chart.pie.fill", "color": "#3399E6" },
+  "icon": { "sfSymbol": "chart.xyaxis.line", "color": "#3399E6" },
   "config": [
     {
       "key": "claudeSessionKey",

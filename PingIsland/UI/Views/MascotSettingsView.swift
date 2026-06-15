@@ -18,17 +18,17 @@ struct MascotSettingsView: View {
                 clientGridSection
                 statusHelpSection
             }
-            .padding(24)
+            .padding(22)
         }
     }
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(appLocalized: "客户端宠物")
-                .font(.title2.bold())
+                .font(.system(size: 15, weight: .bold))
 
             Text(appLocalized: "每个客户端都有默认专属形象，你也可以在这里单独改成别的宠物。刘海、会话列表和 hover 预览都会同步使用这里的配置。")
-                .font(.subheadline)
+                .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -58,7 +58,7 @@ struct MascotSettingsView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 Text(appLocalized: "状态预览")
-                    .font(.headline)
+                    .font(.system(size: 13, weight: .semibold))
 
                 Picker("状态", selection: $previewStatus) {
                     ForEach(MascotStatus.allCases, id: \.self) { status in
@@ -73,7 +73,7 @@ struct MascotSettingsView: View {
     private var clientGridSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(appLocalized: "客户端对应关系")
-                .font(.headline)
+                .font(.system(size: 13, weight: .semibold))
 
             LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
                 ForEach(MascotClient.allCases) { client in
@@ -92,7 +92,7 @@ struct MascotSettingsView: View {
             Divider()
 
             Text(appLocalized: "状态说明")
-                .font(.headline)
+                .font(.system(size: 13, weight: .semibold))
 
             StatusRow(
                 status: .idle,
@@ -114,15 +114,15 @@ struct MascotSettingsView: View {
 
             HStack(spacing: 12) {
                 Image(systemName: "shield.fill")
-                    .font(.title3)
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color(red: 0.24, green: 0.88, blue: 0.48))
                     .frame(width: 24)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(appLocalized: "空闲保护")
-                        .font(.subheadline.bold())
+                        .font(.system(size: 11.5, weight: .semibold))
                     Text(appLocalized: "全局键鼠静默达到设定时长后，宠物右下角会显示绿色盾牌，表示后续新审批和提问将保留在终端。")
-                        .font(.caption)
+                        .font(.system(size: 9.8, weight: .medium))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -149,10 +149,10 @@ private struct MascotClientCard: View {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(appLocalized: client.title)
-                        .font(.subheadline.bold())
+                        .font(.system(size: 11.2, weight: .semibold))
                         .foregroundStyle(.primary)
                     Text(appLocalized: client.subtitle)
-                        .font(.caption)
+                        .font(.system(size: 9.6, weight: .medium))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -160,7 +160,7 @@ private struct MascotClientCard: View {
                 Spacer(minLength: 8)
 
                 Text(appLocalized: isCustomized ? "自定义" : "默认")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 9.6, weight: .semibold))
                     .foregroundStyle(isCustomized ? Color.orange : Color.secondary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
@@ -197,7 +197,7 @@ private struct MascotClientCard: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(verbatim: AppLocalization.format("所属客户端：%@", AppLocalization.string(client.title)))
-                    .font(.caption)
+                    .font(.system(size: 9.6, weight: .medium))
                     .foregroundStyle(.secondary)
             }
 
@@ -228,6 +228,7 @@ private struct MascotClientCard: View {
                     settings.setMascotOverride(nil, for: client)
                 }
                 .font(.caption)
+                .controlSize(.small)
             }
         }
         .padding(14)
@@ -285,10 +286,10 @@ private struct StatChip: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(appLocalized: title)
-                .font(.caption)
+                .font(.system(size: 9.6, weight: .medium))
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(.primary)
         }
         .padding(.horizontal, 10)
@@ -308,15 +309,15 @@ private struct StatusRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.title3)
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(colorForStatus)
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(appLocalized: status.displayName)
-                    .font(.subheadline.bold())
+                    .font(.system(size: 11.5, weight: .semibold))
                 Text(appLocalized: description)
-                    .font(.caption)
+                    .font(.system(size: 9.8, weight: .medium))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

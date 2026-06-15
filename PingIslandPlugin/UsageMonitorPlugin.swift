@@ -216,7 +216,7 @@ enum UsageMonitorPlugin {
             "params": [
                 "position": "right",
                 "content": [
-                    "icon": ["type": "sf", "name": "chart.pie.fill"],
+                    "icon": ["type": "sf", "name": "chart.xyaxis.line"],
                     "tint": "default"
                 ]
             ]
@@ -243,8 +243,8 @@ enum UsageMonitorPlugin {
         if let pct = percentages.max() {
             let (tint, icon): (String, String) = {
                 switch pct {
-                case ..<0.6: return ("green",  "chart.pie.fill")
-                case ..<0.9: return ("yellow", "chart.pie.fill")
+                case ..<0.6: return ("green",  "chart.xyaxis.line")
+                case ..<0.9: return ("yellow", "chart.xyaxis.line")
                 default:     return ("red",    "exclamationmark.circle.fill")
                 }
             }()
@@ -264,7 +264,7 @@ enum UsageMonitorPlugin {
             ]
         } else {
             content = [
-                "icon": ["type": "sf", "name": "chart.pie.fill"],
+                "icon": ["type": "sf", "name": "chart.xyaxis.line"],
                 "tint": "default"
             ]
         }

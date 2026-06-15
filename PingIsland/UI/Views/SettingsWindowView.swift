@@ -981,7 +981,7 @@ private struct SettingsPanelContentView: View {
                     NSApplication.shared.terminate(nil)
                 } accessory: {
                     Image(systemName: "power")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white.opacity(0.72))
                 }
             }
@@ -993,7 +993,7 @@ private struct SettingsPanelContentView: View {
                     subtitle: "App Store 版本不会默认写入 ~/.claude、~/.codex 等配置。安装或重装 Hooks 时，请在系统弹窗中授权用户主目录。"
                 ) {
                     Image(systemName: "lock.shield")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(TerminalColors.amber)
                 }
                 SettingsLineDivider()
@@ -1003,7 +1003,7 @@ private struct SettingsPanelContentView: View {
                 ) {
                     HStack(spacing: 10) {
                         Text(appLocalized: viewModel.bridgeHealthStatus.isHealthy ? "正常" : "异常")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundColor(viewModel.bridgeHealthStatus.isHealthy ? TerminalColors.green : TerminalColors.amber)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
@@ -1059,9 +1059,9 @@ private struct SettingsPanelContentView: View {
                 ) {
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 11.5, weight: .semibold))
                         Text(appLocalized: "刘海屏方式")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: 10.8, weight: .bold))
                     }
                     .foregroundColor(TerminalColors.blue)
                 }
@@ -1095,7 +1095,7 @@ private struct SettingsPanelContentView: View {
                     style: .compactDetail
                 ) {
                     Image(systemName: "lock.shield")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white.opacity(0.5))
                 }
             }
@@ -1130,7 +1130,7 @@ private struct SettingsPanelContentView: View {
                         updateManager.showReleaseNotes()
                     } accessory: {
                         Image(systemName: "doc.text.magnifyingglass")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.white.opacity(0.5))
                     }
                 }
@@ -1143,7 +1143,7 @@ private struct SettingsPanelContentView: View {
                     }
                 } accessory: {
                     Image(systemName: "arrow.up.right.square")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white.opacity(0.5))
                 }
 
@@ -1161,7 +1161,7 @@ private struct SettingsPanelContentView: View {
                             .tint(.white.opacity(0.8))
                     } else {
                         Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.white.opacity(0.5))
                     }
                 }
@@ -1312,15 +1312,15 @@ private struct SettingsPanelContentView: View {
                 .controlSize(.small)
         case .upToDate:
             Text(appLocalized: "最新")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(TerminalColors.green)
         case .found(let version, _), .readyToInstall(let version):
             Text("v\(version)")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(TerminalColors.green)
         case .idle, .error:
             Image(systemName: "arrow.right.circle.fill")
-                .font(.system(size: 18))
+                .font(.system(size: 15))
                 .foregroundColor(.white.opacity(0.55))
         }
     }
@@ -1464,9 +1464,9 @@ private struct SettingsSectionCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(appLocalized: title)
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 13.5, weight: .bold))
                 .foregroundColor(.white)
-                .padding(.bottom, 10)
+                .padding(.bottom, 8)
 
             VStack(spacing: 0) {
                 content
@@ -2209,24 +2209,33 @@ private enum SettingsLineVisualStyle {
 
     var bodySpacing: CGFloat {
         switch self {
-        case .standard: return 6
-        case .compactDetail: return 5
+        case .standard: return 5
+        case .compactDetail: return 4
         }
     }
 
     var verticalPadding: CGFloat {
         switch self {
-        case .standard: return 14
-        case .compactDetail: return 12
+        case .standard: return 12
+        case .compactDetail: return 10
+        }
+    }
+
+    var titleFont: Font {
+        switch self {
+        case .standard:
+            return .system(size: 12.5, weight: .semibold)
+        case .compactDetail:
+            return .system(size: 12, weight: .semibold)
         }
     }
 
     var subtitleFont: Font {
         switch self {
         case .standard:
-            return .system(size: 11, weight: .medium)
+            return .system(size: 10, weight: .medium)
         case .compactDetail:
-            return .system(size: 10.5, weight: .regular)
+            return .system(size: 9.6, weight: .regular)
         }
     }
 
@@ -2249,9 +2258,9 @@ private enum SettingsLineVisualStyle {
     var valueFont: Font {
         switch self {
         case .standard:
-            return .system(size: 13, weight: .semibold)
+            return .system(size: 11.2, weight: .semibold)
         case .compactDetail:
-            return .system(size: 12.5, weight: .medium)
+            return .system(size: 10.8, weight: .medium)
         }
     }
 
@@ -2275,7 +2284,7 @@ private struct SettingsToggleLine: View {
         VStack(alignment: .leading, spacing: style.bodySpacing) {
             HStack(alignment: .center, spacing: 16) {
                 Text(appLocalized: title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(style.titleFont)
                     .foregroundColor(.white)
 
                 Spacer(minLength: 12)
@@ -2313,6 +2322,7 @@ private extension View {
         self
             .pickerStyle(.menu)
             .controlSize(.small)
+            .font(.system(size: 10.8, weight: .semibold))
             .frame(width: width, alignment: .trailing)
     }
 }
@@ -2327,7 +2337,7 @@ private struct SettingsInfoLine<Accessory: View>: View {
         VStack(alignment: .leading, spacing: style.bodySpacing) {
             HStack(alignment: .center, spacing: 16) {
                 Text(appLocalized: title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(style.titleFont)
                     .foregroundColor(.white)
 
                 Spacer(minLength: 12)
@@ -2378,7 +2388,7 @@ private struct SettingsCodeCapsule: View {
                 .foregroundColor(.white.opacity(0.42))
 
             Text(text)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .foregroundColor(.white.opacity(0.74))
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -2405,7 +2415,7 @@ private struct SettingsValueLine: View {
     var body: some View {
         HStack(spacing: 16) {
             Text(appLocalized: title)
-                .font(.system(size: 14, weight: .semibold))
+                .font(style.titleFont)
                 .foregroundColor(.white)
 
             Spacer(minLength: 12)
@@ -2431,7 +2441,7 @@ private struct ShortcutSettingsLine: View {
             defaultShortcut: action.defaultShortcut
         )
         .padding(.horizontal, 18)
-        .padding(.vertical, 14)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -2450,11 +2460,11 @@ private struct ShortcutRecorderControl: View {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(appLocalized: action.title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 12.5, weight: .semibold))
                         .foregroundColor(.white)
 
                     Text(appLocalized: action.subtitle)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.white.opacity(0.58))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -2466,13 +2476,13 @@ private struct ShortcutRecorderControl: View {
 
             HStack(alignment: .center, spacing: 8) {
                 Text(appLocalized: "当前键位")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 9.4, weight: .bold))
                     .foregroundColor(.white.opacity(0.40))
 
                 if let shortcut {
                     ShortcutVisualLabel(
                         shortcut: shortcut,
-                        fontSize: 11,
+                        fontSize: 10,
                         foregroundColor: .white.opacity(0.92),
                         keyBackground: Color.black.opacity(0.28),
                         keyBorder: Color.white.opacity(0.08),
@@ -2483,7 +2493,7 @@ private struct ShortcutRecorderControl: View {
                     )
                 } else {
                     Text(appLocalized: "未设置")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.white.opacity(0.42))
                 }
 
@@ -2517,7 +2527,7 @@ private struct ShortcutRecorderControl: View {
             }
 
             Text(appLocalized: helperTextKey ?? (isRecording ? "录制中，按 Esc 取消，Delete 清空" : "需要同时按下至少一个修饰键"))
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 9.4, weight: .medium))
                 .foregroundColor(isRecording ? TerminalColors.green.opacity(0.90) : .white.opacity(0.42))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -2535,7 +2545,7 @@ private struct ShortcutRecorderControl: View {
                     .font(.system(size: 11, weight: .bold))
 
                 Text(appLocalized: isRecording ? "按下新快捷键" : "点击录制")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 10.8, weight: .semibold))
             }
             .foregroundColor(isRecording ? .black : .white.opacity(0.88))
             .padding(.horizontal, 12)
@@ -2770,11 +2780,11 @@ private struct NotchDisplayModeSelector: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(appLocalized: "刘海显示模式")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 12.5, weight: .semibold))
                 .foregroundColor(.white)
 
             Text(appLocalized: "直接预览刘海闭合态效果。简约模式只显示宠物和数量，详细模式会额外显示中间过程信息。")
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 10, weight: .medium))
                 .foregroundColor(.white.opacity(0.58))
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -2820,11 +2830,11 @@ private struct NotchDisplayModeCard: View {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(appLocalized: mode.title)
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: 11.5, weight: .bold))
                             .foregroundColor(.white)
 
                         Text(appLocalized: mode.subtitle)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 9.8, weight: .medium))
                             .foregroundColor(.white.opacity(0.62))
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -2832,7 +2842,7 @@ private struct NotchDisplayModeCard: View {
                     Spacer(minLength: 8)
 
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(isSelected ? accentColor : .white.opacity(0.26))
                 }
             }
@@ -2941,31 +2951,31 @@ private struct SettingsStatusLine: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .center, spacing: 16) {
                     Text(appLocalized: title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 12.5, weight: .semibold))
                         .foregroundColor(.white)
 
                     Spacer(minLength: 12)
 
                     HStack(spacing: 10) {
                         Text(appLocalized: status)
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 10.8, weight: .semibold))
                             .foregroundColor(statusColor)
 
                         Image(systemName: "arrow.up.right.square")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.white.opacity(0.5))
                     }
                 }
 
                 if let subtitle {
                     Text(appLocalized: subtitle)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.white.opacity(0.58))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(.horizontal, 18)
-            .padding(.vertical, 14)
+            .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }

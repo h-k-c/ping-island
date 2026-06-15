@@ -43,7 +43,7 @@ enum ProcMonitorPlugin {
             "params": [
                 "position": "right",
                 "content": [
-                    "icon": ["type": "sf", "name": "memorychip.fill"],
+                    "icon": ["type": "sf", "name": "cpu.fill"],
                     "tint": "default"
                 ]
             ]
@@ -65,7 +65,7 @@ enum ProcMonitorPlugin {
             "params": [
                 "position": "right",
                 "content": [
-                    "icon": ["type": "sf", "name": "memorychip.fill"],
+                    "icon": ["type": "sf", "name": "cpu.fill"],
                     "tint": tint(forPercent: memory.percent)
                 ]
             ]
@@ -79,7 +79,7 @@ enum ProcMonitorPlugin {
                 "type": "stat",
                 "label": "内存占用",
                 "value": "\(Int(memory.percent.rounded()))%",
-                "icon": ["type": "sf", "name": "memorychip.fill"],
+                "icon": ["type": "sf", "name": "cpu.fill"],
                 "tint": tint(forPercent: memory.percent)
             ],
             [
