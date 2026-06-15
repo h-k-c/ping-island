@@ -105,7 +105,10 @@ struct IslandOpenedContentView: View {
                 )
             }
         case .plugin(let pluginId):
-            PluginExpandedPanelView(pluginId: pluginId)
+            ScrollView(.vertical, showsIndicators: false) {
+                PluginExpandedPanelView(pluginId: pluginId)
+            }
+            .frame(maxHeight: pluginContentMaxHeight)
         }
     }
 
@@ -135,6 +138,15 @@ struct IslandOpenedContentView: View {
             return viewModel.openedSize.width - 24
         case .detached:
             return viewModel.detachedSize.width - 24
+        }
+    }
+
+    private var pluginContentMaxHeight: CGFloat {
+        switch style {
+        case .docked:
+            return max(120, viewModel.openedSize.height - viewModel.closedHeight)
+        case .detached:
+            return max(120, viewModel.detachedSize.height - viewModel.closedHeight)
         }
     }
 }

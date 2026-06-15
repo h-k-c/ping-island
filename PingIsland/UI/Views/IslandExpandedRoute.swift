@@ -120,6 +120,7 @@ enum IslandExpandedRouteResolver {
 
 struct PluginExpandedPanelView: View {
     private static let procMonitorPluginId = "com.wudanwu.pingisland.procmonitor"
+    private static let weatherDemoPluginId = "com.example.weatherdemo"
 
     let pluginId: String
     @ObservedObject private var arbiter = PluginSlotArbiter.shared
@@ -129,6 +130,11 @@ struct PluginExpandedPanelView: View {
         Group {
             if pluginId == Self.procMonitorPluginId {
                 ProcMonitorIslandPanelView()
+            } else if pluginId == Self.weatherDemoPluginId {
+                WeatherDemoIslandPanelView(
+                    pluginId: pluginId,
+                    sections: arbiter.expandedContent[pluginId] ?? []
+                )
             } else {
                 genericPanel
             }
@@ -141,7 +147,10 @@ struct PluginExpandedPanelView: View {
                 )
             }
         )
-        .onAppear { arbiter.currentlyDisplayedExpandedPluginId = pluginId }
+        .onAppear {
+            arbiter.currentlyDisplayedExpandedPluginId = pluginId
+            Task { await PluginHost.shared.ensurePluginRunning(pluginId) }
+        }
         .onDisappear {
             if arbiter.currentlyDisplayedExpandedPluginId == pluginId {
                 arbiter.currentlyDisplayedExpandedPluginId = nil
@@ -226,6 +235,155 @@ struct PluginExpandedPanelView: View {
 
     private var plugin: InstalledPlugin? {
         registry.installedPlugins.first { $0.id == pluginId }
+    }
+}
+
+private struct WeatherDemoIslandPanelView: View {
+    let pluginId: String
+    let sections: [ExpandedSection]
+
+    private var temperature: String {
+        statValue(containing: "气温") ?? "23°C"
+    }
+
+    private var humidity: Double {
+        progressValue(containing: "湿度") ?? 0.65
+    }
+
+    private var wind: String {
+        statValue(containing: "风速") ?? "12 km/h"
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 1.00, green: 0.72, blue: 0.24),
+                                    Color(red: 1.00, green: 0.42, blue: 0.18)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    Image(systemName: "sun.max.fill")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 58, height: 58)
+                .shadow(color: Color.orange.opacity(0.28), radius: 18, y: 8)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("天气 Demo")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.68))
+                    Text(temperature)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .monospacedDigit()
+                    Text("晴朗 · 体感舒适")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.52))
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                weatherMetric(
+                    icon: "humidity.fill",
+                    title: "湿度",
+                    value: "\(Int((humidity * 100).rounded()))%"
+                )
+                weatherMetric(
+                    icon: "wind",
+                    title: "风速",
+                    value: wind
+                )
+            }
+
+            Button {
+                NotificationCenter.default.post(
+                    name: .pluginButtonTapped,
+                    object: nil,
+                    userInfo: [
+                        "pluginId": pluginId,
+                        "actionId": "refresh"
+                    ]
+                )
+            } label: {
+                Label("刷新天气", systemImage: "arrow.clockwise")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(14)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.06, green: 0.16, blue: 0.23).opacity(0.96),
+                            Color.black.opacity(0.92)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.white.opacity(0.14), lineWidth: 0.8)
+                )
+        )
+    }
+
+    private func weatherMetric(icon: String, title: String, value: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.76))
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.48))
+                Text(value)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .monospacedDigit()
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity)
+        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+    }
+
+    private func statValue(containing text: String) -> String? {
+        for section in sections {
+            if case .stat(let stat) = section, stat.label.contains(text) {
+                return stat.value
+            }
+        }
+        return nil
+    }
+
+    private func progressValue(containing text: String) -> Double? {
+        for section in sections {
+            if case .progress(let progress) = section, progress.label?.contains(text) == true {
+                return progress.value
+            }
+        }
+        return nil
     }
 }
 

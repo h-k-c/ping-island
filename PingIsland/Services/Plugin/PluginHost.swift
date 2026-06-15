@@ -16,6 +16,7 @@ final class PluginHost: ObservableObject {
     private var processes: [String: PluginProcess] = [:]
     private var listenerTasks: [String: [Task<Void, Never>]] = [:]
     private var registryCancellable: AnyCancellable?
+    private var arbiterCancellables: Set<AnyCancellable> = []
     private var hasStarted = false
 
     init(registry: PluginRegistry = .shared, arbiter: PluginSlotArbiter = .shared) {
@@ -38,28 +39,24 @@ final class PluginHost: ObservableObject {
 
         registry.start()
 
-        // Start all plugins concurrently — each has its own timeout and retry logic
-        await withTaskGroup(of: Void.self) { group in
-            for plugin in registry.installedPlugins {
-                group.addTask { [weak self] in
-                    await self?.startPlugin(plugin)
-                }
-            }
-        }
+        await reconcileDesiredPlugins(registry.installedPlugins)
 
         registryCancellable = registry.$installedPlugins
             .dropFirst()
             .sink { [weak self] plugins in
                 Task { [weak self] in
-                    await self?.reconcilePlugins(plugins)
+                    await self?.reconcileDesiredPlugins(plugins)
                 }
             }
+
+        bindArbiterUsage()
     }
 
     func stop() async {
         guard hasStarted else { return }
         hasStarted = false
         registryCancellable = nil
+        arbiterCancellables.removeAll()
 
         for tasks in listenerTasks.values {
             tasks.forEach { $0.cancel() }
@@ -74,9 +71,15 @@ final class PluginHost: ObservableObject {
     }
 
     func sendAction(actionId: String, value: Any? = nil, to pluginId: String) async {
+        await ensurePluginRunning(pluginId)
         if let process = processes[pluginId] {
             await process.sendAction(actionId: actionId, value: value)
         }
+    }
+
+    func ensurePluginRunning(_ pluginId: String) async {
+        guard let plugin = registry.installedPlugins.first(where: { $0.id == pluginId }) else { return }
+        await startPlugin(plugin)
     }
 
     /// Push a config value change to a running plugin immediately.
@@ -124,17 +127,57 @@ final class PluginHost: ObservableObject {
         arbiter.removePlugin(pluginId)
     }
 
-    private func reconcilePlugins(_ plugins: [InstalledPlugin]) async {
-        let installedIds = Set(plugins.map(\.id))
+    private func reconcileDesiredPlugins(_ plugins: [InstalledPlugin]) async {
+        let desiredIds = desiredPluginIds(from: plugins)
         let runningIds = Set(processes.keys)
 
-        for id in runningIds.subtracting(installedIds) {
+        for id in runningIds.subtracting(desiredIds) {
             await stopPlugin(id)
         }
 
-        for plugin in plugins where !runningIds.contains(plugin.id) {
+        for plugin in plugins where desiredIds.contains(plugin.id) && !runningIds.contains(plugin.id) {
             await startPlugin(plugin)
         }
+    }
+
+    private func desiredPluginIds(from plugins: [InstalledPlugin]) -> Set<String> {
+        var ids = Set(
+            plugins
+                .filter { $0.manifest.isBuiltIn && $0.manifest.subscribesTo.contains("hookEvent") }
+                .map(\.id)
+        )
+
+        if let left = arbiter.leftEarAssignment { ids.insert(left) }
+        if let right = arbiter.rightEarAssignment { ids.insert(right) }
+        if let displayed = arbiter.currentlyDisplayedExpandedPluginId { ids.insert(displayed) }
+
+        return ids.intersection(Set(plugins.map(\.id)))
+    }
+
+    private func bindArbiterUsage() {
+        arbiterCancellables.removeAll()
+
+        let refresh: () -> Void = { [weak self] in
+            Task { [weak self] in
+                guard let self else { return }
+                await self.reconcileDesiredPlugins(self.registry.installedPlugins)
+            }
+        }
+
+        arbiter.$leftEarAssignment
+            .dropFirst()
+            .sink { _ in refresh() }
+            .store(in: &arbiterCancellables)
+
+        arbiter.$rightEarAssignment
+            .dropFirst()
+            .sink { _ in refresh() }
+            .store(in: &arbiterCancellables)
+
+        arbiter.$currentlyDisplayedExpandedPluginId
+            .dropFirst()
+            .sink { _ in refresh() }
+            .store(in: &arbiterCancellables)
     }
 
     private func makeListenerTasks(for process: PluginProcess) -> [Task<Void, Never>] {

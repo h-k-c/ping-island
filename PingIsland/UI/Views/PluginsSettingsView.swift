@@ -71,13 +71,19 @@ struct PluginsSettingsView: View {
     private func slotRow(side: String, image: String,
                          assignment: Binding<String?>,
                          plugins: [InstalledPlugin]) -> some View {
-        HStack(spacing: 10) {
+        let selectedPlugin = plugins.first { $0.id == assignment.wrappedValue }
+
+        return HStack(spacing: 10) {
             Image(systemName: image)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
             Text(side).font(.system(size: 12, weight: .medium))
             Spacer()
+            if let selectedPlugin {
+                pluginIcon(selectedPlugin)
+                    .frame(width: 24, height: 24)
+            }
             Picker("", selection: assignment) {
                 Text("不显示").tag(Optional<String>.none)
                 ForEach(plugins, id: \.id) { p in
@@ -208,6 +214,17 @@ struct PluginsSettingsView: View {
     /// Returns icon symbol + color from manifest.icon if declared, otherwise falls back to hash palette.
     /// Zero hardcoding for specific plugin IDs.
     private func iconMeta(for manifest: PluginManifest) -> (symbol: String, color: Color) {
+        switch manifest.id {
+        case "com.example.weatherdemo":
+            return ("sun.max.fill", Color(red: 1.0, green: 0.62, blue: 0.16))
+        case "com.wudanwu.pingisland.procmonitor":
+            return ("memorychip.fill", Color(red: 0.20, green: 0.78, blue: 0.35))
+        case "com.wudanwu.pingisland.usage":
+            return ("chart.pie.fill", Color(red: 0.20, green: 0.60, blue: 0.90))
+        default:
+            break
+        }
+
         if let decl = manifest.icon {
             let color = Color(hex: decl.color) ?? Color(red: 0.4, green: 0.4, blue: 0.9)
             return (decl.sfSymbol, color)

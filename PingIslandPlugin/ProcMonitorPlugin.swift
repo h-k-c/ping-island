@@ -44,7 +44,6 @@ enum ProcMonitorPlugin {
                 "position": "right",
                 "content": [
                     "icon": ["type": "sf", "name": "memorychip.fill"],
-                    "label": "--",
                     "tint": "default"
                 ]
             ]
@@ -60,7 +59,6 @@ enum ProcMonitorPlugin {
     }
 
     private static func sendCompact(memory: MemorySnapshot) {
-        let pct = Int(memory.percent.rounded())
         sendJSON([
             "jsonrpc": "2.0",
             "method": "island/compact",
@@ -68,7 +66,6 @@ enum ProcMonitorPlugin {
                 "position": "right",
                 "content": [
                     "icon": ["type": "sf", "name": "memorychip.fill"],
-                    "label": "\(pct)%",
                     "tint": tint(forPercent: memory.percent)
                 ]
             ]
