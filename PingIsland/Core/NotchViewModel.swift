@@ -856,7 +856,7 @@ class NotchViewModel: ObservableObject {
             currentChatSession = nil  // plugin content handled separately
         }
 
-        self.contentType = .instances
+        self.contentType = contentType
         openReason = .click
         status = .opened
         presentationMode = .detached
@@ -909,6 +909,13 @@ class NotchViewModel: ObservableObject {
             return
         }
         contentType = .chat(session)
+    }
+
+    func presentPlugin(_ pluginId: String, reason: NotchOpenReason = .click) {
+        currentChatSession = nil
+        openedMeasuredHeight = nil
+        contentType = .plugin(pluginId: pluginId)
+        notchOpen(reason: reason)
     }
 
     func presentChat(for session: SessionState, reason: NotchOpenReason = .click) {

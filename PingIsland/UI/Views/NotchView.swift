@@ -628,15 +628,15 @@ struct NotchView: View {
                                 notificationSourceIcon(size: petIconSize, status: closedMascotStatus)
                             } else if let pluginContent = pluginArbiter.activeLeft {
                                 IslandPluginRenderer.compactView(content: pluginContent)
-                                    .onTapGesture {
-                                        if let pluginId = pluginArbiter.activeLeftPluginId {
-                                            viewModel.contentType = .plugin(pluginId: pluginId)
-                                            viewModel.notchOpen(reason: .click)
-                                        }
-                                    }
                             }
                         }
                         .frame(width: sideWidth)
+                        .contentShape(Rectangle())
+                        .highPriorityGesture(
+                            TapGesture().onEnded {
+                                presentAssignedPlugin(pluginArbiter.activeLeftPluginId)
+                            }
+                        )
                     }
 
                     // Center content
@@ -655,15 +655,15 @@ struct NotchView: View {
                                 notificationIndicatorIcon(size: 12)
                             } else if let pluginContent = pluginArbiter.activeRight {
                                 IslandPluginRenderer.compactView(content: pluginContent)
-                                    .onTapGesture {
-                                        if let pluginId = pluginArbiter.activeRightPluginId {
-                                            viewModel.contentType = .plugin(pluginId: pluginId)
-                                            viewModel.notchOpen(reason: .click)
-                                        }
-                                    }
                             }
                         }
                         .frame(width: closedTrailingWidth, alignment: .trailing)
+                        .contentShape(Rectangle())
+                        .highPriorityGesture(
+                            TapGesture().onEnded {
+                                presentAssignedPlugin(pluginArbiter.activeRightPluginId)
+                            }
+                        )
                     }
                 }
             }
@@ -677,6 +677,11 @@ struct NotchView: View {
 
     private var closedLeadingWidth: CGFloat {
         sideWidth
+    }
+
+    private func presentAssignedPlugin(_ pluginId: String?) {
+        guard !isInNotificationMoment, let pluginId else { return }
+        viewModel.presentPlugin(pluginId, reason: .click)
     }
 
     private var closedTrailingWidth: CGFloat {
