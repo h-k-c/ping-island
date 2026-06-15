@@ -393,15 +393,11 @@ private struct ProcMonitorIslandPanelView: View {
     @State private var showSystem = false
     @State private var expandedPids: Set<Int> = []
 
-    private let rowLimit = 8
+    private let rowViewportHeight: CGFloat = 288
     private let cardRadius: CGFloat = 13
 
     private var groups: [ProcMonitorIslandGroup] {
         monitor.groups(showSystem: showSystem, sortByMemory: showMemory)
-    }
-
-    private var visibleGroups: [ProcMonitorIslandGroup] {
-        Array(groups.prefix(rowLimit))
     }
 
     private var totalCPU: Double {
@@ -482,53 +478,58 @@ private struct ProcMonitorIslandPanelView: View {
     }
 
     private var processRows: some View {
-        LazyVStack(spacing: 0) {
-            if monitor.processes.isEmpty {
-                Text("正在加载...")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(ProcMonitorIslandStyle.muted)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 42)
-            } else {
-                ForEach(Array(visibleGroups.enumerated()), id: \.element.id) { index, group in
-                    ProcMonitorIslandRow(
-                        process: group.parent,
-                        memoryBytes: group.totalResidentBytes,
-                        cpu: group.totalCPU,
-                        totalMemoryBytes: monitor.totalMemoryBytes,
-                        showMemory: showMemory,
-                        childCount: group.children.count,
-                        isExpanded: expandedPids.contains(group.parent.pid),
-                        isChild: false,
-                        onToggle: { toggle(group.parent.pid, hasChildren: !group.children.isEmpty) },
-                        onTerminate: { monitor.terminate(pid: group.parent.pid) }
-                    )
+        let displayedGroups = groups
 
-                    if expandedPids.contains(group.parent.pid) {
-                        ForEach(group.children.prefix(5)) { child in
-                            Divider().opacity(0.08).padding(.leading, 40)
-                            ProcMonitorIslandRow(
-                                process: child,
-                                memoryBytes: child.residentBytes,
-                                cpu: child.cpu,
-                                totalMemoryBytes: monitor.totalMemoryBytes,
-                                showMemory: showMemory,
-                                childCount: 0,
-                                isExpanded: false,
-                                isChild: true,
-                                onToggle: {},
-                                onTerminate: { monitor.terminate(pid: child.pid) }
-                            )
+        return ScrollView(.vertical, showsIndicators: true) {
+            LazyVStack(spacing: 0) {
+                if monitor.processes.isEmpty {
+                    Text("正在加载...")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(ProcMonitorIslandStyle.muted)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 42)
+                } else {
+                    ForEach(Array(displayedGroups.enumerated()), id: \.element.id) { index, group in
+                        ProcMonitorIslandRow(
+                            process: group.parent,
+                            memoryBytes: group.totalResidentBytes,
+                            cpu: group.totalCPU,
+                            totalMemoryBytes: monitor.totalMemoryBytes,
+                            showMemory: showMemory,
+                            childCount: group.children.count,
+                            isExpanded: expandedPids.contains(group.parent.pid),
+                            isChild: false,
+                            onToggle: { toggle(group.parent.pid, hasChildren: !group.children.isEmpty) },
+                            onTerminate: { monitor.terminate(pid: group.parent.pid) }
+                        )
+
+                        if expandedPids.contains(group.parent.pid) {
+                            ForEach(group.children.prefix(5)) { child in
+                                Divider().opacity(0.08).padding(.leading, 40)
+                                ProcMonitorIslandRow(
+                                    process: child,
+                                    memoryBytes: child.residentBytes,
+                                    cpu: child.cpu,
+                                    totalMemoryBytes: monitor.totalMemoryBytes,
+                                    showMemory: showMemory,
+                                    childCount: 0,
+                                    isExpanded: false,
+                                    isChild: true,
+                                    onToggle: {},
+                                    onTerminate: { monitor.terminate(pid: child.pid) }
+                                )
+                            }
                         }
-                    }
 
-                    if index < visibleGroups.count - 1 {
-                        Divider().opacity(0.08).padding(.leading, 40)
+                        if index < displayedGroups.count - 1 {
+                            Divider().opacity(0.08).padding(.leading, 40)
+                        }
                     }
                 }
             }
+            .padding(.bottom, 2)
         }
-        .padding(.bottom, 2)
+        .frame(height: rowViewportHeight)
     }
 
     private var footer: some View {
@@ -798,6 +799,8 @@ private final class ProcMonitorIslandModel: ObservableObject {
     func stop() {
         timer?.invalidate()
         timer = nil
+        processes.removeAll(keepingCapacity: false)
+        Self.expandedIconCache.removeAll(keepingCapacity: true)
     }
 
     func groups(showSystem: Bool, sortByMemory: Bool) -> [ProcMonitorIslandGroup] {
@@ -857,10 +860,44 @@ private final class ProcMonitorIslandModel: ObservableObject {
         var icons: [Int: (String, NSImage)] = [:]
         for app in NSWorkspace.shared.runningApplications {
             let pid = Int(app.processIdentifier)
-            guard pid > 0, let icon = app.icon else { continue }
-            icons[pid] = (app.localizedName ?? app.bundleIdentifier ?? "", icon)
+            guard pid > 0 else { continue }
+            let name = app.localizedName ?? app.bundleIdentifier ?? ""
+            guard let icon = cachedThumbnailIcon(for: app) else { continue }
+            icons[pid] = (name, icon)
         }
         return icons
+    }
+
+    private static var expandedIconCache: [String: NSImage] = [:]
+
+    private static func cachedThumbnailIcon(for app: NSRunningApplication) -> NSImage? {
+        let key = app.bundleIdentifier ?? app.bundleURL?.path ?? "\(app.processIdentifier)"
+        if let cached = expandedIconCache[key] {
+            return cached
+        }
+        guard let icon = app.icon else { return nil }
+        let thumbnail = thumbnailIcon(from: icon)
+        if expandedIconCache.count > 80 {
+            expandedIconCache.removeAll(keepingCapacity: true)
+        }
+        expandedIconCache[key] = thumbnail
+        return thumbnail
+    }
+
+    private static func thumbnailIcon(from icon: NSImage) -> NSImage {
+        let size = NSSize(width: 28, height: 28)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        icon.draw(
+            in: NSRect(origin: .zero, size: size),
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1
+        )
+        image.unlockFocus()
+        image.isTemplate = icon.isTemplate
+        return image
     }
 
     private static func fetchProcesses(

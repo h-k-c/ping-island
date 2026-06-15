@@ -52,6 +52,7 @@ default:
 
 enum ClaudeSessionPlugin {
     private static var activeSessions: [String: String] = [:]  // sessionId → cwd
+    private static var notifiedAttentionKeys: Set<String> = []
 
     static func run() {
         for msg in AnySequence({ AnyIterator { readLine() } }) {
@@ -77,6 +78,7 @@ enum ClaudeSessionPlugin {
         let phase     = params["phase"]     as? String ?? "idle"
         let provider  = params["provider"]  as? String ?? ""
         let cwd       = params["cwd"]       as? String ?? ""
+        let message   = params["message"]   as? String
 
         guard provider == "claude" else { return }
 
@@ -85,9 +87,25 @@ enum ClaudeSessionPlugin {
         if phase == "ended" {
             guard wasActive else { return }
             activeSessions.removeValue(forKey: sessionId)
+            notifiedAttentionKeys = notifiedAttentionKeys.filter { !$0.hasPrefix("\(sessionId):") }
             sendCompact()
-            // TODO: send island/notify here once the legacy SessionCompletionNotification
-            // system is removed from NotchView. Until then, the old system fires the popup.
+            sendNotify(
+                title: "Claude 会话完成",
+                subtitle: cwd.isEmpty ? nil : cwd
+            )
+        } else if phase == "waiting_for_approval" || phase == "waiting_for_input" {
+            activeSessions[sessionId] = cwd
+            sendCompact()
+            sendAttentionNotify(
+                sessionId: sessionId,
+                phase: phase,
+                message: message,
+                cwd: cwd
+            )
+        } else if phase == "processing" {
+            activeSessions[sessionId] = cwd
+            notifiedAttentionKeys = notifiedAttentionKeys.filter { !$0.hasPrefix("\(sessionId):") }
+            sendCompact()
         } else if !wasActive {
             activeSessions[sessionId] = cwd
             sendCompact()
@@ -107,12 +125,39 @@ enum ClaudeSessionPlugin {
             "params": ["position": "right", "content": content]
         ])
     }
+
+    private static func sendNotify(title: String, subtitle: String?) {
+        var content: [String: Any] = [
+            "icon": ["type": "sf", "name": "brain.head.profile"],
+            "title": title,
+            "duration": 4.5
+        ]
+        if let subtitle {
+            content["subtitle"] = subtitle
+        }
+        sendJSON([
+            "jsonrpc": "2.0",
+            "method": "island/notify",
+            "params": ["content": content]
+        ])
+    }
+
+    private static func sendAttentionNotify(sessionId: String, phase: String, message: String?, cwd: String) {
+        let key = "\(sessionId):\(phase)"
+        guard !notifiedAttentionKeys.contains(key) else { return }
+        notifiedAttentionKeys.insert(key)
+        sendNotify(
+            title: phase == "waiting_for_approval" ? "Claude 等待审批" : "Claude 等待输入",
+            subtitle: message ?? (cwd.isEmpty ? nil : cwd)
+        )
+    }
 }
 
 // MARK: - Codex Plugin
 
 enum CodexSessionPlugin {
     private static var activeSessions: [String: String] = [:]  // sessionId → cwd
+    private static var notifiedAttentionKeys: Set<String> = []
 
     static func run() {
         for msg in AnySequence({ AnyIterator { readLine() } }) {
@@ -138,6 +183,7 @@ enum CodexSessionPlugin {
         let phase     = params["phase"]     as? String ?? "idle"
         let provider  = params["provider"]  as? String ?? ""
         let cwd       = params["cwd"]       as? String ?? ""
+        let message   = params["message"]   as? String
 
         guard provider == "codex" else { return }
 
@@ -146,8 +192,25 @@ enum CodexSessionPlugin {
         if phase == "ended" {
             guard wasActive else { return }
             activeSessions.removeValue(forKey: sessionId)
+            notifiedAttentionKeys = notifiedAttentionKeys.filter { !$0.hasPrefix("\(sessionId):") }
             sendCompact()
-            // TODO: send island/notify once the legacy notification system is removed from NotchView
+            sendNotify(
+                title: "Codex 会话完成",
+                subtitle: cwd.isEmpty ? nil : cwd
+            )
+        } else if phase == "waiting_for_approval" || phase == "waiting_for_input" {
+            activeSessions[sessionId] = cwd
+            sendCompact()
+            sendAttentionNotify(
+                sessionId: sessionId,
+                phase: phase,
+                message: message,
+                cwd: cwd
+            )
+        } else if phase == "processing" {
+            activeSessions[sessionId] = cwd
+            notifiedAttentionKeys = notifiedAttentionKeys.filter { !$0.hasPrefix("\(sessionId):") }
+            sendCompact()
         } else if !wasActive {
             activeSessions[sessionId] = cwd
             sendCompact()
@@ -166,5 +229,31 @@ enum CodexSessionPlugin {
             "jsonrpc": "2.0", "method": "island/compact",
             "params": ["position": "right", "content": content]
         ])
+    }
+
+    private static func sendNotify(title: String, subtitle: String?) {
+        var content: [String: Any] = [
+            "icon": ["type": "sf", "name": "terminal.fill"],
+            "title": title,
+            "duration": 4.5
+        ]
+        if let subtitle {
+            content["subtitle"] = subtitle
+        }
+        sendJSON([
+            "jsonrpc": "2.0",
+            "method": "island/notify",
+            "params": ["content": content]
+        ])
+    }
+
+    private static func sendAttentionNotify(sessionId: String, phase: String, message: String?, cwd: String) {
+        let key = "\(sessionId):\(phase)"
+        guard !notifiedAttentionKeys.contains(key) else { return }
+        notifiedAttentionKeys.insert(key)
+        sendNotify(
+            title: phase == "waiting_for_approval" ? "Codex 等待审批" : "Codex 等待输入",
+            subtitle: message ?? (cwd.isEmpty ? nil : cwd)
+        )
     }
 }

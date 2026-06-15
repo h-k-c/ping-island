@@ -64,6 +64,13 @@ final class PluginEventBus {
     }
 
     private func resolvedPhase(from event: HookEvent) -> String {
+        switch event.status {
+        case "waiting_for_approval", "waiting_for_input", "processing", "ended":
+            return event.status
+        default:
+            break
+        }
+
         switch event.event {
         case "Stop", "SessionEnd", "SubagentStop":
             return "ended"
