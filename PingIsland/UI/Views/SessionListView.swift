@@ -779,7 +779,6 @@ struct InstanceRow: View {
         .padding(.vertical, usesSingleLineCompactLayout ? 5 : 8)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: session.phase)
         .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isExpanded)
-        .saturation(isCollapsedCompactPresentation ? 0 : 1)
         .opacity(isCollapsedCompactPresentation ? 0.72 : 1)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)

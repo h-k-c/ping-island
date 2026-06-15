@@ -217,7 +217,6 @@ enum UsageMonitorPlugin {
                 "position": "right",
                 "content": [
                     "icon": ["type": "sf", "name": "chart.pie.fill"],
-                    "label": "AI",
                     "tint": "default"
                 ]
             ]
@@ -251,25 +250,21 @@ enum UsageMonitorPlugin {
             }()
             content = [
                 "icon": ["type": "sf", "name": icon],
-                "label": "\(Int((pct * 100).rounded()))%",
                 "tint": tint
             ]
         } else if snapshot.claude.errorMessage != nil || snapshot.codex.errorMessage != nil {
             content = [
                 "icon": ["type": "sf", "name": "exclamationmark.triangle.fill"],
-                "label": "错误",
                 "tint": "red"
             ]
         } else if snapshot.claude.needsLogin || snapshot.codex.needsLogin {
             content = [
                 "icon": ["type": "sf", "name": "person.crop.circle.badge.exclamationmark"],
-                "label": "登录",
                 "tint": "orange"
             ]
         } else {
             content = [
                 "icon": ["type": "sf", "name": "chart.pie.fill"],
-                "label": "AI",
                 "tint": "default"
             ]
         }

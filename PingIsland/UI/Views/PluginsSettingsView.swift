@@ -25,8 +25,8 @@ struct PluginsSettingsView: View {
                 Button {
                     NSWorkspace.shared.open(PluginRegistry.defaultPluginsDirectoryURL)
                 } label: {
-                    Label("打开插件文件夹", systemImage: "folder")
-                        .font(.system(size: 11))
+                    Label("打开用户插件文件夹", systemImage: "folder")
+                        .font(.system(size: 10))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -37,7 +37,7 @@ struct PluginsSettingsView: View {
                     PluginRegistry.shared.rescan()
                 } label: {
                     Label("刷新", systemImage: "arrow.clockwise")
-                        .font(.system(size: 11))
+                        .font(.system(size: 10))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -50,9 +50,9 @@ struct PluginsSettingsView: View {
     private var slotAssignmentCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("槽位分配")
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(.primary)
-                .padding(.bottom, 10)
+                .padding(.bottom, 8)
 
             card {
                 slotRow(side: "右耳", image: "arrow.right.circle",
@@ -75,14 +75,15 @@ struct PluginsSettingsView: View {
 
         return HStack(spacing: 10) {
             Image(systemName: image)
-                .font(.system(size: 13))
+                .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(.secondary)
-                .frame(width: 20)
-            Text(side).font(.system(size: 12, weight: .medium))
+                .frame(width: 18)
+            Text(side)
+                .font(.system(size: 11, weight: .medium))
             Spacer()
             if let selectedPlugin {
                 pluginIcon(selectedPlugin)
-                    .frame(width: 24, height: 24)
+                    .frame(width: 20, height: 20)
             }
             Picker("", selection: assignment) {
                 Text("不显示").tag(Optional<String>.none)
@@ -92,10 +93,12 @@ struct PluginsSettingsView: View {
             }
             .pickerStyle(.menu)
             .labelsHidden()
-            .frame(maxWidth: 140)
+            .font(.system(size: 11, weight: .semibold))
+            .controlSize(.small)
+            .frame(maxWidth: 126)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Plugin List
@@ -103,9 +106,9 @@ struct PluginsSettingsView: View {
     private var toolsListCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("岛上工具")
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(.primary)
-                .padding(.bottom, 10)
+                .padding(.bottom, 8)
 
             card {
                 ForEach(Array(visiblePlugins.enumerated()), id: \.element.id) { index, plugin in
@@ -117,16 +120,16 @@ struct PluginsSettingsView: View {
     }
 
     private func pluginRow(_ plugin: InstalledPlugin) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            pluginIcon(plugin).frame(width: 36, height: 36)
+        HStack(alignment: .center, spacing: 10) {
+            pluginIcon(plugin).frame(width: 30, height: 30)
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
                     Text(plugin.manifest.name)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 10.8, weight: .semibold))
                         .foregroundStyle(.primary)
                     Text(plugin.manifest.version)
-                        .font(.system(size: 11))
+                        .font(.system(size: 9.5, weight: .medium))
                         .foregroundStyle(.tertiary)
                     if plugin.manifest.isBuiltIn {
                         badge("内置", color: .secondary)
@@ -137,11 +140,14 @@ struct PluginsSettingsView: View {
                 }
 
                 if let desc = plugin.manifest.description {
-                    Text(desc).font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text(desc)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 if !plugin.manifest.slots.isEmpty {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         ForEach(plugin.manifest.slots, id: \.rawValue) { slot in
                             badge(slot.displayName, color: .secondary)
                         }
@@ -151,8 +157,8 @@ struct PluginsSettingsView: View {
 
             Spacer(minLength: 8)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
     }
 
     // MARK: - Empty state
@@ -164,9 +170,9 @@ struct PluginsSettingsView: View {
                     .font(.system(size: 28, weight: .light))
                     .foregroundStyle(.secondary)
                 Text("没有已安装的插件")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                 Text("将 .pingplugin 文件放入插件文件夹即可安装")
-                    .font(.system(size: 11))
+                    .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -197,7 +203,7 @@ struct PluginsSettingsView: View {
         if let iconPath = plugin.manifest.iconPath,
            let img = NSImage(contentsOfFile: plugin.bundleURL.appendingPathComponent(iconPath).path) {
             Image(nsImage: img).resizable().aspectRatio(contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         } else {
             let meta = iconMeta(for: plugin.manifest)
             ZStack {
@@ -205,7 +211,7 @@ struct PluginsSettingsView: View {
                     .fill(LinearGradient(colors: [meta.color.opacity(0.85), meta.color.opacity(0.55)],
                                         startPoint: .topLeading, endPoint: .bottomTrailing))
                 Image(systemName: meta.symbol)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.white.opacity(0.9))
             }
         }
@@ -242,26 +248,27 @@ struct PluginsSettingsView: View {
 
     private func badge(_ text: String, color: Color, filled: Bool = false) -> some View {
         Text(text)
-            .font(.system(size: 9, weight: .semibold))
+            .font(.system(size: 8.2, weight: .semibold))
             .foregroundStyle(filled ? .white : color)
-            .padding(.horizontal, 6).padding(.vertical, 2)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
             .background(filled ? color : color.opacity(0.14), in: Capsule())
     }
 
     private func rowDivider() -> some View {
-        Divider().background(Color.white.opacity(0.05)).padding(.leading, 14)
+        Divider().background(Color.white.opacity(0.05)).padding(.leading, 12)
     }
 
     @ViewBuilder
     private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(spacing: 0) { content() }
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.white.opacity(0.045))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5))
             )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 

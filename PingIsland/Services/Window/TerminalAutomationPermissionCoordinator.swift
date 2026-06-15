@@ -99,7 +99,7 @@ actor TerminalAutomationPermissionCoordinator {
 
         let status = await determinePermissionStatus(
             for: runningApplication,
-            askUserIfNeeded: true,
+            askUserIfNeeded: false,
             phase: "preflight",
             sessionId: sessionId
         )

@@ -434,51 +434,58 @@ private struct UsageMonitorIslandPanelView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
                 providerCard(
                     title: "Claude",
                     subtitle: claudeStatus?.value ?? "加载中",
-                    icon: "brain.head.profile",
-                    tint: color(for: claudeStatus?.tint),
+                    assetName: "ClaudeLogo",
+                    tint: usageColor(.claude),
                     rows: [
-                        usageRow("5小时", claudeSession),
-                        usageRow("7日", claudeWeekly)
+                        usageRow("5小时", claudeSession, tint: usageColor(.session)),
+                        usageRow("7日", claudeWeekly, tint: usageColor(.weekly))
                     ],
-                    footer: todayTokens.map { ("今日 Tokens", $0.value) }
+                    footer: todayTokens.map { ("今日 Tokens", $0.value, usageColor(.tokens)) }
                 )
 
                 providerCard(
                     title: "Codex",
                     subtitle: codexStatus?.value ?? "加载中",
-                    icon: "terminal.fill",
-                    tint: color(for: codexStatus?.tint),
+                    assetName: "CodexLogo",
+                    tint: usageColor(.codex),
                     rows: [
-                        usageRow("5小时", codexPrimary),
-                        usageRow("7日", codexSecondary)
+                        usageRow("5小时", codexPrimary, tint: usageColor(.sessionAlt)),
+                        usageRow("7日", codexSecondary, tint: usageColor(.weeklyAlt))
                     ],
-                    footer: credits.map { ("Credits", $0.value) }
+                    footer: credits.map { ("Credits", $0.value, usageColor(.credits)) }
                 )
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(extraMessages, id: \.self) { message in
-                    Text(message)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.58))
+            if !extraMessages.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(extraMessages, id: \.self) { message in
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.clockwise.circle")
+                                .font(.system(size: 9.5, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.34))
+                            Text(message)
+                                .font(.system(size: 9.8, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.50))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
                         .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
 
             HStack(spacing: 8) {
                 Image(systemName: "clock")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.45))
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.38))
                 Text(updateText)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.52))
+                    .font(.system(size: 9.8, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.46))
 
                 Spacer(minLength: 0)
 
@@ -493,12 +500,12 @@ private struct UsageMonitorIslandPanelView: View {
                     )
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.82))
-                        .frame(width: 28, height: 24)
+                        .font(.system(size: 10.5, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.74))
+                        .frame(width: 26, height: 22)
                         .background(
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(.white.opacity(0.08))
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(.white.opacity(0.07))
                         )
                 }
                 .buttonStyle(.plain)
@@ -506,146 +513,133 @@ private struct UsageMonitorIslandPanelView: View {
             }
         }
         .fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.055))
+                .fill(Color.white.opacity(0.045))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                        .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
                 )
         )
-    }
-
-    private var header: some View {
-        HStack(spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.18, green: 0.64, blue: 0.94),
-                                Color(red: 0.34, green: 0.45, blue: 0.94)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                Image(systemName: "chart.pie.fill")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-            .frame(width: 34, height: 34)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("AI Monitor")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-                Text("Claude / Codex 配额与用量")
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.52))
-            }
-
-            Spacer(minLength: 0)
-        }
     }
 
     private func providerCard(
         title: String,
         subtitle: String,
-        icon: String,
+        assetName: String,
         tint: Color,
         rows: [UsageMonitorRow],
-        footer: (String, String)?
+        footer: (String, String, Color)?
     ) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(tint)
-                    .frame(width: 20, height: 20)
-                    .background(Circle().fill(tint.opacity(0.16)))
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 7) {
+                Image(assetName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 17, height: 17)
+                    .padding(4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(tint.opacity(0.18))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .strokeBorder(tint.opacity(0.24), lineWidth: 0.6)
+                    )
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.92))
-                    Text(subtitle)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(tint.opacity(0.9))
-                        .lineLimit(1)
-                }
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.86))
 
                 Spacer(minLength: 0)
+
+                Text(subtitle)
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(tint.opacity(0.9))
+                    .lineLimit(1)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(tint.opacity(0.14))
+                    )
             }
 
-            VStack(spacing: 7) {
+            VStack(spacing: 6) {
                 ForEach(rows) { row in
                     usageMeter(row)
                 }
             }
 
             if let footer {
-                Divider().overlay(.white.opacity(0.08))
+                Divider().overlay(.white.opacity(0.065))
                 HStack {
                     Text(footer.0)
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.48))
+                        .font(.system(size: 9.2, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.42))
                     Spacer(minLength: 0)
                     Text(footer.1)
-                        .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.82))
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(footer.2.opacity(0.86))
                 }
             }
         }
-        .padding(10)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.black.opacity(0.18))
+                .fill(
+                    LinearGradient(
+                        colors: [tint.opacity(0.12), .black.opacity(0.15)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(.white.opacity(0.065), lineWidth: 0.5)
+                        .strokeBorder(tint.opacity(0.16), lineWidth: 0.6)
                 )
         )
     }
 
     private func usageMeter(_ row: UsageMonitorRow) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(row.label)
-                    .font(.system(size: 9.8, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.56))
+                    .font(.system(size: 9.6, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.50))
                 Spacer(minLength: 0)
                 Text(row.valueText)
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundStyle(row.tint.opacity(0.9))
+                    .font(.system(size: 9.8, weight: .semibold, design: .rounded))
+                    .foregroundStyle(row.tint.opacity(0.82))
             }
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(.white.opacity(0.12))
+                        .fill(.white.opacity(0.10))
                     Capsule()
-                        .fill(row.tint)
+                        .fill(row.tint.opacity(0.82))
                         .frame(width: geometry.size.width * row.value)
                 }
             }
-            .frame(height: 5)
+            .frame(height: 4)
         }
     }
 
-    private func usageRow(_ label: String, _ section: ProgressSection?) -> UsageMonitorRow {
+    private func usageRow(_ label: String, _ section: ProgressSection?, tint: Color) -> UsageMonitorRow {
         guard let section else {
-            return UsageMonitorRow(label: label, value: 0, valueText: "--", tint: .white.opacity(0.35))
+            return UsageMonitorRow(label: label, value: 0, valueText: "--", tint: tint.opacity(0.35))
         }
         let value = min(max(section.value, 0), 1)
         return UsageMonitorRow(
             label: label,
             value: value,
             valueText: "\(Int((value * 100).rounded()))%",
-            tint: color(for: section.tint)
+            tint: tint
         )
     }
 
@@ -685,21 +679,53 @@ private struct UsageMonitorIslandPanelView: View {
     private func color(for tint: PluginTint?) -> Color {
         switch tint {
         case .green:
-            return Color(red: 0.24, green: 0.86, blue: 0.48)
+            return Color(red: 0.22, green: 0.78, blue: 0.45)
         case .yellow:
-            return Color(red: 1.0, green: 0.78, blue: 0.26)
+            return Color(red: 0.95, green: 0.72, blue: 0.24)
         case .orange:
-            return Color(red: 1.0, green: 0.56, blue: 0.24)
+            return Color(red: 0.95, green: 0.50, blue: 0.22)
         case .red:
-            return Color(red: 1.0, green: 0.32, blue: 0.32)
+            return Color(red: 0.94, green: 0.28, blue: 0.28)
         case .blue:
-            return Color(red: 0.34, green: 0.68, blue: 1.0)
+            return Color(red: 0.30, green: 0.60, blue: 0.90)
         case .purple:
-            return Color(red: 0.62, green: 0.48, blue: 1.0)
+            return Color(red: 0.58, green: 0.44, blue: 0.92)
         case .default, .none:
-            return Color(red: 0.58, green: 0.70, blue: 0.86)
+            return Color(red: 0.50, green: 0.62, blue: 0.78)
         }
     }
+
+    private func usageColor(_ role: UsageMonitorColorRole) -> Color {
+        switch role {
+        case .claude:
+            return Color(red: 0.92, green: 0.47, blue: 0.28)
+        case .codex:
+            return Color(red: 0.32, green: 0.58, blue: 0.96)
+        case .session:
+            return Color(red: 0.98, green: 0.63, blue: 0.30)
+        case .weekly:
+            return Color(red: 0.28, green: 0.82, blue: 0.48)
+        case .sessionAlt:
+            return Color(red: 0.25, green: 0.72, blue: 0.95)
+        case .weeklyAlt:
+            return Color(red: 0.62, green: 0.48, blue: 0.96)
+        case .tokens:
+            return Color(red: 0.98, green: 0.78, blue: 0.32)
+        case .credits:
+            return Color(red: 0.42, green: 0.84, blue: 0.94)
+        }
+    }
+}
+
+private enum UsageMonitorColorRole {
+    case claude
+    case codex
+    case session
+    case weekly
+    case sessionAlt
+    case weeklyAlt
+    case tokens
+    case credits
 }
 
 private struct UsageMonitorRow: Identifiable {
