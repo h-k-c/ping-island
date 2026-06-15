@@ -375,16 +375,16 @@ struct NotchView: View {
                 handleWaitingForInputChange(instances)
                 handleCompletionNotificationChange(instances)
             }
-            // NOTE: isAnyProcessing no longer suppresses right ear —
-            // session count is now part of the carousel alongside third-party plugins.
-            .onChange(of: showsClosedLeadingIcon) { _, showing in
-                PluginSlotArbiter.shared.setCoreActive(showing, side: .left)
-            }
             .onChange(of: pluginArbiter.pendingNotifications) { _, notifications in
                 if activePluginNotification == nil, !notifications.isEmpty {
                     dequeuePluginNotification()
                 }
             }
+            // Gate hover-to-expand on whether a notification is being surfaced.
+            .onChange(of: isInNotificationMoment) { _, active in
+                viewModel.hoverExpansionAllowed = active
+            }
+            .onAppear { viewModel.hoverExpansionAllowed = isInNotificationMoment }
     }
 
     private var visibilityAwareBody: some View {
@@ -558,9 +558,19 @@ struct NotchView: View {
         isProcessing || hasPendingPermission || hasHumanIntervention || hasCompletedReadyState
     }
 
-    /// Keep the closed notch footprint stable and always show the leading icon.
+    /// Whether the closed notch is currently surfacing a notification/attention
+    /// moment (approval, intervention, just-completed, or a plugin notification).
+    /// The mascot only appears during these moments; otherwise the ears show
+    /// their assigned plugins.
+    private var isInNotificationMoment: Bool {
+        hasPendingPermission || hasHumanIntervention || hasCompletedReadyState
+            || activeCompletionNotification != nil || activePluginNotification != nil
+    }
+
+    /// In the closed state the mascot is shown as the leading icon only during a
+    /// notification moment; idle closed states hand the left ear to its plugin.
     private var showsClosedLeadingIcon: Bool {
-        viewModel.status != .opened || showClosedActivity
+        viewModel.status != .opened && isInNotificationMoment
     }
 
     /// In fullscreen on physical-notch displays, the closed state should visually
@@ -606,29 +616,28 @@ struct NotchView: View {
                     .frame(width: closedInnerWidth, height: closedNotchSize.height)
             } else {
                 HStack(spacing: 0) {
-                    // Left side - pet always visible while closed.
-                    if viewModel.status != .opened && showsClosedLeadingIcon {
-                        MascotView(
-                            kind: closedMascotKind,
-                            status: closedMascotStatus,
-                            size: petIconSize
-                        )
-                            .matchedGeometryEffect(id: "pet", in: activityNamespace, isSource: showsClosedLeadingIcon)
-                        .frame(width: viewModel.status == .opened ? nil : sideWidth)
-                        .padding(.leading, viewModel.status == .opened ? 8 : 0)
-                    }
-
-                    // Plugin left ear — shown when mascot has nothing to display
-                    if viewModel.status != .opened && !showsClosedLeadingIcon,
-                       let pluginContent = pluginArbiter.activeLeft {
-                        IslandPluginRenderer.compactView(content: pluginContent)
-                            .frame(width: sideWidth)
-                            .onTapGesture {
-                                if let pluginId = pluginArbiter.activeLeftPluginId {
-                                    viewModel.contentType = .plugin(pluginId: pluginId)
-                                    viewModel.notchOpen(reason: .click)
-                                }
+                    // Left ear — mascot only during a notification moment, otherwise
+                    // the assigned plugin. Fixed width keeps the notch footprint stable.
+                    if viewModel.status != .opened {
+                        ZStack {
+                            if showsClosedLeadingIcon {
+                                MascotView(
+                                    kind: closedMascotKind,
+                                    status: closedMascotStatus,
+                                    size: petIconSize
+                                )
+                                .matchedGeometryEffect(id: "pet", in: activityNamespace, isSource: showsClosedLeadingIcon)
+                            } else if let pluginContent = pluginArbiter.activeLeft {
+                                IslandPluginRenderer.compactView(content: pluginContent)
+                                    .onTapGesture {
+                                        if let pluginId = pluginArbiter.activeLeftPluginId {
+                                            viewModel.contentType = .plugin(pluginId: pluginId)
+                                            viewModel.notchOpen(reason: .click)
+                                        }
+                                    }
                             }
+                        }
+                        .frame(width: sideWidth)
                     }
 
                     // Center content
@@ -749,6 +758,7 @@ struct NotchView: View {
             trigger: triggerForCurrentPresentation,
             style: .docked,
             activeCompletionNotification: activeCompletionNotification,
+            activePluginNotification: activePluginNotification,
             onAttentionActionCompleted: {},
             onCompletionNotificationHoverChanged: handleCompletionNotificationHover,
             onDismissCompletionNotification: {
@@ -872,6 +882,9 @@ struct NotchView: View {
     private func telemetryContentRoute(for contentType: NotchContentType) -> String {
         if activeCompletionNotification != nil {
             return "completion_notification"
+        }
+        if activePluginNotification != nil {
+            return "plugin_notification"
         }
         if hasPendingPermission {
             return "approval"
@@ -1069,6 +1082,7 @@ struct NotchView: View {
         let work = DispatchWorkItem { [self] in
             withAnimation(.smooth) { activePluginNotification = nil }
             if completionNotificationQueue.isEmpty && activeCompletionNotification == nil {
+                viewModel.contentType = .instances
                 viewModel.notchClose()
             }
         }
@@ -1630,4 +1644,3 @@ private struct SessionCountIndicator: View {
         .offset(x: closedNotchRightShift)
     }
 }
-

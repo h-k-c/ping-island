@@ -8,11 +8,7 @@ import UniformTypeIdentifiers
 enum SettingsCategory: String, CaseIterable, Identifiable {
     case general
     case display
-    case mascot
-    case sound
     case plugins
-    case remote
-    case labs
     case about
 
     var id: String { rawValue }
@@ -21,24 +17,16 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "通用"
         case .display: return "显示"
-        case .mascot: return "宠物"
-        case .sound: return "声音"
         case .plugins: return "插件"
-        case .remote: return "远程"
-        case .labs: return "实验室"
         case .about: return "关于"
         }
     }
 
     var subtitle: String {
         switch self {
-        case .general: return "系统与基础行为"
-        case .display: return "显示器与位置"
-        case .mascot: return "客户端宠物与动作"
-        case .sound: return "通知与提示音"
-        case .plugins: return "已安装的岛插件"
-        case .remote: return "SSH 主机与远程转发"
-        case .labs: return "试验性特性"
+        case .general: return "基础行为"
+        case .display: return "显示方式"
+        case .plugins: return "岛上工具"
         case .about: return "版本与更新"
         }
     }
@@ -47,11 +35,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape.fill"
         case .display: return "rectangle.on.rectangle"
-        case .mascot: return "face.smiling.fill"
-        case .sound: return "speaker.wave.2.fill"
         case .plugins: return "puzzlepiece.extension.fill"
-        case .remote: return "network.badge.shield.half.filled"
-        case .labs: return "flask.fill"
         case .about: return "info.circle.fill"
         }
     }
@@ -60,19 +44,13 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: return Color(red: 0.12, green: 0.42, blue: 0.95)
         case .display: return Color(red: 0.46, green: 0.40, blue: 0.96)
-        case .mascot: return Color(red: 0.91, green: 0.27, blue: 0.81)  // Pink
-        case .sound: return Color(red: 0.22, green: 0.83, blue: 0.42)
         case .plugins: return Color(red: 0.55, green: 0.36, blue: 0.96)
-        case .remote: return Color(red: 0.95, green: 0.54, blue: 0.20)
-        case .labs: return Color(red: 0.82, green: 0.48, blue: 0.97)
         case .about: return Color(red: 0.17, green: 0.60, blue: 0.96)
         }
     }
 
-    static func visibleCategories(labsUnlocked: Bool) -> [SettingsCategory] {
-        allCases.filter { category in
-            category != .labs || labsUnlocked
-        }
+    static var visibleCategories: [SettingsCategory] {
+        [.general, .display, .plugins, .about]
     }
 }
 
@@ -183,9 +161,7 @@ final class SettingsPanelViewModel: ObservableObject {
         switch category {
         case .display:
             ScreenSelector.shared.refreshScreens()
-        case .sound:
-            SoundPackCatalog.shared.refresh()
-        case .general, .mascot, .plugins, .remote, .labs, .about:
+        case .general, .plugins, .about:
             break
         }
     }
@@ -385,203 +361,6 @@ private enum SettingsPanelPresentation {
     case popover
 }
 
-private struct SoundSettingsContent: View {
-    @ObservedObject private var settings = AppSettings.shared
-    @ObservedObject private var soundPacks = SoundPackCatalog.shared
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            SettingsSectionCard(title: "通知") {
-                SettingsToggleLine(
-                    title: "启用提示音",
-                    subtitle: "不同阶段可分别播放不同音效，适用于 Claude、Codex 等会话。",
-                    isOn: $settings.soundEnabled
-                )
-                SettingsLineDivider()
-
-                SettingsInfoLine(
-                    title: "声音模式",
-                    subtitle: "系统音适合快速配置；主题包兼容 OpenPeon / CESP 格式。"
-                ) {
-                    soundThemeModePicker
-                }
-                SettingsLineDivider()
-
-                SettingsSliderLine(
-                    title: "音量",
-                    subtitle: "控制 Island 播放提示音时的音量大小",
-                    value: $settings.soundVolume,
-                    range: 0...1,
-                    step: 0.05,
-                    format: { "\(Int(($0 * 100).rounded()))%" }
-                )
-            }
-
-            if settings.soundThemeMode == .builtIn {
-                SettingsSectionCard(title: "阶段音效") {
-                    ForEach(NotificationEvent.allCases) { event in
-                        SoundEventSettingsLine(
-                            event: event,
-                            isEnabled: soundEnabledBinding(for: event),
-                            selectedSound: soundBinding(for: event)
-                        ) {
-                            AppSettings.playSound(for: event)
-                        }
-                    }
-                }
-            } else if settings.soundThemeMode == .island8Bit {
-                SettingsSectionCard(title: "客户端启动音") {
-                    SettingsActionLine(
-                        title: "固定启动音",
-                        subtitle: "使用内置 8-bit 启动旋律。应用启动时会自动播放，也可以在这里试听。"
-                    ) {
-                        AppSettings.playClientStartupSound()
-                    } accessory: {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.72))
-                    }
-                }
-
-                SettingsSectionCard(title: "阶段音效") {
-                    ForEach(NotificationEvent.allCases) { event in
-                        BundledSoundEventLine(
-                            event: event,
-                            isEnabled: soundEnabledBinding(for: event),
-                            selectedSound: bundledSoundBinding(for: event)
-                        ) {
-                            AppSettings.playSound(for: event)
-                        }
-                    }
-                }
-            } else {
-                SettingsSectionCard(title: "主题音效包") {
-                    SoundPackSourceInfoLine {
-                        soundPackPicker
-                    }
-
-                    SoundPackImportActionLine {
-                        if soundPacks.importPack(), soundPacks.pack(for: settings.selectedSoundPackPath) == nil {
-                            settings.selectedSoundPackPath = soundPacks.availablePacks.first?.rootURL.path ?? ""
-                        }
-                    } accessory: {
-                        Image(systemName: "square.and.arrow.down")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.72))
-                    }
-
-                    if soundPacks.availablePacks.isEmpty {
-                        SettingsValueLine(title: "可用主题包", value: "未发现")
-                    } else {
-                        SettingsValueLine(title: "可用主题包", value: "\(soundPacks.availablePacks.count)")
-                    }
-                }
-
-                SettingsSectionCard(title: "阶段映射") {
-                    ForEach(NotificationEvent.allCases) { event in
-                        SoundPackEventLine(
-                            event: event,
-                            isEnabled: Binding(
-                                get: { AppSettings.isSoundEnabled(for: event) },
-                                set: { AppSettings.setSoundEnabled($0, for: event) }
-                            )
-                        ) {
-                            AppSettings.playSound(for: event)
-                        }
-                    }
-                }
-            }
-        }
-        .onAppear {
-            ensureValidSelectedSoundPack()
-        }
-        .onChange(of: soundPacks.availablePacks) { _, _ in
-            ensureValidSelectedSoundPack()
-        }
-        .onChange(of: settings.soundThemeMode) { _, _ in
-            ensureValidSelectedSoundPack()
-        }
-    }
-
-    private var soundThemeModePicker: some View {
-        Picker("声音模式", selection: $settings.soundThemeMode) {
-            ForEach(SoundThemeMode.allCases) { mode in
-                Text(appLocalized: mode.title).tag(mode)
-            }
-        }
-        .labelsHidden()
-        .settingsMenuPicker(width: 168)
-    }
-
-    private var soundPackPicker: some View {
-        Picker("主题包", selection: $settings.selectedSoundPackPath) {
-            if soundPacks.availablePacks.isEmpty {
-                Text(appLocalized: "未发现").tag("")
-            } else {
-                ForEach(soundPacks.availablePacks) { pack in
-                    Text(pack.displayName).tag(pack.rootURL.path)
-                }
-            }
-        }
-        .labelsHidden()
-        .settingsMenuPicker(width: 204)
-    }
-
-    private func soundEnabledBinding(for event: NotificationEvent) -> Binding<Bool> {
-        switch event {
-        case .processingStarted:
-            return $settings.processingStartSoundEnabled
-        case .attentionRequired:
-            return $settings.attentionRequiredSoundEnabled
-        case .taskCompleted:
-            return $settings.taskCompletedSoundEnabled
-        case .taskError:
-            return $settings.taskErrorSoundEnabled
-        case .resourceLimit:
-            return $settings.resourceLimitSoundEnabled
-        }
-    }
-
-    private func soundBinding(for event: NotificationEvent) -> Binding<NotificationSound> {
-        switch event {
-        case .processingStarted:
-            return $settings.processingStartSound
-        case .attentionRequired:
-            return $settings.attentionRequiredSound
-        case .taskCompleted:
-            return $settings.taskCompletedSound
-        case .taskError:
-            return $settings.taskErrorSound
-        case .resourceLimit:
-            return $settings.resourceLimitSound
-        }
-    }
-
-    private func bundledSoundBinding(for event: NotificationEvent) -> Binding<Island8BitSound> {
-        switch event {
-        case .processingStarted:
-            return $settings.island8BitProcessingStartSound
-        case .attentionRequired:
-            return $settings.island8BitAttentionRequiredSound
-        case .taskCompleted:
-            return $settings.island8BitTaskCompletedSound
-        case .taskError:
-            return $settings.island8BitTaskErrorSound
-        case .resourceLimit:
-            return $settings.island8BitResourceLimitSound
-        }
-    }
-
-    private func ensureValidSelectedSoundPack() {
-        guard settings.soundThemeMode == .soundPack else { return }
-        if soundPacks.availablePacks.isEmpty {
-            settings.selectedSoundPackPath = ""
-        } else if soundPacks.pack(for: settings.selectedSoundPackPath) == nil {
-            settings.selectedSoundPackPath = soundPacks.availablePacks.first?.rootURL.path ?? ""
-        }
-    }
-}
-
 private struct SettingsCategoryLoadingView: View {
     let category: SettingsCategory
 
@@ -616,9 +395,7 @@ private struct SettingsCategoryLoadingView: View {
         switch category {
         case .display:
             return AppLocalization.string("正在刷新显示器与用量展示状态")
-        case .sound:
-            return AppLocalization.string("正在扫描可用声音主题包")
-        case .general, .mascot, .plugins, .remote, .labs, .about:
+        case .general, .plugins, .about:
             return AppLocalization.string("马上就好")
         }
     }
@@ -672,13 +449,9 @@ private struct SettingsPanelContentView: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var screenSelector = ScreenSelector.shared
     @ObservedObject private var updateManager = UpdateManager.shared
-    @ObservedObject private var remoteManager = RemoteConnectorManager.shared
     @State private var selectedCategory: SettingsCategory? = .general
     @State private var showingUninstallAllHooksConfirmation = false
-    @State private var showingRemoteHostSheet = false
-    @State private var remotePasswordPromptRequest: RemotePasswordPromptRequest?
     @State private var showingAnalyticsConsentPrompt = false
-    @State private var consecutiveGeneralTapCount = 0
     @State private var isAccessibilityPollingActive = false
     @State private var arePreviewAnimationsActive = false
     @State private var loadingCategory: SettingsCategory?
@@ -790,24 +563,6 @@ private struct SettingsPanelContentView: View {
         } message: {
             Text(appLocalized: "这会移除 Island 为所有本机集成写入的托管 Hooks 配置文件，包括自定义配置记录。")
         }
-        .sheet(isPresented: $showingRemoteHostSheet) {
-            AddRemoteHostSheet(remoteManager: remoteManager) {
-                showingRemoteHostSheet = false
-            }
-        }
-        .sheet(item: $remotePasswordPromptRequest) { request in
-            RemotePasswordPromptSheet(request: request) { password in
-                remotePasswordPromptRequest = nil
-                switch request.action {
-                case .connect:
-                    remoteManager.connect(endpointID: request.endpoint.id, password: password)
-                case .uninstallBridge:
-                    remoteManager.uninstallBridge(endpointID: request.endpoint.id, password: password)
-                }
-            } onDismiss: {
-                remotePasswordPromptRequest = nil
-            }
-        }
     }
 
     private var minimumWidth: CGFloat {
@@ -888,10 +643,10 @@ private struct SettingsPanelContentView: View {
 
     private var sidebarSections: [SettingsSidebarSection] {
         [
-            SettingsSidebarSection(
-                title: nil,
-                categories: SettingsCategory.visibleCategories(labsUnlocked: settings.labsSettingsUnlocked)
-            )
+                SettingsSidebarSection(
+                    title: nil,
+                    categories: SettingsCategory.visibleCategories
+                )
         ]
     }
 
@@ -1033,16 +788,8 @@ private struct SettingsPanelContentView: View {
                         generalContent
                     case .display:
                         displayContent
-                    case .mascot:
-                        mascotContent
-                    case .sound:
-                        soundContent
                     case .plugins:
                         PluginsSettingsView()
-                    case .remote:
-                        remoteContent
-                    case .labs:
-                        labsContent
                     case .about:
                         aboutContent
                     }
@@ -1113,7 +860,7 @@ private struct SettingsPanelContentView: View {
 
     private var currentCategory: SettingsCategory {
         let category = selectedCategory ?? .general
-        guard category != .labs || settings.labsSettingsUnlocked else {
+        guard SettingsCategory.visibleCategories.contains(category) else {
             return .general
         }
         return category
@@ -1125,17 +872,6 @@ private struct SettingsPanelContentView: View {
 
     private func selectSidebarCategory(_ category: SettingsCategory) {
         selectedCategory = category
-
-        if !settings.labsSettingsUnlocked, category != .general {
-            consecutiveGeneralTapCount = 0
-        } else if !settings.labsSettingsUnlocked, category == .general {
-            consecutiveGeneralTapCount += 1
-        }
-
-        if !settings.labsSettingsUnlocked, consecutiveGeneralTapCount >= 6 {
-            settings.labsSettingsUnlocked = true
-            selectedCategory = .labs
-        }
 
         let categoryToRefresh = currentCategory
         scheduleCategoryRefresh(
@@ -1155,9 +891,9 @@ private struct SettingsPanelContentView: View {
 
     private func shouldShowLoading(for category: SettingsCategory) -> Bool {
         switch category {
-        case .display, .sound:
+        case .display:
             return true
-        case .general, .mascot, .plugins, .remote, .labs, .about:
+        case .general, .plugins, .about:
             return false
         }
     }
@@ -1215,10 +951,10 @@ private struct SettingsPanelContentView: View {
                 }
             }
 
-            SettingsSectionCard(title: "行为") {
+            SettingsSectionCard(title: "基础行为") {
                 SettingsToggleLine(
                     title: "全屏时隐藏",
-                    subtitle: "无刘海屏会在全屏时收起到顶部中央触发区；刘海屏会收缩为空白系统刘海，hover 后再展示 Island 内容",
+                    subtitle: "全屏工作时减少打扰，需要时再唤出 Island",
                     isOn: $settings.hideInFullscreen
                 )
                 SettingsLineDivider()
@@ -1227,34 +963,6 @@ private struct SettingsPanelContentView: View {
                     title: "无活跃会话时自动隐藏",
                     subtitle: "当前没有正在运行或需要处理的会话时，自动隐藏 Island",
                     isOn: $settings.autoHideWhenIdle
-                )
-                SettingsLineDivider()
-
-                SettingsToggleLine(
-                    title: "智能抑制",
-                    subtitle: "当前正在看终端时，不自动弹出通知面板",
-                    isOn: $settings.smartSuppression
-                )
-                SettingsLineDivider()
-
-                SettingsToggleLine(
-                    title: "完成时自动展开会话",
-                    subtitle: "消息完成后自动弹出结果面板；关闭后只保留刘海状态提示和提示音",
-                    isOn: $settings.autoOpenCompletionPanel
-                )
-                SettingsLineDivider()
-
-                SettingsToggleLine(
-                    title: "上下文压缩时自动展开提醒",
-                    subtitle: "上下文压缩后自动弹出提示；关闭后只保留刘海状态提示和提示音",
-                    isOn: $settings.autoOpenCompactedNotificationPanel
-                )
-                SettingsLineDivider()
-
-                SettingsToggleLine(
-                    title: "鼠标离开时自动收起",
-                    subtitle: "hover 展开的预览面板会在鼠标离开后自动关闭",
-                    isOn: $settings.autoCollapseOnLeave
                 )
             }
 
@@ -1315,18 +1023,6 @@ private struct SettingsPanelContentView: View {
             }
 #endif
 
-            Button(action: { showingUninstallAllHooksConfirmation = true }) {
-                HStack(spacing: 7) {
-                    Image(systemName: "trash").font(.system(size: 12, weight: .semibold))
-                    Text(appLocalized: "一键卸载所有 Hooks 配置文件").font(.system(size: 12, weight: .semibold))
-                }
-                .foregroundColor(TerminalColors.red)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text(appLocalized: "一键卸载所有 Hooks 配置文件"))
         }
     }
 
@@ -1353,174 +1049,8 @@ private struct SettingsPanelContentView: View {
                 IslandSurfaceModeSelector(mode: $settings.surfaceMode)
                 SettingsLineDivider()
 
-                SettingsInfoLine(
-                    title: "默认宠物形象",
-                    subtitle: "设置展示模式示意图，以及没有活跃或待处理会话时刘海/悬浮宠物使用的默认形象。"
-                ) {
-                    DisplayPreviewMascotPicker(kind: $settings.previewMascotKind)
-                }
-
-                if settings.surfaceMode == .notch {
-                    SettingsLineDivider()
-                    SettingsInfoLine(
-                        title: "刘海拖拽引导",
-                        subtitle: "重新演示老用户首次打开新版本时看到的刘海拖拽提示。"
-                    ) {
-                        HookManagementButton(
-                            title: "重新演示",
-                            tint: SettingsCategory.display.tint,
-                            action: replayNotchDetachmentHint
-                        )
-                    }
-                    SettingsLineDivider()
-                    NotchDisplayModeSelector(mode: $settings.notchDisplayMode)
-                    SettingsLineDivider()
-
-                } else {
-                    SettingsLineDivider()
+                if settings.surfaceMode == .floatingPet {
                     FloatingPetPlacementInfoCard()
-                    SettingsLineDivider()
-                    SettingsInfoLine(
-                        title: "宠物大小",
-                        subtitle: "自动模式会根据当前显示器分辨率调整；也可以固定为标准尺寸或始终放大。"
-                    ) {
-                        FloatingPetSizeModePicker(mode: $settings.floatingPetSizeMode)
-                    }
-                }
-                SettingsLineDivider()
-
-                SettingsToggleLine(
-                    title: "显示代理活动详情",
-                    subtitle: "在会话列表和 hover 预览里展示工具调用、思考与更细的状态描述",
-                    isOn: $settings.showAgentDetail
-                )
-                SettingsLineDivider()
-
-                SettingsToggleLine(
-                    title: "显示用量",
-                    subtitle: "在展开面板顶部显示 Claude 与 Codex 的限额占用率和重置时间",
-                    isOn: $settings.showUsage
-                )
-                SettingsLineDivider()
-
-                SettingsInfoLine(
-                    title: "用量显示方式",
-                    subtitle: "切换显示已用量或剩余量；Claude 与 Codex 共用这组设置"
-                ) {
-                    UsageValueModePicker(
-                        mode: Binding(
-                            get: { settings.usageValueMode },
-                            set: { settings.usageValueMode = $0 }
-                        )
-                    )
-                    .disabled(!settings.showUsage)
-                }
-                SettingsLineDivider()
-
-                SettingsInfoLine(
-                    title: "子 Agent 显示",
-                    subtitle: "控制主列表里是否在主 Agent 下展示明确的子 Agent；当前会影响 Codex、Qoder 等带子会话的客户端"
-                ) {
-                    SubagentVisibilityPicker(
-                        mode: Binding(
-                            get: { settings.subagentVisibilityMode },
-                            set: { settings.subagentVisibilityMode = $0 }
-                        )
-                    )
-                }
-                SettingsLineDivider()
-
-                SettingsSliderLine(
-                    title: "内容字号",
-                    subtitle: "调整会话列表、hover 预览和结果视图的文字大小",
-                    value: $settings.contentFontSize,
-                    range: 11...17,
-                    step: 1,
-                    format: { "\($0.formatted(.number.precision(.fractionLength(0)))) pt" }
-                )
-                SettingsLineDivider()
-
-                SettingsSliderLine(
-                    title: "最大面板高度",
-                    subtitle: "控制聊天面板和 hover 预览的最大展开高度",
-                    value: $settings.maxPanelHeight,
-                    range: 480...700,
-                    step: 10,
-                    format: { "\($0.formatted(.number.precision(.fractionLength(0)))) pt" }
-                )
-            }
-        }
-    }
-
-    private func replayNotchDetachmentHint() {
-        AppSettings.notchDetachmentHintPending = true
-        AppSettings.floatingPetSettingsHintPending = true
-        onClose?()
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            NotificationCenter.default.post(name: .pingIslandPresentNotchDetachmentHint, object: nil)
-        }
-    }
-
-    private func replayFirstRunOnboardingDemo() {
-        SettingsWindowController.shared.dismiss()
-        AppSettings.notchDetachmentHintPending = false
-        AppSettings.floatingPetSettingsHintPending = false
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            PresentationModeWelcomeWindowController.shared.present { selectedMode in
-                AppSettings.surfaceMode = selectedMode
-                AppSettings.presentationModeOnboardingPending = false
-                AppSettings.notchDetachmentHintPending = false
-                AppSettings.floatingPetSettingsHintPending = false
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                    HookWalkthroughDemoRunner.shared.start()
-                }
-            }
-        }
-    }
-
-
-    private var mascotContent: some View {
-        MascotSettingsView()
-    }
-
-    private var soundContent: some View {
-        SoundSettingsContent()
-    }
-
-
-
-    private var labsContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            SettingsSectionCard(title: "实验室") {
-                LabsEmptyStateView()
-            }
-
-            SettingsSectionCard(title: "演示") {
-                SettingsActionLine(
-                    title: "重新体验首次引导",
-                    subtitle: "手动打开形态选择引导；选择刘海屏或独立悬浮宠物后，会继续进入 Hooks 演示。"
-                ) {
-                    replayFirstRunOnboardingDemo()
-                } accessory: {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(SettingsCategory.labs.tint.opacity(0.95))
-                }
-                SettingsLineDivider()
-
-                SettingsActionLine(
-                    title: "体验 Hooks 演示",
-                    subtitle: "启动一轮可交互案例：干净桌面背景、审批提交、处理完成、完成提醒。顶部 Island 与独立悬浮宠物都支持。"
-                ) {
-                    SettingsWindowController.shared.dismiss()
-                    HookWalkthroughDemoRunner.shared.start()
-                } accessory: {
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(TerminalColors.blue.opacity(0.95))
                 }
             }
         }
@@ -1617,95 +1147,6 @@ private struct SettingsPanelContentView: View {
                             .foregroundColor(.white.opacity(0.5))
                     }
                 }
-            }
-        }
-    }
-
-    private var remoteContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            SettingsSectionCard(title: "远程主机") {
-                if remoteManager.endpoints.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(appLocalized: "还没有添加任何远程主机")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                        Text(appLocalized: "添加后，Island 会通过 SSH 安装远程 bridge、改写远程 hooks，并建立一个双向转发通道。")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.white.opacity(0.58))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 18)
-                    .padding(.bottom, 8)
-                } else {
-                    let endpoints = remoteManager.endpoints
-                    ForEach(Array(endpoints.enumerated()), id: \.element.id) { index, endpoint in
-                        RemoteHostManagementLine(
-                            endpoint: endpoint,
-                            runtimeState: remoteManager.runtimeStates[endpoint.id] ?? RemoteEndpointRuntimeState(),
-                            hasReusablePassword: remoteManager.hasReusablePassword(for: endpoint.id),
-                            connectAction: { password in
-                                remoteManager.connect(endpointID: endpoint.id, password: password)
-                            },
-                            requestConnectPasswordAction: {
-                                remotePasswordPromptRequest = RemotePasswordPromptRequest(
-                                    endpoint: endpoint,
-                                    action: .connect
-                                )
-                            },
-                            disconnectAction: { remoteManager.disconnect(endpointID: endpoint.id) },
-                            uninstallAction: { password in
-                                remoteManager.uninstallBridge(endpointID: endpoint.id, password: password)
-                            },
-                            requestUninstallPasswordAction: {
-                                remotePasswordPromptRequest = RemotePasswordPromptRequest(
-                                    endpoint: endpoint,
-                                    action: .uninstallBridge
-                                )
-                            },
-                            removeAction: { remoteManager.removeEndpoint(id: endpoint.id) }
-                        )
-
-                        if index < endpoints.count - 1 {
-                            SettingsLineDivider()
-                        }
-                    }
-                }
-
-                SettingsLineDivider()
-
-                HStack {
-                    Spacer()
-                    Button(action: { showingRemoteHostSheet = true }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 13, weight: .semibold))
-                            Text(appLocalized: "添加远程主机")
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .foregroundColor(.white.opacity(0.7))
-                        .padding(.vertical, 4)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    Spacer()
-                }
-                .padding(.vertical, 12)
-            }
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text(appLocalized: "说明")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(appLocalized: "添加远程主机后，Island 会通过 SSH 检查环境、安装远程 bridge，并配置 Hooks。")
-                    Text(appLocalized: "连接成功后，远程会话会回传到本机显示；如果密码连接失败，需要重新输入密码。")
-                    Text(appLocalized: "如果不再需要远端集成，可在这里直接卸载 bridge；这会删除远端 `~/.ping-island` 并撤回 Island 托管的 hooks。")
-                }
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.white.opacity(0.62))
-                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -2640,512 +2081,6 @@ private struct HookManagementIcon: View {
     }
 }
 
-private struct RemoteHostManagementLine: View {
-    let endpoint: RemoteEndpoint
-    let runtimeState: RemoteEndpointRuntimeState
-    let hasReusablePassword: Bool
-    let connectAction: (String?) -> Void
-    let requestConnectPasswordAction: () -> Void
-    let disconnectAction: () -> Void
-    let uninstallAction: (String?) -> Void
-    let requestUninstallPasswordAction: () -> Void
-    let removeAction: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 14) {
-                Image(systemName: "network")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 34, height: 34)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.orange.opacity(0.24))
-                    )
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(endpoint.resolvedTitle)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-
-                        Text(appLocalized: runtimeState.phase.titleKey)
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(statusTint)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(statusTint.opacity(0.18))
-                            )
-                    }
-
-                    if let sshURL = endpoint.sshURL {
-                        Link(destination: sshURL) {
-                            HStack(spacing: 4) {
-                                Text(endpoint.sshURL?.absoluteString ?? endpoint.sshTarget)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-
-                                Image(systemName: "arrow.up.right.square")
-                                    .font(.system(size: 9, weight: .semibold))
-                            }
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.white.opacity(0.52))
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        Text(endpoint.sshTarget)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.white.opacity(0.52))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-
-                    Text(detailText)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white.opacity(0.60))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 12)
-            }
-
-            HStack(spacing: 10) {
-                if runtimeState.phase == .connected {
-                    HookManagementButton(
-                        title: "断开",
-                        tint: TerminalColors.amber,
-                        isDisabled: isBusy
-                    ) {
-                        disconnectAction()
-                    }
-                } else {
-                    HookManagementButton(
-                        title: connectButtonTitle,
-                        tint: TerminalColors.blue,
-                        isLoading: isConnecting,
-                        isDisabled: isBusy
-                    ) {
-                        if shouldPromptForPassword {
-                            requestConnectPasswordAction()
-                        } else {
-                            connectAction(nil)
-                        }
-                    }
-                }
-
-                HookManagementButton(
-                    title: "卸载",
-                    tint: TerminalColors.amber,
-                    isLoading: isUninstalling,
-                    isDisabled: isBusy
-                ) {
-                    if shouldPromptForUninstallPassword {
-                        requestUninstallPasswordAction()
-                    } else {
-                        uninstallAction(nil)
-                    }
-                }
-
-                HookManagementButton(
-                    title: "删除",
-                    tint: TerminalColors.amber,
-                    isDisabled: isBusy
-                ) {
-                    removeAction()
-                }
-            }
-
-            if let lastError = localizedLastError {
-                Text(verbatim: lastError)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(TerminalColors.amber)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var detailText: String {
-        var parts: [String] = [runtimeState.detail]
-        if let detectedHostname = endpoint.detectedHostname, !detectedHostname.isEmpty {
-            parts.append(detectedHostname)
-        }
-        parts.append(AppLocalization.string(authenticationDetail))
-        if let agentVersion = runtimeState.agentVersion ?? endpoint.agentVersion {
-            parts.append("Agent \(agentVersion)")
-        }
-        return parts.map { AppLocalization.string($0) }.joined(separator: " · ")
-    }
-
-    private var shouldPromptForPassword: Bool {
-        runtimeState.requiresPassword || (endpoint.authMode == .passwordSession && !hasReusablePassword)
-    }
-
-    private var shouldPromptForUninstallPassword: Bool {
-        runtimeState.requiresPassword || (endpoint.authMode == .passwordSession && !hasReusablePassword)
-    }
-
-    private var isConnecting: Bool {
-        switch runtimeState.phase {
-        case .probing, .bootstrapping, .connecting:
-            return true
-        case .disconnected, .uninstalling, .connected, .degraded, .failed:
-            return false
-        }
-    }
-
-    private var isUninstalling: Bool {
-        runtimeState.phase == .uninstalling
-    }
-
-    private var isBusy: Bool {
-        isConnecting || isUninstalling
-    }
-
-    private var connectButtonTitle: String {
-        if isConnecting {
-            return "连接中"
-        }
-
-        return shouldPromptForPassword ? "输入密码并连接" : "连接"
-    }
-
-    private var authenticationDetail: String {
-        switch endpoint.authMode {
-        case .passwordSession:
-            return hasReusablePassword ? "密码已保存" : "需要重新输入密码"
-        default:
-            return endpoint.authMode.titleKey
-        }
-    }
-
-    private var statusTint: Color {
-        switch runtimeState.phase {
-        case .connected:
-            return TerminalColors.green
-        case .failed, .degraded:
-            return TerminalColors.amber
-        case .connecting, .probing, .bootstrapping:
-            return TerminalColors.blue
-        case .uninstalling:
-            return TerminalColors.amber
-        case .disconnected:
-            return .white.opacity(0.68)
-        }
-    }
-
-    private var localizedLastError: String? {
-        guard let lastError = runtimeState.lastError, !lastError.isEmpty else {
-            return nil
-        }
-
-        let attachDisconnectPrefix = "SSH attach 已断开: "
-        if lastError.hasPrefix(attachDisconnectPrefix) {
-            let detail = String(lastError.dropFirst(attachDisconnectPrefix.count))
-            return AppLocalization.format("SSH attach 已断开: %@", detail)
-        }
-
-        return AppLocalization.string(lastError)
-    }
-}
-
-private struct AddRemoteHostSheet: View {
-    @ObservedObject var remoteManager: RemoteConnectorManager
-    let onDismiss: () -> Void
-
-    @State private var displayName = ""
-    @State private var sshTarget = ""
-    @State private var sshPort = "\(RemoteSSHLink.defaultPort)"
-    @State private var password = ""
-
-    private var parsedPort: Int? {
-        guard let port = Int(sshPort.trimmingCharacters(in: .whitespacesAndNewlines)),
-              (1...65_535).contains(port) else {
-            return nil
-        }
-        return port
-    }
-
-    private var canAdd: Bool {
-        !sshTarget.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && parsedPort != nil
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text(appLocalized: "添加远程主机")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.white)
-
-                VStack(alignment: .leading, spacing: 14) {
-                remoteField(title: "显示名称（可选）", placeholder: "例如 GPU Box", text: $displayName)
-                remoteField(title: "SSH 目标", placeholder: "例如 dev@10.0.0.8 或 my-server", text: $sshTarget)
-                remoteField(title: "端口", placeholder: "22", text: $sshPort)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(appLocalized: "密码（可选）")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.7))
-
-                    SecureField("", text: $password, prompt: Text(appLocalized: "连接成功后后续可直接重连"))
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white)
-                        .submitLabel(.go)
-                        .onSubmit {
-                            addAndConnect()
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(.white.opacity(0.06))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(.white.opacity(0.1), lineWidth: 1)
-                        )
-                }
-
-                if sshPort.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
-                   parsedPort == nil {
-                    Text(appLocalized: "端口需为 1 到 65535")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(TerminalColors.amber)
-                }
-            }
-
-            HStack(spacing: 12) {
-                Spacer()
-
-                Button(action: onDismiss) {
-                    Text(appLocalized: "取消")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.7))
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(.white.opacity(0.06))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(.white.opacity(0.1), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-
-                Button(action: addAndConnect) {
-                    Text(appLocalized: "保存并连接")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(canAdd ? .white : .white.opacity(0.4))
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(canAdd ? TerminalColors.blue.opacity(0.5) : .white.opacity(0.04))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(canAdd ? TerminalColors.blue.opacity(0.5) : .white.opacity(0.08), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.defaultAction)
-                .disabled(!canAdd)
-            }
-        }
-        .padding(24)
-        .frame(width: 460)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .preferredColorScheme(.dark)
-    }
-
-    @ViewBuilder
-    private func remoteField(title: String, placeholder: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(appLocalized: title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white.opacity(0.7))
-
-            TextField("", text: text, prompt: Text(appLocalized: placeholder))
-                .textFieldStyle(.plain)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(.white.opacity(0.06))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(.white.opacity(0.1), lineWidth: 1)
-                )
-        }
-    }
-
-    private func addAndConnect() {
-        guard let port = parsedPort, canAdd else { return }
-        let endpoint = remoteManager.addEndpoint(displayName: displayName, sshTarget: sshTarget, sshPort: port)
-        remoteManager.connect(
-            endpointID: endpoint.id,
-            password: password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : password
-        )
-        onDismiss()
-    }
-}
-
-private enum RemotePasswordPromptAction: String {
-    case connect
-    case uninstallBridge
-
-    var titleFormat: String {
-        switch self {
-        case .connect:
-            return "连接 %@"
-        case .uninstallBridge:
-            return "卸载 %@ 的 bridge"
-        }
-    }
-
-    var submitTitle: String {
-        switch self {
-        case .connect:
-            return "连接"
-        case .uninstallBridge:
-            return "卸载"
-        }
-    }
-}
-
-private struct RemotePasswordPromptRequest: Identifiable {
-    let endpoint: RemoteEndpoint
-    let action: RemotePasswordPromptAction
-
-    var id: String {
-        "\(endpoint.id.uuidString)-\(action.rawValue)"
-    }
-}
-
-private struct RemotePasswordPromptSheet: View {
-    let request: RemotePasswordPromptRequest
-    let onSubmit: (String) -> Void
-    let onDismiss: () -> Void
-
-    @State private var password = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text(verbatim: AppLocalization.format(request.action.titleFormat, request.endpoint.resolvedTitle))
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.white)
-
-            if let sshURL = request.endpoint.sshURL {
-                Link(destination: sshURL) {
-                    HStack(spacing: 4) {
-                        Text(request.endpoint.sshURL?.absoluteString ?? request.endpoint.sshTarget)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-
-                        Image(systemName: "arrow.up.right.square")
-                            .font(.system(size: 9, weight: .semibold))
-                    }
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.56))
-                }
-                .buttonStyle(.plain)
-            } else {
-                Text(request.endpoint.sshTarget)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.56))
-            }
-
-            SecureField("", text: $password, prompt: Text(appLocalized: "输入 SSH 密码"))
-                .textFieldStyle(.plain)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white)
-                .submitLabel(.go)
-                .onSubmit {
-                    submitPassword()
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(.white.opacity(0.06))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(.white.opacity(0.1), lineWidth: 1)
-                )
-
-            HStack(spacing: 12) {
-                Spacer()
-
-                Button(action: onDismiss) {
-                    Text(appLocalized: "取消")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.7))
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(.white.opacity(0.06))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(.white.opacity(0.1), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-
-                Button(action: submitPassword) {
-                    Text(appLocalized: request.action.submitTitle)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(password.isEmpty ? .white.opacity(0.4) : .white)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(password.isEmpty ? .white.opacity(0.04) : buttonTint.opacity(0.5))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(password.isEmpty ? .white.opacity(0.08) : buttonTint.opacity(0.5), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.defaultAction)
-                .disabled(password.isEmpty)
-            }
-        }
-        .padding(24)
-        .frame(width: 420)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .preferredColorScheme(.dark)
-    }
-
-    private func submitPassword() {
-        guard !password.isEmpty else { return }
-        onSubmit(password)
-    }
-
-    private var buttonTint: Color {
-        switch request.action {
-        case .connect:
-            return TerminalColors.blue
-        case .uninstallBridge:
-            return TerminalColors.amber
-        }
-    }
-}
-
-
-
 private struct SettingsClientIcon: View {
     let logoAssetName: String?
     let prefersBundledLogoOverAppIcon: Bool
@@ -3191,40 +2126,6 @@ private struct SettingsClientIcon: View {
         return prefersBundledLogoOverAppIcon || resolvedAppIcon == nil
             ? logoAssetName
             : nil
-    }
-}
-
-private struct LabsEmptyStateView: View {
-    var body: some View {
-        VStack(alignment: .center, spacing: 12) {
-            Image(systemName: "flask.fill")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundColor(SettingsCategory.labs.tint)
-                .frame(width: 52, height: 52)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(SettingsCategory.labs.tint.opacity(0.16))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(SettingsCategory.labs.tint.opacity(0.28), lineWidth: 1)
-                )
-
-            VStack(alignment: .center, spacing: 6) {
-                Text("暂无可用实验")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
-
-                Text("实验室主要承载一些试验性特性，稳定性不做保障。当前没有开放中的实验项目。")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white.opacity(0.58))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 28)
     }
 }
 
@@ -3364,43 +2265,6 @@ private struct SettingsInfoLine<Accessory: View>: View {
     }
 }
 
-private struct SoundPackSourceInfoLine<Accessory: View>: View {
-    @ViewBuilder let accessory: Accessory
-
-    private let sourcePaths = [
-        "~/.openpeon/packs",
-        ".claude/hooks/peon-ping/packs"
-    ]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 16) {
-                Text(appLocalized: "当前主题包")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-
-                Spacer(minLength: 12)
-
-                accessory
-            }
-
-            Text(appLocalized: "自动扫描以下目录，也支持手动导入本地目录。")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.white.opacity(0.58))
-                .fixedSize(horizontal: false, vertical: true)
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(sourcePaths, id: \.self) { path in
-                    SettingsCodeCapsule(text: path, systemImage: "folder")
-                }
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
 private struct SettingsActionLine<Accessory: View>: View {
     let title: String
     let subtitle: String?
@@ -3412,45 +2276,6 @@ private struct SettingsActionLine<Accessory: View>: View {
             SettingsInfoLine(title: title, subtitle: subtitle) {
                 accessory
             }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct SoundPackImportActionLine<Accessory: View>: View {
-    let action: () -> Void
-    @ViewBuilder let accessory: Accessory
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .center, spacing: 16) {
-                    Text(appLocalized: "导入本地主题包")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-
-                    Spacer(minLength: 12)
-
-                    accessory
-                }
-
-                Text(appLocalized: "选择一个本地目录，导入后会加入可选列表。")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white.opacity(0.58))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(appLocalized: "目录内需要包含以下清单文件")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.42))
-
-                    SettingsCodeCapsule(text: "openpeon.json", systemImage: "doc.text")
-                }
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -3506,43 +2331,6 @@ private struct SettingsValueLine: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct SettingsSliderLine: View {
-    let title: String
-    let subtitle: String?
-    @Binding var value: Double
-    let range: ClosedRange<Double>
-    let step: Double
-    let format: (Double) -> String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 16) {
-                Text(appLocalized: title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-
-                Spacer(minLength: 12)
-
-                Text(format(value))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.72))
-            }
-
-            if let subtitle {
-                Text(appLocalized: subtitle)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white.opacity(0.58))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Slider(value: $value, in: range, step: step)
-                .tint(TerminalColors.blue)
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
     }
 }
 
@@ -4375,179 +3163,5 @@ private struct SettingsStatusLine: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-}
-
-private struct SoundEventSettingsLine: View {
-    let event: NotificationEvent
-    @Binding var isEnabled: Bool
-    @Binding var selectedSound: NotificationSound
-    let preview: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 16) {
-                Text(appLocalized: event.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .layoutPriority(1)
-
-                Spacer(minLength: 12)
-
-                HStack(alignment: .center, spacing: 8) {
-                    Toggle("", isOn: $isEnabled)
-                        .labelsHidden()
-                        .settingsCompactSwitch()
-
-                    Picker(event.title, selection: $selectedSound) {
-                        ForEach(NotificationSound.allCases, id: \.self) { sound in
-                            Text(sound.rawValue).tag(sound)
-                        }
-                    }
-                    .id(selectedSound)
-                    .labelsHidden()
-                    .settingsMenuPicker(width: 148)
-                    .disabled(!isEnabled)
-
-                    Button(action: preview) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.white.opacity(isEnabled ? 0.82 : 0.4))
-                            .frame(width: 26, height: 26)
-                            .background(
-                                Circle()
-                                    .fill(Color.white.opacity(isEnabled ? 0.08 : 0.03))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!isEnabled)
-                }
-            }
-
-            Text(appLocalized: event.subtitle)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.white.opacity(0.58))
-                .fixedSize(horizontal: false, vertical: true)
-                .layoutPriority(1)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-    }
-}
-
-private struct SoundPackEventLine: View {
-    let event: NotificationEvent
-    @Binding var isEnabled: Bool
-    let preview: () -> Void
-
-    private var categorySummary: String {
-        event.cespCategories.joined(separator: ", ")
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 16) {
-                Text(appLocalized: event.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .layoutPriority(1)
-
-                Spacer(minLength: 12)
-
-                HStack(spacing: 8) {
-                    Toggle("", isOn: $isEnabled)
-                        .labelsHidden()
-                        .settingsCompactSwitch()
-
-                    Button(action: preview) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.white.opacity(isEnabled ? 0.82 : 0.4))
-                            .frame(width: 26, height: 26)
-                            .background(
-                                Circle()
-                                    .fill(Color.white.opacity(isEnabled ? 0.08 : 0.03))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!isEnabled)
-                }
-            }
-
-            Text(appLocalized: event.subtitle)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.white.opacity(0.58))
-                .fixedSize(horizontal: false, vertical: true)
-                .layoutPriority(1)
-
-            Text(categorySummary)
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                .foregroundColor(.white.opacity(0.42))
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-    }
-}
-
-private struct BundledSoundEventLine: View {
-    let event: NotificationEvent
-    @Binding var isEnabled: Bool
-    @Binding var selectedSound: Island8BitSound
-    let preview: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 16) {
-                Text(appLocalized: event.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .layoutPriority(1)
-
-                Spacer(minLength: 12)
-
-                HStack(alignment: .center, spacing: 8) {
-                    Toggle("", isOn: $isEnabled)
-                        .labelsHidden()
-                        .settingsCompactSwitch()
-
-                    Picker(event.title, selection: $selectedSound) {
-                        ForEach(Island8BitSound.allOrdered) { sound in
-                            Text(sound.label).tag(sound)
-                        }
-                    }
-                    .id(selectedSound)
-                    .labelsHidden()
-                    .settingsMenuPicker(width: 148)
-                    .disabled(!isEnabled)
-
-                    Button(action: preview) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.white.opacity(isEnabled ? 0.82 : 0.4))
-                            .frame(width: 26, height: 26)
-                            .background(
-                                Circle()
-                                    .fill(Color.white.opacity(isEnabled ? 0.08 : 0.03))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!isEnabled)
-                }
-            }
-
-            Text(appLocalized: event.subtitle)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.white.opacity(0.58))
-                .fixedSize(horizontal: false, vertical: true)
-                .layoutPriority(1)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
     }
 }

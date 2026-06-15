@@ -40,6 +40,37 @@ final class PluginModelsTests: XCTestCase {
         XCTAssertEqual(manifest.slots, [.compact, .notification, .expanded])
         XCTAssertEqual(manifest.description, "A full plugin")
         XCTAssertEqual(manifest.minIslandVersion, "0.15.0")
+        XCTAssertEqual(manifest.iconPath, "Contents/Resources/icon.png")
+    }
+
+    func testAcceptsSupportedProtocolMajorVersion() throws {
+        let json = """
+        {
+          "id": "com.test.v2",
+          "name": "Protocol v2",
+          "version": "1.0.0",
+          "protocolVersion": "2.0",
+          "executable": "Contents/MacOS/Test",
+          "slots": ["compact"]
+        }
+        """.data(using: .utf8)!
+        let manifest = try JSONDecoder().decode(PluginManifest.self, from: json)
+        XCTAssertNil(manifest.validationFailureReason)
+    }
+
+    func testFlagsUnsupportedProtocolMajorVersion() throws {
+        let json = """
+        {
+          "id": "com.test.future",
+          "name": "Future",
+          "version": "1.0.0",
+          "protocolVersion": "99.0",
+          "executable": "Contents/MacOS/Test",
+          "slots": ["compact"]
+        }
+        """.data(using: .utf8)!
+        let manifest = try JSONDecoder().decode(PluginManifest.self, from: json)
+        XCTAssertTrue(manifest.validationFailureReason?.contains("Unsupported IPP") == true)
     }
 
     func testRejectsManifestWithMissingRequiredField() {

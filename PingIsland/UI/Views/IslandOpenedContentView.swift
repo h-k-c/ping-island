@@ -7,6 +7,7 @@ struct IslandOpenedContentView: View {
     let trigger: IslandExpandedTrigger
     let style: IslandOpenedPresentationStyle
     let activeCompletionNotification: SessionCompletionNotification?
+    var activePluginNotification: PluginNotifyUpdate? = nil
     var highlightedSessionStableID: String? = nil
     var contentWidthOverride: CGFloat? = nil
     let onAttentionActionCompleted: () -> Void
@@ -27,7 +28,8 @@ struct IslandOpenedContentView: View {
             trigger: trigger,
             contentType: viewModel.contentType,
             sessions: sessionMonitor.instances,
-            activeCompletionNotification: activeCompletionNotification
+            activeCompletionNotification: activeCompletionNotification,
+            activePluginNotification: activePluginNotification
         )
     }
 
@@ -75,6 +77,16 @@ struct IslandOpenedContentView: View {
                     )
                 }
             )
+        case .pluginNotification(let notification):
+            PluginNotificationPanelView(notification: notification)
+                .background(
+                    GeometryReader { geometry in
+                        Color.clear.preference(
+                            key: OpenedPanelContentHeightPreferenceKey.self,
+                            value: geometry.size.height
+                        )
+                    }
+                )
         case .chat(let session):
             let liveSession = liveSession(for: session)
 

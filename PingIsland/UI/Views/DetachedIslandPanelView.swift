@@ -272,7 +272,7 @@ enum DetachedIslandContentModel {
                 height = min(viewModel.screenRect.height - 160, 228)
             }
             return CGSize(width: width, height: max(170, height))
-        case .completionNotification:
+        case .completionNotification, .pluginNotification:
             let width = min(widthLimit, 392)
             let height = measuredCompletionBubbleHeight
                 ?? DetachedIslandPanelMetrics.completionBubbleFallbackHeight
@@ -765,7 +765,7 @@ struct DetachedIslandPanelView: View {
             switch route {
             case .attentionNotification:
                 bubbleViewState.setMeasuredCompletionBubbleHeight(nil)
-            case .completionNotification:
+            case .completionNotification, .pluginNotification:
                 bubbleViewState.setMeasuredAttentionBubbleHeight(nil)
             default:
                 bubbleViewState.setMeasuredAttentionBubbleHeight(nil)
@@ -785,7 +785,7 @@ struct DetachedIslandPanelView: View {
                     )
                     : nil
                 bubbleViewState.setMeasuredAttentionBubbleHeight(measuredHeight)
-            case .completionNotification:
+            case .completionNotification, .pluginNotification:
                 let measuredHeight = height > 0
                     ? min(
                         viewModel.screenRect.height - 160,

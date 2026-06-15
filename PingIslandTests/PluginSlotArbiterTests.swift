@@ -5,17 +5,20 @@ import XCTest
 final class PluginSlotArbiterTests: XCTestCase {
 
     private func makeArbiter() -> PluginSlotArbiter {
-        PluginSlotArbiter()
+        let suiteName = "PluginSlotArbiterTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return PluginSlotArbiter(defaults: defaults)
     }
 
     private func makeCompact(
         pluginId: String,
-        position: CompactPosition,
+        preferredPosition: CompactPosition? = nil,
         label: String? = nil
     ) -> PluginCompactUpdate {
         PluginCompactUpdate(
             pluginId: pluginId,
-            position: position,
+            preferredPosition: preferredPosition,
             content: PluginCompactContent(
                 icon: .sf(name: "circle"),
                 label: label,
@@ -28,7 +31,7 @@ final class PluginSlotArbiterTests: XCTestCase {
     func testSinglePluginAppearsOnRight() {
         let arbiter = makeArbiter()
         arbiter.rightEarAssignment = "com.a"
-        arbiter.handleCompact(makeCompact(pluginId: "com.a", position: .right, label: "A"))
+        arbiter.handleCompact(makeCompact(pluginId: "com.a", preferredPosition: .right, label: "A"))
         XCTAssertEqual(arbiter.activeRight?.label, "A")
         XCTAssertNil(arbiter.activeLeft)
     }
@@ -36,7 +39,7 @@ final class PluginSlotArbiterTests: XCTestCase {
     func testSinglePluginAppearsOnLeft() {
         let arbiter = makeArbiter()
         arbiter.leftEarAssignment = "com.a"
-        arbiter.handleCompact(makeCompact(pluginId: "com.a", position: .left, label: "L"))
+        arbiter.handleCompact(makeCompact(pluginId: "com.a", preferredPosition: .left, label: "L"))
         XCTAssertEqual(arbiter.activeLeft?.label, "L")
         XCTAssertNil(arbiter.activeRight)
     }
@@ -44,25 +47,29 @@ final class PluginSlotArbiterTests: XCTestCase {
     func testClearingContentRemovesFromSlot() {
         let arbiter = makeArbiter()
         arbiter.rightEarAssignment = "com.a"
-        arbiter.handleCompact(makeCompact(pluginId: "com.a", position: .right, label: "A"))
-        arbiter.handleCompact(PluginCompactUpdate(pluginId: "com.a", position: .right, content: nil))
+        arbiter.handleCompact(makeCompact(pluginId: "com.a", preferredPosition: .right, label: "A"))
+        arbiter.handleCompact(PluginCompactUpdate(pluginId: "com.a", preferredPosition: .right, content: nil))
         XCTAssertNil(arbiter.activeRight)
     }
 
-    func testCoreActivitySuppressesRightPlugin() {
+    /// Content is position-agnostic: a plugin that only pushes `right` can still
+    /// render on the left ear when the user assigns it there.
+    func testContentShownOnAssignedEarRegardlessOfDeclaredPosition() {
         let arbiter = makeArbiter()
-        arbiter.rightEarAssignment = "com.a"
-        arbiter.handleCompact(makeCompact(pluginId: "com.a", position: .right, label: "A"))
-        arbiter.setCoreActive(true, side: .right)
+        arbiter.leftEarAssignment = "com.a"
+        arbiter.handleCompact(makeCompact(pluginId: "com.a", preferredPosition: .right, label: "A"))
+        XCTAssertEqual(arbiter.activeLeft?.label, "A")
+        XCTAssertEqual(arbiter.activeLeftPluginId, "com.a")
         XCTAssertNil(arbiter.activeRight)
     }
 
-    func testCoreActivityReleasedRestoresPlugin() {
+    /// The same plugin can be mirrored on both ears from a single content push.
+    func testSamePluginCanFillBothEars() {
         let arbiter = makeArbiter()
+        arbiter.leftEarAssignment = "com.a"
         arbiter.rightEarAssignment = "com.a"
-        arbiter.handleCompact(makeCompact(pluginId: "com.a", position: .right, label: "A"))
-        arbiter.setCoreActive(true, side: .right)
-        arbiter.setCoreActive(false, side: .right)
+        arbiter.handleCompact(makeCompact(pluginId: "com.a", preferredPosition: .right, label: "A"))
+        XCTAssertEqual(arbiter.activeLeft?.label, "A")
         XCTAssertEqual(arbiter.activeRight?.label, "A")
     }
 
@@ -72,7 +79,7 @@ final class PluginSlotArbiterTests: XCTestCase {
         arbiter.rightEarAssignment = "com.a"
         arbiter.handleCompact(PluginCompactUpdate(
             pluginId: "com.a",
-            position: .right,
+            preferredPosition: .right,
             content: PluginCompactContent(icon: .sf(name: "circle"), label: "12345678", badge: nil, tint: nil)
         ))
         XCTAssertEqual(arbiter.activeRight?.label?.count, 4)

@@ -47,6 +47,10 @@ class NotchViewModel: ObservableObject {
     @Published var openReason: NotchOpenReason = .unknown
     @Published var contentType: NotchContentType = .instances
     @Published var isHovering: Bool = false
+    /// Whether hovering the closed notch is allowed to auto-expand it. Idle states
+    /// (ears just showing plugins) do not expand on hover; only notification
+    /// moments do. Synced from NotchView's `isInNotificationMoment`.
+    @Published var hoverExpansionAllowed: Bool = false
     @Published private(set) var openedMeasuredHeight: CGFloat?
     @Published private(set) var isFullscreenEdgeRevealActive = false
     @Published private(set) var isFullscreenPhysicalNotchCompactActive = false
@@ -817,6 +821,9 @@ class NotchViewModel: ObservableObject {
 
     func performDeferredHoverOpenIfNeeded() {
         guard isHovering else { return }
+        // Idle notch (ears showing plugins) stays compact on hover; only expand
+        // when a notification/attention moment is active.
+        guard hoverExpansionAllowed else { return }
         guard status == .closed || status == .popping else { return }
         notchOpen(reason: .hover)
     }

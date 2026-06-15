@@ -58,7 +58,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         }
                     default:
                         // callback — forward to plugin
-                        guard let pluginId = PluginSlotArbiter.shared.currentlyDisplayedExpandedPluginId else { return }
+                        guard let pluginId = notification.userInfo?["pluginId"] as? String
+                            ?? PluginSlotArbiter.shared.currentlyDisplayedExpandedPluginId else { return }
                         await PluginHost.shared.sendAction(actionId: actionId, value: value, to: pluginId)
                     }
                 }
@@ -160,7 +161,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 #if APP_STORE
                 AppSettings.hookInstallOnboardingPending = true
                 self.shouldRunHookWalkthroughAfterOnboarding = false
-                SettingsWindowController.shared.present(category: .integration)
+                SettingsWindowController.shared.present(category: .plugins)
 #else
                 HookInstaller.performFirstRunDefaultInstall()
                 AppSettings.hookInstallOnboardingPending = false

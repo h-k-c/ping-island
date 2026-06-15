@@ -32,10 +32,10 @@ enum IslandPluginRenderer {
     // MARK: - Expanded sections
 
     @ViewBuilder
-    static func expandedView(sections: [ExpandedSection]) -> some View {
+    static func expandedView(sections: [ExpandedSection], pluginId: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
-                sectionView(section)
+                sectionView(section, pluginId: pluginId)
             }
         }
         .padding(.horizontal, 12)
@@ -43,22 +43,22 @@ enum IslandPluginRenderer {
     }
 
     @ViewBuilder
-    static func sectionView(_ section: ExpandedSection) -> some View {
+    static func sectionView(_ section: ExpandedSection, pluginId: String? = nil) -> some View {
         switch section {
         case .stat(let s):         statView(s)
         case .text(let s):         textView(s)
         case .list(let s):         listView(s)
         case .progress(let s):     progressView(s)
         case .chart(let s):        chartView(s)
-        case .button(let s):       buttonView(s)
+        case .button(let s):       buttonView(s, pluginId: pluginId)
         case .divider:             Divider().background(.white.opacity(0.1))
-        case .checkbox(let s):     checkboxView(s)
-        case .input(let s):        inputView(s)
+        case .checkbox(let s):     checkboxView(s, pluginId: pluginId)
+        case .input(let s):        inputView(s, pluginId: pluginId)
         case .image(let s):        imageView(s)
-        case .slider(let s):       sliderView(s)
-        case .media(let s):        mediaView(s)
+        case .slider(let s):       sliderView(s, pluginId: pluginId)
+        case .media(let s):        mediaView(s, pluginId: pluginId)
         case .step(let s):         stepView(s)
-        case .actionToggle(let s): actionToggleView(s)
+        case .actionToggle(let s): actionToggleView(s, pluginId: pluginId)
         }
     }
 
@@ -159,7 +159,7 @@ enum IslandPluginRenderer {
     }
 
     @ViewBuilder
-    private static func buttonView(_ s: ButtonSection) -> some View {
+    private static func buttonView(_ s: ButtonSection, pluginId: String?) -> some View {
         Button(s.label) {
             var info: [String: Any] = ["actionId": s.actionId]
             // Support action types: callback (default), openURL, writeClipboard
@@ -167,7 +167,7 @@ enum IslandPluginRenderer {
                 info["actionType"] = actionType
                 if let actionValue = s.actionValue { info["value"] = actionValue }
             }
-            NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: info)
+            postPluginAction(userInfo: info, pluginId: pluginId)
         }
         .buttonStyle(IslandPluginButtonStyle(destructive: s.style == .destructive))
     }
@@ -203,7 +203,7 @@ enum IslandPluginRenderer {
     // MARK: - New section renderers
 
     @ViewBuilder
-    private static func checkboxView(_ s: CheckboxSection) -> some View {
+    private static func checkboxView(_ s: CheckboxSection, pluginId: String?) -> some View {
         HStack(spacing: 8) {
             Image(systemName: s.checked ? "checkmark.square.fill" : "square")
                 .font(.system(size: 13))
@@ -213,14 +213,16 @@ enum IslandPluginRenderer {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            var info: [String: Any] = ["actionId": s.actionId, "value": !s.checked]
-            NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: info)
+            postPluginAction(
+                userInfo: ["actionId": s.actionId, "value": !s.checked],
+                pluginId: pluginId
+            )
         }
     }
 
     @ViewBuilder
-    private static func inputView(_ s: InputSection) -> some View {
-        _InputSectionView(section: s)
+    private static func inputView(_ s: InputSection, pluginId: String?) -> some View {
+        _InputSectionView(section: s, pluginId: pluginId)
     }
 
     @ViewBuilder
@@ -237,12 +239,12 @@ enum IslandPluginRenderer {
     }
 
     @ViewBuilder
-    private static func sliderView(_ s: SliderSection) -> some View {
-        _SliderSectionView(section: s)
+    private static func sliderView(_ s: SliderSection, pluginId: String?) -> some View {
+        _SliderSectionView(section: s, pluginId: pluginId)
     }
 
     @ViewBuilder
-    private static func mediaView(_ s: MediaSection) -> some View {
+    private static func mediaView(_ s: MediaSection, pluginId: String?) -> some View {
         VStack(spacing: 6) {
             if let imgURL = s.imageURL, let url = URL(string: imgURL) {
                 AsyncImage(url: url) { img in
@@ -259,17 +261,17 @@ enum IslandPluginRenderer {
             if let actions = s.actions {
                 HStack(spacing: 16) {
                     if let prev = actions.previous {
-                        Button { NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: ["actionId": prev]) } label: {
+                        Button { postPluginAction(userInfo: ["actionId": prev], pluginId: pluginId) } label: {
                             Image(systemName: "backward.fill").font(.system(size: 14))
                         }.buttonStyle(.plain).foregroundStyle(.white.opacity(0.8))
                     }
                     if let tog = actions.toggle {
-                        Button { NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: ["actionId": tog]) } label: {
+                        Button { postPluginAction(userInfo: ["actionId": tog], pluginId: pluginId) } label: {
                             Image(systemName: s.isPlaying == true ? "pause.fill" : "play.fill").font(.system(size: 18))
                         }.buttonStyle(.plain).foregroundStyle(.white)
                     }
                     if let nxt = actions.next {
-                        Button { NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: ["actionId": nxt]) } label: {
+                        Button { postPluginAction(userInfo: ["actionId": nxt], pluginId: pluginId) } label: {
                             Image(systemName: "forward.fill").font(.system(size: 14))
                         }.buttonStyle(.plain).foregroundStyle(.white.opacity(0.8))
                     }
@@ -315,19 +317,29 @@ enum IslandPluginRenderer {
     }
 
     @ViewBuilder
-    private static func actionToggleView(_ s: ActionToggleSection) -> some View {
+    private static func actionToggleView(_ s: ActionToggleSection, pluginId: String?) -> some View {
         HStack(spacing: 8) {
             Text(s.label).font(.system(size: 11)).foregroundStyle(.primary)
             Spacer()
             Toggle("", isOn: Binding(
                 get: { s.active },
                 set: { newVal in
-                    NotificationCenter.default.post(name: .pluginButtonTapped, object: nil,
-                                                    userInfo: ["actionId": s.actionId, "value": newVal])
+                    postPluginAction(
+                        userInfo: ["actionId": s.actionId, "value": newVal],
+                        pluginId: pluginId
+                    )
                 }
             ))
             .toggleStyle(.switch).labelsHidden().controlSize(.mini)
         }
+    }
+
+    private static func postPluginAction(userInfo: [String: Any], pluginId: String?) {
+        var resolved = userInfo
+        if let pluginId {
+            resolved["pluginId"] = pluginId
+        }
+        NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: resolved)
     }
 
     @ViewBuilder
@@ -400,6 +412,7 @@ extension Notification.Name {
 
 private struct _InputSectionView: View {
     let section: InputSection
+    let pluginId: String?
     @State private var text = ""
     var body: some View {
         HStack(spacing: 6) {
@@ -415,8 +428,11 @@ private struct _InputSectionView: View {
             .padding(6)
             .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
             Button("→") {
-                NotificationCenter.default.post(name: .pluginButtonTapped, object: nil,
-                    userInfo: ["actionId": section.actionId, "value": text])
+                var info: [String: Any] = ["actionId": section.actionId, "value": text]
+                if let pluginId {
+                    info["pluginId"] = pluginId
+                }
+                NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: info)
                 text = ""
             }
             .buttonStyle(.plain)
@@ -428,9 +444,11 @@ private struct _InputSectionView: View {
 
 private struct _SliderSectionView: View {
     let section: SliderSection
+    let pluginId: String?
     @State private var value: Double
-    init(section: SliderSection) {
+    init(section: SliderSection, pluginId: String?) {
         self.section = section
+        self.pluginId = pluginId
         _value = State(initialValue: section.value)
     }
     var body: some View {
@@ -445,8 +463,11 @@ private struct _SliderSectionView: View {
             Slider(value: $value, in: (section.min ?? 0)...(section.max ?? 1))
                 .accentColor(.white)
                 .onChange(of: value) { _, newVal in
-                    NotificationCenter.default.post(name: .pluginButtonTapped, object: nil,
-                        userInfo: ["actionId": section.actionId, "value": newVal])
+                    var info: [String: Any] = ["actionId": section.actionId, "value": newVal]
+                    if let pluginId {
+                        info["pluginId"] = pluginId
+                    }
+                    NotificationCenter.default.post(name: .pluginButtonTapped, object: nil, userInfo: info)
                 }
         }
     }

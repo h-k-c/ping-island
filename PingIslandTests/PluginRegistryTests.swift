@@ -41,7 +41,7 @@ final class PluginRegistryTests: XCTestCase {
     }
 
     private func makeRegistry() -> PluginRegistry {
-        PluginRegistry(pluginsDirectoryURL: tempDir, defaults: defaults)
+        PluginRegistry(pluginsDirectoryURL: tempDir, defaults: defaults, includeBuiltInPlugins: false)
     }
 
     func testScansInstalledPlugins() throws {
@@ -95,7 +95,7 @@ final class PluginRegistryTests: XCTestCase {
     func testEnabledStatePersistsAcrossInstances() {
         let registry = makeRegistry()
         registry.setEnabled(false, for: "com.test.plugin")
-        let registry2 = PluginRegistry(pluginsDirectoryURL: tempDir, defaults: defaults)
+        let registry2 = PluginRegistry(pluginsDirectoryURL: tempDir, defaults: defaults, includeBuiltInPlugins: false)
         XCTAssertFalse(registry2.isEnabled("com.test.plugin"))
     }
 
@@ -114,7 +114,7 @@ final class PluginRegistryTests: XCTestCase {
 
     func testCreatesPluginDirectoryOnStart() {
         let nonExistent = tempDir.appendingPathComponent("SubDir/Plugins")
-        let registry = PluginRegistry(pluginsDirectoryURL: nonExistent, defaults: defaults)
+        let registry = PluginRegistry(pluginsDirectoryURL: nonExistent, defaults: defaults, includeBuiltInPlugins: false)
         registry.start()
         registry.stop()
         XCTAssertTrue(FileManager.default.fileExists(atPath: nonExistent.path))

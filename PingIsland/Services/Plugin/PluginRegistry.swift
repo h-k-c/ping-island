@@ -11,6 +11,7 @@ final class PluginRegistry: ObservableObject {
 
     private let pluginsDirectoryURL: URL
     private let defaults: UserDefaults
+    private let includeBuiltInPlugins: Bool
     private let enabledKey = "PluginRegistry.enabled.v1"
     private var watchSource: DispatchSourceFileSystemObject?
     private var fsEventStream: FSEventStreamRef?
@@ -28,10 +29,12 @@ final class PluginRegistry: ObservableObject {
 
     init(
         pluginsDirectoryURL: URL = PluginRegistry.defaultPluginsDirectoryURL,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        includeBuiltInPlugins: Bool = true
     ) {
         self.pluginsDirectoryURL = pluginsDirectoryURL
         self.defaults = defaults
+        self.includeBuiltInPlugins = includeBuiltInPlugins
     }
 
     func start() {
@@ -57,7 +60,8 @@ final class PluginRegistry: ObservableObject {
         // Built-in plugins: Xcode flattens PluginBundles contents into Resources/.
         // Each plugin uses a unique filename: {plugin-id}.manifest.json
         // This avoids filename collisions between multiple built-in plugins.
-        if let resourcesURL = Self.appBundleResourcesURL,
+        if includeBuiltInPlugins,
+           let resourcesURL = Self.appBundleResourcesURL,
            let contents = try? FileManager.default.contentsOfDirectory(
                at: resourcesURL, includingPropertiesForKeys: nil) {
             let builtIns = contents

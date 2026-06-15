@@ -45,9 +45,9 @@ actor PluginProcess {
         var nc: AsyncStream<PluginNotifyUpdate>.Continuation!
         var ec: AsyncStream<PluginExpandedUpdate>.Continuation!
 
-        compactUpdates = AsyncStream { cc = $0 }
-        notifyUpdates = AsyncStream { nc = $0 }
-        expandedUpdates = AsyncStream { ec = $0 }
+        compactUpdates = AsyncStream(bufferingPolicy: .bufferingNewest(16)) { cc = $0 }
+        notifyUpdates = AsyncStream(bufferingPolicy: .bufferingNewest(16)) { nc = $0 }
+        expandedUpdates = AsyncStream(bufferingPolicy: .bufferingNewest(16)) { ec = $0 }
         compactCont = cc
         notifyCont = nc
         expandedCont = ec
@@ -103,6 +103,11 @@ actor PluginProcess {
         readTask = nil
 
         let execURL = bundleURL.appendingPathComponent(manifest.executable)
+        if let validationFailureReason = manifest.validationFailureReason {
+            state = .failed(validationFailureReason)
+            return false
+        }
+
         guard FileManager.default.isExecutableFile(atPath: execURL.path) else {
             state = .failed("Executable not found: \(execURL.lastPathComponent)")
             return false
@@ -140,17 +145,16 @@ actor PluginProcess {
         let configValues: [String: Any] = await MainActor.run {
             PluginStorage.shared.allConfig(for: InstalledPlugin(manifest: manifest, bundleURL: bundleURL))
         }
-        send([
-            "jsonrpc": "2.0", "id": 1, "method": "initialize",
-            "params": ["islandVersion": islandVersion, "pluginId": manifest.id, "config": configValues]
-        ])
-
         let ready = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
             readyContinuation = cont
             timeoutTask = Task {
                 try? await Task.sleep(nanoseconds: UInt64(initializeTimeoutSeconds * 1_000_000_000))
-                await timeoutFired()
+                await self.timeoutFired()
             }
+            send([
+                "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                "params": ["islandVersion": islandVersion, "pluginId": manifest.id, "config": configValues]
+            ])
         }
 
         timeoutTask?.cancel()
@@ -174,13 +178,16 @@ actor PluginProcess {
     }
 
     private func startStdoutReader(_ handle: FileHandle) {
-        readTask = Task {
+        readTask = Task.detached { [weak self] in
             var buffer = Data()
-            do {
-                for try await byte in handle.bytes {
+            while !Task.isCancelled {
+                let chunk = handle.availableData
+                if chunk.isEmpty { break }
+
+                for byte in chunk {
                     if byte == UInt8(ascii: "\n") {
                         if !buffer.isEmpty {
-                            await processLine(Data(buffer))
+                            await self?.processLine(Data(buffer))
                             buffer.removeAll(keepingCapacity: true)
                         }
                     } else {
@@ -192,7 +199,11 @@ actor PluginProcess {
                         }
                     }
                 }
-            } catch { }
+            }
+
+            if !buffer.isEmpty {
+                await self?.processLine(Data(buffer))
+            }
         }
     }
 
@@ -237,24 +248,28 @@ actor PluginProcess {
 
         switch method {
         case "island/compact":
+            guard manifest.supportsCompactSlot else { return }
             struct Params: Decodable {
-                let position: CompactPosition
+                let position: CompactPosition?
+                let preferredPosition: CompactPosition?
                 let content: PluginCompactContent?
             }
             if let p = try? decoder.decode(Params.self, from: paramsData) {
                 compactCont.yield(PluginCompactUpdate(
                     pluginId: manifest.id,
-                    position: p.position,
+                    preferredPosition: p.preferredPosition ?? p.position,
                     content: p.content
                 ))
             }
 
         case "island/notify":
+            guard manifest.slots.contains(.notification) else { return }
             if let content = try? decoder.decode(PluginNotifyContent.self, from: paramsData) {
                 notifyCont.yield(PluginNotifyUpdate(pluginId: manifest.id, content: content))
             }
 
         case "island/expanded":
+            guard manifest.slots.contains(.expanded) else { return }
             struct Params: Decodable { let sections: [ExpandedSection] }
             if let p = try? decoder.decode(Params.self, from: paramsData) {
                 expandedCont.yield(PluginExpandedUpdate(pluginId: manifest.id, sections: p.sections))

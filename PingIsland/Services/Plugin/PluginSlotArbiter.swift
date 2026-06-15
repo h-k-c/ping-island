@@ -15,7 +15,7 @@ final class PluginSlotArbiter: ObservableObject {
     @Published private(set) var expandedContent: [String: [ExpandedSection]] = [:]
     @Published var currentlyDisplayedExpandedPluginId: String?
 
-    // MARK: - Slot assignment (explicit — no more carousel)
+    // MARK: - Slot assignment (explicit — no carousel)
 
     /// plugin ID assigned to right ear, or nil = none
     @Published var rightEarAssignment: String? {
@@ -33,20 +33,22 @@ final class PluginSlotArbiter: ObservableObject {
         }
     }
 
-    // MARK: - Per-plugin latest content cache
+    // MARK: - Per-plugin latest compact content (position-agnostic)
 
-    private var rightContents: [String: PluginCompactContent] = [:]
-    private var leftContents:  [String: PluginCompactContent] = [:]
-    private var coreLeftActive  = false
-    private var coreRightActive = false
+    /// Latest compact content each plugin has pushed, regardless of the position
+    /// the plugin declared in `island/compact`. The user's ear assignment decides
+    /// where it renders, so a plugin that only pushes `right` can still be placed
+    /// on the left ear.
+    private var latestCompact: [String: PluginCompactContent] = [:]
 
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
     private enum Keys {
         static let rightEar = "PluginSlotArbiter.rightEar.v1"
         static let leftEar  = "PluginSlotArbiter.leftEar.v1"
     }
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         rightEarAssignment = defaults.string(forKey: Keys.rightEar)
         leftEarAssignment  = defaults.string(forKey: Keys.leftEar)
     }
@@ -54,19 +56,10 @@ final class PluginSlotArbiter: ObservableObject {
     // MARK: - Public API
 
     func handleCompact(_ update: PluginCompactUpdate) {
-        switch update.position {
-        case .right:
-            if let content = update.content {
-                rightContents[update.pluginId] = sanitize(content)
-            } else {
-                rightContents.removeValue(forKey: update.pluginId)
-            }
-        case .left:
-            if let content = update.content {
-                leftContents[update.pluginId] = sanitize(content)
-            } else {
-                leftContents.removeValue(forKey: update.pluginId)
-            }
+        if let content = update.content {
+            latestCompact[update.pluginId] = sanitize(content)
+        } else {
+            latestCompact.removeValue(forKey: update.pluginId)
         }
         recompute()
     }
@@ -100,17 +93,8 @@ final class PluginSlotArbiter: ObservableObject {
         }
     }
 
-    func setCoreActive(_ active: Bool, side: CompactPosition) {
-        switch side {
-        case .left:  coreLeftActive = active
-        case .right: coreRightActive = active
-        }
-        recompute()
-    }
-
     func removePlugin(_ pluginId: String) {
-        rightContents.removeValue(forKey: pluginId)
-        leftContents.removeValue(forKey: pluginId)
+        latestCompact.removeValue(forKey: pluginId)
         expandedContent.removeValue(forKey: pluginId)
         pendingNotifications.removeAll { $0.pluginId == pluginId }
         // If the removed plugin was assigned, clear the assignment
@@ -119,24 +103,11 @@ final class PluginSlotArbiter: ObservableObject {
         recompute()
     }
 
-    /// All plugin IDs that have pushed compact-right content (for slot picker)
-    var availableRightPlugins: [String] {
-        Array(rightContents.keys).sorted()
-    }
-
-    /// All plugin IDs that have pushed compact-left content (for slot picker)
-    var availableLeftPlugins: [String] {
-        Array(leftContents.keys).sorted()
-    }
-
     // MARK: - Private
 
     private func recompute() {
         // Right ear
-        if coreRightActive {
-            activeRight = nil
-            activeRightPluginId = nil
-        } else if let id = rightEarAssignment, let content = rightContents[id] {
+        if let id = rightEarAssignment, let content = latestCompact[id] {
             activeRight = content
             activeRightPluginId = id
         } else {
@@ -145,10 +116,7 @@ final class PluginSlotArbiter: ObservableObject {
         }
 
         // Left ear
-        if coreLeftActive {
-            activeLeft = nil
-            activeLeftPluginId = nil
-        } else if let id = leftEarAssignment, let content = leftContents[id] {
+        if let id = leftEarAssignment, let content = latestCompact[id] {
             activeLeft = content
             activeLeftPluginId = id
         } else {

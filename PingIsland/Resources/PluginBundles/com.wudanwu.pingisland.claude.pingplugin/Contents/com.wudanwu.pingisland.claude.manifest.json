@@ -6,7 +6,7 @@
   "author": "PingIsland",
   "category": "ai",
   "executable": "PingIslandPlugin",
-  "slots": ["compact-right", "notification"],
+  "slots": ["compact", "notification"],
   "subscriptions": ["hookEvent"],
   "builtIn": true,
   "description": "监控 Claude Code 会话状态",

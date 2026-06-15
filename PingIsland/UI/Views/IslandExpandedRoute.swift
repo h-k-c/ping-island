@@ -18,6 +18,7 @@ enum IslandExpandedRoute: Equatable {
     case hoverDashboard
     case attentionNotification(SessionState)
     case completionNotification(SessionCompletionNotification)
+    case pluginNotification(PluginNotifyUpdate)
     case chat(SessionState)
     case plugin(pluginId: String)
 }
@@ -28,7 +29,8 @@ enum IslandExpandedRouteResolver {
         trigger: IslandExpandedTrigger,
         contentType: NotchContentType,
         sessions: [SessionState],
-        activeCompletionNotification: SessionCompletionNotification? = nil
+        activeCompletionNotification: SessionCompletionNotification? = nil,
+        activePluginNotification: PluginNotifyUpdate? = nil
     ) -> IslandExpandedRoute {
         switch trigger {
         case .notification:
@@ -37,6 +39,9 @@ enum IslandExpandedRouteResolver {
             }
             if let activeCompletionNotification {
                 return .completionNotification(activeCompletionNotification)
+            }
+            if let activePluginNotification {
+                return .pluginNotification(activePluginNotification)
             }
         case .click, .hover, .pinnedList:
             break
@@ -58,6 +63,9 @@ enum IslandExpandedRouteResolver {
             if let activeCompletionNotification {
                 return .completionNotification(activeCompletionNotification)
             }
+            if let activePluginNotification {
+                return .pluginNotification(activePluginNotification)
+            }
             return .sessionList
         case (.docked, .hover), (.floating, .hover):
             if let session = highestPriorityAttentionSession(from: sessions) {
@@ -70,6 +78,9 @@ enum IslandExpandedRouteResolver {
             }
             if let activeCompletionNotification {
                 return .completionNotification(activeCompletionNotification)
+            }
+            if let activePluginNotification {
+                return .pluginNotification(activePluginNotification)
             }
             return .hoverDashboard
         case (_, .click):
@@ -112,7 +123,7 @@ struct PluginExpandedPanelView: View {
         Group {
             if let sections = arbiter.expandedContent[pluginId] {
                 ScrollView {
-                    IslandPluginRenderer.expandedView(sections: sections)
+                    IslandPluginRenderer.expandedView(sections: sections, pluginId: pluginId)
                 }
             } else {
                 Text("加载中…")
@@ -127,5 +138,63 @@ struct PluginExpandedPanelView: View {
                 arbiter.currentlyDisplayedExpandedPluginId = nil
             }
         }
+    }
+}
+
+struct PluginNotificationPanelView: View {
+    let notification: PluginNotifyUpdate
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                IslandPluginRenderer.iconView(notification.content.icon, size: 18)
+                    .foregroundStyle(.white.opacity(0.88))
+                    .frame(width: 24, height: 24)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(notification.content.title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let subtitle = notification.content.subtitle {
+                        Text(subtitle)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.62))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            if let actionLabel = notification.content.actionLabel,
+               let actionId = notification.content.actionId {
+                Button {
+                    NotificationCenter.default.post(
+                        name: .pluginButtonTapped,
+                        object: nil,
+                        userInfo: [
+                            "pluginId": notification.pluginId,
+                            "actionId": actionId
+                        ]
+                    )
+                } label: {
+                    Text(actionLabel)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.white.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.white.opacity(0.06))
+        )
     }
 }

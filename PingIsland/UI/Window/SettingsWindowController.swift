@@ -456,7 +456,7 @@ private struct HookInstallWelcomeView: View {
                 Text(appLocalized: "前往设置的 Hooks 管理")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(.white.opacity(0.88))
-                Text(appLocalized: "你也可以稍后到“设置 > 集成 > Hooks 管理”点击安装；系统会请求授权用户主目录后再写入配置。")
+                Text(appLocalized: "你也可以稍后到“设置 > 插件”检查 Hook 状态；系统会请求授权用户主目录后再写入配置。")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.white.opacity(0.58))
                     .fixedSize(horizontal: false, vertical: true)

@@ -14,7 +14,7 @@ final class PluginHost: ObservableObject {
     private let logger = Logger(subsystem: "com.wudanwu.pingisland", category: "PluginHost")
 
     private var processes: [String: PluginProcess] = [:]
-    private var listenerTasks: [String: Task<Void, Never>] = [:]
+    private var listenerTasks: [String: [Task<Void, Never>]] = [:]
     private var registryCancellable: AnyCancellable?
     private var enabledStateCancellable: AnyCancellable?
     private var hasStarted = false
@@ -70,7 +70,9 @@ final class PluginHost: ObservableObject {
         registryCancellable = nil
         enabledStateCancellable = nil
 
-        for task in listenerTasks.values { task.cancel() }
+        for tasks in listenerTasks.values {
+            tasks.forEach { $0.cancel() }
+        }
         listenerTasks.removeAll()
 
         for process in processes.values { await process.stop() }
@@ -108,9 +110,20 @@ final class PluginHost: ObservableObject {
 
     private func startPlugin(_ plugin: InstalledPlugin) async {
         guard processes[plugin.id] == nil else { return }
+        if let validationFailureReason = plugin.manifest.validationFailureReason {
+            processStates[plugin.id] = .failed(validationFailureReason)
+            logger.error("Plugin \(plugin.id, privacy: .public) failed validation: \(validationFailureReason, privacy: .public)")
+            return
+        }
 
         let process = PluginProcess(manifest: plugin.manifest, bundleURL: plugin.bundleURL)
         processes[plugin.id] = process
+
+        // Attach stream listeners BEFORE starting the process. Plugins may push
+        // island/compact (or notify/expanded) immediately after responding to
+        // initialize; if the listener only attaches after start() returns, that
+        // first push races the consumer and can be dropped.
+        listenerTasks[plugin.id] = makeListenerTasks(for: process)
 
         logger.info("Starting plugin \(plugin.id, privacy: .public)")
         await process.start()
@@ -118,14 +131,10 @@ final class PluginHost: ObservableObject {
         let state = await process.state
         processStates[plugin.id] = state
         logger.info("Plugin \(plugin.id, privacy: .public) state: \(String(describing: state), privacy: .public)")
-
-        listenerTasks[plugin.id] = Task { [weak self] in
-            await self?.listenToPlugin(process)
-        }
     }
 
     private func stopPlugin(_ pluginId: String) async {
-        listenerTasks[pluginId]?.cancel()
+        listenerTasks[pluginId]?.forEach { $0.cancel() }
         listenerTasks.removeValue(forKey: pluginId)
 
         if let process = processes[pluginId] {
@@ -151,24 +160,24 @@ final class PluginHost: ObservableObject {
         }
     }
 
-    private func listenToPlugin(_ process: PluginProcess) async {
+    private func makeListenerTasks(for process: PluginProcess) -> [Task<Void, Never>] {
         let arbiter = self.arbiter
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask {
-                for await update in process.compactUpdates {
+        return [
+            Task.detached {
+                for await update in process.compactUpdates where !Task.isCancelled {
                     await MainActor.run { arbiter.handleCompact(update) }
                 }
-            }
-            group.addTask {
-                for await update in process.notifyUpdates {
+            },
+            Task.detached {
+                for await update in process.notifyUpdates where !Task.isCancelled {
                     await MainActor.run { arbiter.handleNotify(update) }
                 }
-            }
-            group.addTask {
-                for await update in process.expandedUpdates {
+            },
+            Task.detached {
+                for await update in process.expandedUpdates where !Task.isCancelled {
                     await MainActor.run { arbiter.handleExpanded(update) }
                 }
             }
-        }
+        ]
     }
 }

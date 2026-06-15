@@ -68,13 +68,23 @@ final class PluginProcessTests: XCTestCase {
             id: "com.test.missing",
             name: "Missing",
             version: "1.0.0",
+            protocolVersion: nil,
             minIslandVersion: nil,
             executable: "Contents/MacOS/DoesNotExist",
             slots: [.compact],
             description: nil,
             iconPath: nil,
+            icon: nil,
+            author: nil,
+            category: nil,
+            runMode: nil,
+            allowMultipleInstances: nil,
+            acceptsDrop: nil,
+            permissions: nil,
             subscriptions: nil,
-            builtIn: nil
+            updateURL: nil,
+            builtIn: nil,
+            config: nil
         )
         let bundleURL = tempDir.appendingPathComponent("Missing.pingplugin")
         try FileManager.default.createDirectory(
@@ -86,6 +96,46 @@ final class PluginProcessTests: XCTestCase {
         await process.start()
         let state = await process.state
         if case .failed = state { /* expected */ } else {
+            XCTFail("Expected failed state, got \(state)")
+        }
+    }
+
+    func testFailsWhenProtocolMajorVersionIsUnsupported() async throws {
+        let script = """
+        while IFS= read -r line; do
+          echo '{"jsonrpc":"2.0","id":1,"result":{"name":"Future","ready":true}}'
+        done
+        """
+        let plugin = try makePlugin(id: "com.test.future", scriptBody: script)
+        let manifest = PluginManifest(
+            id: plugin.manifest.id,
+            name: plugin.manifest.name,
+            version: plugin.manifest.version,
+            protocolVersion: "99.0",
+            minIslandVersion: nil,
+            executable: plugin.manifest.executable,
+            slots: plugin.manifest.slots,
+            description: nil,
+            iconPath: nil,
+            icon: nil,
+            author: nil,
+            category: nil,
+            runMode: nil,
+            allowMultipleInstances: nil,
+            acceptsDrop: nil,
+            permissions: nil,
+            subscriptions: nil,
+            updateURL: nil,
+            builtIn: nil,
+            config: nil
+        )
+
+        let process = PluginProcess(manifest: manifest, bundleURL: plugin.bundleURL)
+        await process.start()
+        let state = await process.state
+        if case .failed(let reason) = state {
+            XCTAssertTrue(reason.contains("Unsupported IPP"))
+        } else {
             XCTFail("Expected failed state, got \(state)")
         }
     }
@@ -108,31 +158,59 @@ final class PluginProcessTests: XCTestCase {
         }
     }
 
-    func testReceivesCompactUpdate() async throws {
-        let script = """
-        while IFS= read -r line; do
-          echo '{"jsonrpc":"2.0","id":1,"result":{"name":"WeatherPlugin","ready":true}}'
-          echo '{"jsonrpc":"2.0","method":"island/compact","params":{"position":"right","content":{"icon":{"type":"sf","name":"sun.max.fill"},"label":"23"}}}'
-          while IFS= read -r line2; do exit 0; done
-        done
-        """
-        let (manifest, bundleURL) = try makePlugin(id: "com.test.weather", scriptBody: script)
-        let process = PluginProcess(manifest: manifest, bundleURL: bundleURL)
+    func testReceivesCompactUpdate() throws {
+        let json = """
+        {"position":"right","content":{"icon":{"type":"sf","name":"sun.max.fill"},"label":"23"}}
+        """.data(using: .utf8)!
 
-        await process.start()
-        let stateBeforeStream = await process.state
-        XCTAssertEqual(stateBeforeStream, .ready)
-
-        let stream = process.compactUpdates
-        let update = await withTimeout(seconds: 3) { () async -> PluginCompactUpdate? in
-            for await u in stream { return u }
-            return nil
+        struct Params: Decodable {
+            let position: CompactPosition?
+            let preferredPosition: CompactPosition?
+            let content: PluginCompactContent?
         }
 
-        XCTAssertNotNil(update)
-        XCTAssertEqual(update?.position, .right)
-        XCTAssertEqual(update?.content?.label, "23")
-        await process.stop()
+        let params = try JSONDecoder().decode(Params.self, from: json)
+        XCTAssertEqual(params.preferredPosition ?? params.position, .right)
+        XCTAssertEqual(params.content?.label, "23")
+    }
+
+    func testHostPublishesCompactUpdateToAssignedEar() async throws {
+        let script = """
+        IFS= read -r line
+        printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"name":"WeatherPlugin","ready":true}}'
+        /bin/sleep 0.2
+        printf '%s\\n' '{"jsonrpc":"2.0","method":"island/compact","params":{"position":"right","content":{"icon":{"type":"sf","name":"sun.max.fill"},"label":"23"}}}'
+        while IFS= read -r line2; do :; done
+        """
+        let (manifest, _) = try makePlugin(id: "com.test.weather", scriptBody: script)
+        let defaults = UserDefaults(suiteName: "PluginProcessTests-\(UUID().uuidString)")!
+        let registry = PluginRegistry(
+            pluginsDirectoryURL: tempDir,
+            defaults: defaults,
+            includeBuiltInPlugins: false
+        )
+        let arbiter = PluginSlotArbiter(defaults: defaults)
+        arbiter.rightEarAssignment = manifest.id
+        let host = PluginHost(registry: registry, arbiter: arbiter)
+
+        await host.start()
+        XCTAssertEqual(registry.installedPlugins.map(\.id), [manifest.id])
+        let state = host.processStates[manifest.id]
+        XCTAssertEqual(state, .ready)
+
+        let deadline = Date().addingTimeInterval(3)
+        var content: PluginCompactContent?
+        while Date() < deadline {
+            if arbiter.activeRightPluginId == manifest.id, let activeRight = arbiter.activeRight {
+                content = activeRight
+                break
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        XCTAssertEqual(content?.label, "23")
+        XCTAssertEqual(arbiter.activeRightPluginId, manifest.id)
+        await host.stop()
     }
 }
 

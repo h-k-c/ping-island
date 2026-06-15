@@ -10,14 +10,17 @@ struct PluginsSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             // Slot assignment — always at top
-            slotAssignmentCard
+            if !compactCapablePlugins.isEmpty {
+                slotAssignmentCard
+            }
 
-            // One card per plugin
-            ForEach(registry.installedPlugins) { plugin in
+            // One card per plugin, including built-in session monitors. The plugin
+            // page is the single place users decide which tools appear on the island.
+            ForEach(visiblePlugins) { plugin in
                 pluginCard(plugin)
             }
 
-            if registry.installedPlugins.isEmpty {
+            if visiblePlugins.isEmpty {
                 emptyCard
             }
 
@@ -59,12 +62,12 @@ struct PluginsSettingsView: View {
                 slotRow(side: "右耳", image: "arrow.right.circle",
                         assignment: Binding(get: { arbiter.rightEarAssignment },
                                            set: { arbiter.rightEarAssignment = $0 }),
-                        plugins: pluginsWithSlot("compact-right"))
+                        plugins: compactCapablePlugins)
                 rowDivider()
                 slotRow(side: "左耳", image: "arrow.left.circle",
                         assignment: Binding(get: { arbiter.leftEarAssignment },
                                            set: { arbiter.leftEarAssignment = $0 }),
-                        plugins: pluginsWithSlot("compact-left"))
+                        plugins: compactCapablePlugins)
             }
         }
     }
@@ -195,11 +198,17 @@ struct PluginsSettingsView: View {
 
     // MARK: - Helpers
 
-    private func pluginsWithSlot(_ rawValue: String) -> [InstalledPlugin] {
-        registry.installedPlugins.filter { p in
-            p.manifest.slots.contains {
-                $0.rawValue == rawValue || (rawValue == "compact-right" && $0 == .compact)
-            }
+    /// Plugins shown as configurable cards.
+    private var visiblePlugins: [InstalledPlugin] {
+        registry.installedPlugins
+    }
+
+    /// Plugins that can render a compact ear, regardless of the specific side
+    /// they declare. Both ears can be assigned any of these — the user's choice
+    /// decides placement (see PluginSlotArbiter), not the plugin's declared side.
+    private var compactCapablePlugins: [InstalledPlugin] {
+        visiblePlugins.filter { p in
+            p.manifest.slots.contains { $0 == .compactLeft || $0 == .compactRight || $0 == .compact }
         }
     }
 

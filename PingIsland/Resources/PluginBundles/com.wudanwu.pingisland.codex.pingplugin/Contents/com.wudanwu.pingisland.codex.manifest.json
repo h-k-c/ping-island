@@ -6,7 +6,7 @@
   "author": "PingIsland",
   "category": "ai",
   "executable": "PingIslandPlugin",
-  "slots": ["compact-right", "notification"],
+  "slots": ["compact", "notification"],
   "subscriptions": ["hookEvent"],
   "builtIn": true,
   "description": "监控 OpenAI Codex 会话状态",

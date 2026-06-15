@@ -3,6 +3,8 @@ import Foundation
 // MARK: - Manifest
 
 struct PluginManifest: Codable, Identifiable, Equatable, Sendable {
+    nonisolated static let supportedProtocolMajorVersion = 2
+
     let id: String
     let name: String
     let version: String
@@ -28,6 +30,21 @@ struct PluginManifest: Codable, Identifiable, Equatable, Sendable {
     var subscribesTo: [String] { subscriptions ?? [] }
     var configItems: [PluginConfigItem] { config ?? [] }
     var allowsMultiple: Bool { allowMultipleInstances ?? false }
+    nonisolated var supportsCompactSlot: Bool {
+        slots.contains(.compact) || slots.contains(.compactLeft) || slots.contains(.compactRight)
+    }
+
+    nonisolated var validationFailureReason: String? {
+        guard let protocolVersion, !protocolVersion.isEmpty else {
+            return nil
+        }
+
+        let major = Int(protocolVersion.split(separator: ".").first ?? "")
+        guard major == Self.supportedProtocolMajorVersion else {
+            return "Unsupported IPP protocolVersion \(protocolVersion)"
+        }
+        return nil
+    }
 
     private enum CodingKeys: String, CodingKey {
         case id, name, version, protocolVersion, minIslandVersion, executable
@@ -36,6 +53,77 @@ struct PluginManifest: Codable, Identifiable, Equatable, Sendable {
         case iconPath            // legacy
         case icon                // new self-declared icon
         case builtIn, config
+    }
+
+    init(
+        id: String,
+        name: String,
+        version: String,
+        protocolVersion: String?,
+        minIslandVersion: String?,
+        executable: String,
+        slots: [PluginSlot],
+        description: String?,
+        iconPath: String?,
+        icon: PluginIconDeclaration?,
+        author: String?,
+        category: PluginCategory?,
+        runMode: PluginRunMode?,
+        allowMultipleInstances: Bool?,
+        acceptsDrop: [String]?,
+        permissions: [String]?,
+        subscriptions: [String]?,
+        updateURL: String?,
+        builtIn: Bool?,
+        config: [PluginConfigItem]?
+    ) {
+        self.id = id
+        self.name = name
+        self.version = version
+        self.protocolVersion = protocolVersion
+        self.minIslandVersion = minIslandVersion
+        self.executable = executable
+        self.slots = slots
+        self.description = description
+        self.iconPath = iconPath
+        self.icon = icon
+        self.author = author
+        self.category = category
+        self.runMode = runMode
+        self.allowMultipleInstances = allowMultipleInstances
+        self.acceptsDrop = acceptsDrop
+        self.permissions = permissions
+        self.subscriptions = subscriptions
+        self.updateURL = updateURL
+        self.builtIn = builtIn
+        self.config = config
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        version = try container.decode(String.self, forKey: .version)
+        protocolVersion = try container.decodeIfPresent(String.self, forKey: .protocolVersion)
+        minIslandVersion = try container.decodeIfPresent(String.self, forKey: .minIslandVersion)
+        executable = try container.decode(String.self, forKey: .executable)
+        slots = try container.decode([PluginSlot].self, forKey: .slots)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        author = try container.decodeIfPresent(String.self, forKey: .author)
+        category = try container.decodeIfPresent(PluginCategory.self, forKey: .category)
+        runMode = try container.decodeIfPresent(PluginRunMode.self, forKey: .runMode)
+        allowMultipleInstances = try container.decodeIfPresent(Bool.self, forKey: .allowMultipleInstances)
+        acceptsDrop = try container.decodeIfPresent([String].self, forKey: .acceptsDrop)
+        permissions = try container.decodeIfPresent([String].self, forKey: .permissions)
+        subscriptions = try container.decodeIfPresent([String].self, forKey: .subscriptions)
+        updateURL = try container.decodeIfPresent(String.self, forKey: .updateURL)
+        builtIn = try container.decodeIfPresent(Bool.self, forKey: .builtIn)
+        config = try container.decodeIfPresent([PluginConfigItem].self, forKey: .config)
+
+        let explicitIconPath = try container.decodeIfPresent(String.self, forKey: .iconPath)
+        let legacyIconPath = try? container.decodeIfPresent(String.self, forKey: .icon)
+        iconPath = explicitIconPath ?? legacyIconPath
+        icon = try? container.decodeIfPresent(PluginIconDeclaration.self, forKey: .icon)
     }
 }
 
@@ -122,7 +210,8 @@ extension PluginSlot {
     var displayName: String {
         switch self {
         case .compactLeft:              return "左耳"
-        case .compactRight, .compact:   return "右耳"
+        case .compactRight:             return "右耳"
+        case .compact:                  return "刘海耳朵"
         case .notification:             return "通知"
         case .expanded:                 return "展开"
         }
@@ -183,7 +272,7 @@ struct PluginCompactContent: Codable, Equatable, Sendable {
 
 struct PluginCompactUpdate: Equatable, Sendable {
     let pluginId: String
-    let position: CompactPosition
+    let preferredPosition: CompactPosition?
     let content: PluginCompactContent?
 }
 

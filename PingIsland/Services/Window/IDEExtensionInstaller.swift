@@ -764,7 +764,7 @@ struct IDEExtensionInstaller {
 
         \(capabilityLine)
 
-        Manage installs, reinstalls, and authorization from Ping Island's **Settings -> Integration** panel.
+        Manage installs, reinstalls, and authorization from Ping Island's **Settings -> Plugins** panel.
 
         Repository:
         \(projectHomepage)

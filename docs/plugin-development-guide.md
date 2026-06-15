@@ -24,7 +24,7 @@ MyPlugin.pingplugin/
   "name": "我的插件",
   "version": "1.0.0",
   "executable": "Contents/MacOS/MyPlugin",
-  "slots": ["compact-right", "notification", "expanded"],
+  "slots": ["compact", "notification", "expanded"],
   "description": "插件功能说明"
 }
 ```
@@ -53,7 +53,7 @@ for line in sys.stdin:
         
         # 启动后推送初始内容
         send({"jsonrpc":"2.0","method":"island/compact","params":{
-            "position": "right",
+            "preferredPosition": "right",
             "content": {"icon":{"type":"sf","name":"star.fill"},"label":"Hi","tint":"yellow"}
         }})
         
@@ -100,7 +100,7 @@ cp -r MyPlugin.pingplugin "$HOME/Library/Application Support/PingIsland/Plugins/
   "jsonrpc": "2.0",
   "method": "island/compact",
   "params": {
-    "position": "right",
+    "preferredPosition": "right",
     "content": {
       "icon": {"type": "sf", "name": "sun.max.fill"},
       "label": "23°",
@@ -110,8 +110,8 @@ cp -r MyPlugin.pingplugin "$HOME/Library/Application Support/PingIsland/Plugins/
 }
 ```
 
-- `position`: `"left"` 或 `"right"`
-- `content`: 为 `null` 时清除该位置
+- `preferredPosition`: 可选，`"left"` 或 `"right"`。最终显示在哪一侧由用户在设置页的槽位分配决定
+- `content`: 为 `null` 时清除该插件的 compact 内容
 - `label`: 最多 4 个字符
 
 #### `island/notify` — 通知气泡
@@ -207,7 +207,7 @@ elif method == "hookEvent":
     if phase == "processing":
         # AI 正在处理，更新岛上显示
         send({"jsonrpc":"2.0","method":"island/compact","params":{
-            "position":"right",
+            "preferredPosition":"right",
             "content":{"icon":{"type":"sf","name":"bolt.fill"},"label":"...","tint":"green"}
         }})
 ```
@@ -222,7 +222,7 @@ elif method == "hookEvent":
 | `name` | string | ✅ | 显示名称 |
 | `version` | string | ✅ | 版本号，如 `"1.0.0"` |
 | `executable` | string | ✅ | 相对于 bundle 根目录的可执行文件路径 |
-| `slots` | array | ✅ | 使用的 slot：`compact-left`、`compact-right`、`notification`、`expanded` |
+| `slots` | array | ✅ | 使用的 slot：`compact`、`notification`、`expanded`。`compact-left` / `compact-right` 仍兼容，但最终左右由用户分配 |
 | `description` | string | — | 在设置页显示的说明 |
 | `icon` | string | — | Bundle 内图标路径，128×128 PNG |
 | `subscriptions` | array | — | 订阅的事件类型，目前支持 `"hookEvent"` |
@@ -252,7 +252,7 @@ IDX=0
 update() {
   T="${TEMPS[$IDX]}"
   IDX=$(( (IDX+1) % ${#TEMPS[@]} ))
-  send "{\"jsonrpc\":\"2.0\",\"method\":\"island/compact\",\"params\":{\"position\":\"right\",\"content\":{\"icon\":{\"type\":\"sf\",\"name\":\"sun.max.fill\"},\"label\":\"${T}°\",\"tint\":\"yellow\"}}}"
+  send "{\"jsonrpc\":\"2.0\",\"method\":\"island/compact\",\"params\":{\"preferredPosition\":\"right\",\"content\":{\"icon\":{\"type\":\"sf\",\"name\":\"sun.max.fill\"},\"label\":\"${T}°\",\"tint\":\"yellow\"}}}"
 }
 
 while IFS= read -r line; do
@@ -285,7 +285,7 @@ done
   "name": "天气",
   "version": "1.0.0",
   "executable": "Contents/MacOS/WeatherPlugin",
-  "slots": ["compact-right", "notification"],
+  "slots": ["compact", "notification"],
   "description": "实时天气展示"
 }
 ```

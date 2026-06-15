@@ -21,13 +21,13 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - First-run surface-mode onboarding and mode-switch UI: `PingIsland/App/AppDelegate.swift`, `PingIsland/UI/Window/SettingsWindowController.swift`, `PingIsland/UI/Views/SettingsWindowView.swift`
 - Main state hub: `PingIsland/Services/State/SessionStore.swift`
 - Session association cache: `PingIsland/Services/State/SessionAssociationStore.swift`
-- Usage/quota snapshots for Claude status-line caches and Codex rollout logs: `PingIsland/Services/Usage/`
+- Usage/quota display is now the built-in `com.wudanwu.pingisland.usage` plugin under `PingIslandPlugin/Usage/`, surfaced through the plugin host.
 - Native runtime rollout scaffold: `PingIsland/Services/Runtime/`, `PingIsland/Core/FeatureFlags.swift`
 - Session bridge for UI: `PingIsland/Services/Session/SessionMonitor.swift`
 - Notch state and layout: `PingIsland/Core/NotchViewModel.swift`, `PingIsland/UI/Views/NotchView.swift`
 - App-wide low-power policy for background polling, event monitoring, UI animation tiers, and silent update gating: `PingIsland/Core/EnergyGovernor.swift`
 - User idle protection and per-provider approval routing (`claudeRoutePromptsToTerminal`, `codexRoutePromptsToTerminal` in `Settings.swift`): `PingIsland/Core/UserIdleAutoProtection.swift`, `PingIsland/Core/Settings.swift`, `PingIsland/Services/Hooks/BridgeRuntimeConfigWriter.swift`
-- **Plugin platform**: `PingIsland/Services/Plugin/` (PluginRegistry, PluginProcess, PluginHost, PluginSlotArbiter, IslandPluginRenderer, PluginEventBus), `PingIslandPlugin/main.swift` (built-in Swift CLI for Claude/Codex plugins), `PingIsland/Resources/PluginBundles/` (built-in plugin manifests)
+- **Plugin platform**: `PingIsland/Services/Plugin/` (PluginRegistry, PluginProcess, PluginHost, PluginSlotArbiter, IslandPluginRenderer, PluginEventBus), `PingIslandPlugin/main.swift` (built-in Swift CLI for Claude/Codex/Usage plugins), `PingIsland/Resources/PluginBundles/` (built-in plugin manifests)
 - Detached floating capsule: `PingIsland/UI/Window/DetachedIslandWindowController.swift`, `PingIsland/UI/Views/DetachedIslandPanelView.swift`, `PingIsland/UI/Views/IslandOpenedContentView.swift`
   - Detached pet interactions now keep the pet anchored in place while hover/click previews expand sideways as message-bubble lists; trace both the panel layout and window-anchor math together when changing this flow
   - Expanded content routing is shared with the docked notch through `IslandOpenedContentView` + `IslandExpandedRouteResolver`; keep hover/click/notification semantics aligned instead of reintroducing detached-only content priorities
@@ -55,7 +55,7 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - `PingIsland/Core`: notch geometry, shared state, app settings, selectors
 - `PingIsland/Models`: domain models for sessions, events, tools, phases
 - `PingIsland/Services`: ingestion, socket handling, state management, tmux, windows, updates
-- `PingIsland/Services/Usage`: Claude status-line quota cache readers plus Codex rollout quota readers for UI usage summaries
+- `PingIslandPlugin/Usage`: built-in usage plugin logic for Claude and Codex quota summaries
 - `PingIsland/Services/Runtime`: isolated native Claude/Codex runtime work. This path should coexist with the current implementation behind feature flags until parity is proven.
 - `PingIsland/Services/Remote`: remote endpoint persistence, SSH bootstrap / attach, and remote hook forwarding
   - Remote bootstrap currently covers JSON hook configs, managed hook directories, and managed plugin directories (for example remote Hermes installs under `~/.hermes/plugins/ping_island`)
@@ -63,7 +63,7 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - `PingIsland/Services/Window/IDEExtensionInstaller.swift`: installs the VS Code-compatible terminal-focus extension used by Cursor / VS Code / CodeBuddy / Qoder style IDE hosts (`QoderWork` is hook-only, not an IDE extension host)
 - `PingIsland/UI`: SwiftUI views, reusable components, AppKit-backed window controllers
 - `PingIsland/Services/Plugin`: plugin protocol infrastructure — registry, subprocess lifecycle, slot arbitration, event bus, SwiftUI renderer
-- `PingIslandPlugin`: Swift CLI target compiled into app bundle; reads `PING_ISLAND_PLUGIN_ID` env var to run Claude or Codex session monitoring logic
+- `PingIslandPlugin`: Swift CLI target compiled into app bundle; reads `PING_ISLAND_PLUGIN_ID` env var to run Claude, Codex, or Usage plugin logic
 - `PingIsland/Resources/PluginBundles`: built-in plugin manifests (Xcode flattens contents into `Resources/` — each manifest is named `<plugin-id>.manifest.json`)
 - `PingIsland/Resources`: hook assets, entitlements, bundled fonts
 - `Prototype`: Swift package prototype and testbed
@@ -104,11 +104,11 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - If you change built-in notification sounds or startup audio, inspect `PingIsland/Core/Settings.swift`, `PingIsland/Core/SoundPackCatalog.swift`, `PingIsland/UI/Views/SettingsWindowView.swift`, `PingIsland/App/AppDelegate.swift`, and `PingIsland/Resources/Sounds/` together so mode selection, fixed mappings, previews, and bundled assets stay aligned.
 - If you change client mascot selection or mascot animations, trace through `PingIsland/Models/ClientProfile.swift`, `PingIsland/Core/Settings.swift`, `PingIsland/UI/Components/MascotView.swift`, and the mascot callsites in `NotchView`, `SessionListView`, `SessionHoverPreviewView`, and `MascotSettingsView` so runtime overrides and previews stay aligned.
 - If you change completion-result popup behavior, trace through `SessionStore`, `SessionMonitor`, `NotchView.swift`, and `SessionCompletionNotificationView.swift` for the legacy session path; also check `PluginSlotArbiter.pendingNotifications` and `NotchView.dequeuePluginNotification()` for the plugin path.
-- If you add or modify a plugin, the entry point is `PingIsland/Services/Plugin/`. `PluginManifest` (in `PluginModels.swift`) declares slots, subscriptions, and builtIn flag. Built-in plugins go in `PingIsland/Resources/PluginBundles/` with `<id>.manifest.json` naming. The `PingIslandPlugin` Swift CLI handles `com.wudanwu.pingisland.claude` and `com.wudanwu.pingisland.codex` via `PING_ISLAND_PLUGIN_ID` env var.
+- If you add or modify a plugin, the entry point is `PingIsland/Services/Plugin/`. `PluginManifest` (in `PluginModels.swift`) declares slots, subscriptions, permissions, config, and builtIn flag. Built-in plugins go in `PingIsland/Resources/PluginBundles/` with `<id>.manifest.json` naming. The `PingIslandPlugin` Swift CLI handles `com.wudanwu.pingisland.claude`, `com.wudanwu.pingisland.codex`, and `com.wudanwu.pingisland.usage` via `PING_ISLAND_PLUGIN_ID` env var.
 - If you add a new AI provider hook client, also add a corresponding plugin case to `PingIslandPlugin/main.swift` and a manifest in `PingIsland/Resources/PluginBundles/`.
 - Settings no longer has a dedicated 集成 tab. Hook install status is in the Plugins settings tab (plugin row); IDE extensions, idle routing, and system permissions are in the 通用 tab.
 - If you change tmux or terminal focusing, trace through `Services/Tmux`, `Services/Window`, and `TerminalVisibilityDetector`.
-- If you change IDE terminal jump behavior, inspect both `TerminalSessionFocuser` and `IDEExtensionInstaller`, plus the integration settings UI so install state and URI schemes stay aligned.
+- If you change IDE terminal jump behavior, inspect both `TerminalSessionFocuser` and `IDEExtensionInstaller`, plus the Plugins settings UI so install state and URI schemes stay aligned.
 - If you change Codex behavior, verify both the monitor layer under `PingIsland/Services/Codex/` and the UI under `PingIsland/UI/Views/CodexSessionView.swift`.
 - If you change app updates or release notes, trace through `PingIsland/Services/Update/`, `PingIsland/Info.plist`, the settings UI, and `scripts/create-release.sh` so appcast assets, runtime config, and update messaging stay aligned.
 - If you change Sparkle configuration keys or hosting assumptions, update `Config/App.xcconfig`, `Config/LocalSecrets.example.xcconfig`, `scripts/generate-keys.sh`, and `docs/sparkle-release.md` together.
@@ -183,5 +183,5 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - `Prototype/Tests` remains the fastest place for logic-level unit tests plus process/socket e2e coverage.
 - Sparkle update discovery is expected to use the GitHub Releases `latest/download/appcast.xml` asset unless a local override explicitly replaces it.
 - The worktree may already be dirty. Check `git status` before broad edits.
-- PingIsland is a plugin platform. Claude and Codex session monitoring are built-in plugins (`com.wudanwu.pingisland.claude`, `com.wudanwu.pingisland.codex`), not hardcoded UI. Third-party `.pingplugin` bundles install to `~/Library/Application Support/PingIsland/Plugins/`.
+- PingIsland is a plugin platform. Claude, Codex, and Usage monitoring are built-in plugins (`com.wudanwu.pingisland.claude`, `com.wudanwu.pingisland.codex`, `com.wudanwu.pingisland.usage`), not hardcoded UI. Third-party `.pingplugin` bundles install to `~/Library/Application Support/PingIsland/Plugins/`.
 - `SettingsCategory.integration` no longer exists. Hook management lives in the Plugins settings tab; approval routing, IDE extensions, and system permissions are in 通用.
