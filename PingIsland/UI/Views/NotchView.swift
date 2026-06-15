@@ -634,7 +634,7 @@ struct NotchView: View {
                         .contentShape(Rectangle())
                         .highPriorityGesture(
                             TapGesture().onEnded {
-                                presentAssignedPlugin(pluginArbiter.activeLeftPluginId)
+                                presentAssignedPlugin(pluginArbiter.activeLeftPluginId ?? pluginArbiter.leftEarAssignment)
                             }
                         )
                     }
@@ -661,7 +661,7 @@ struct NotchView: View {
                         .contentShape(Rectangle())
                         .highPriorityGesture(
                             TapGesture().onEnded {
-                                presentAssignedPlugin(pluginArbiter.activeRightPluginId)
+                                presentAssignedPlugin(pluginArbiter.activeRightPluginId ?? pluginArbiter.rightEarAssignment)
                             }
                         )
                     }

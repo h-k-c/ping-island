@@ -75,7 +75,20 @@ class NotchViewModel: ObservableObject {
     private static let clickedInstancesPanelMaximumWidth: CGFloat = 520
     private static let detachmentLongPressNarrowedWidthScale: CGFloat = 0.82
     private static let detachmentLongPressMaximumShrink: CGFloat = 56
+    private static let closedHorizontalContentInset: CGFloat = 14
     @Published private(set) var closedWidth: CGFloat
+
+    private enum ClosedEarClickTarget {
+        case left(pluginId: String?)
+        case right(pluginId: String?)
+
+        var pluginId: String? {
+            switch self {
+            case .left(let pluginId), .right(let pluginId):
+                return pluginId
+            }
+        }
+    }
 
     var deviceNotchRect: CGRect { geometry.deviceNotchRect }
     var screenRect: CGRect { geometry.screenRect }
@@ -599,7 +612,11 @@ class NotchViewModel: ObservableObject {
                 notchClose()
             }
         case .closed, .popping:
-            if detachmentTriggerScreenRect.contains(location) {
+            if let earTarget = closedEarClickTarget(at: location) {
+                if let pluginId = earTarget.pluginId {
+                    presentPlugin(pluginId, reason: .click)
+                }
+            } else if detachmentTriggerScreenRect.contains(location) {
                 beginDockedDetachmentTracking(source: .closed, startLocation: location)
             } else if isPointInHoverTrigger(location) {
                 notchOpen(reason: .click)
@@ -759,6 +776,44 @@ class NotchViewModel: ObservableObject {
 
     private func isPointInClosedNotch(_ point: CGPoint) -> Bool {
         closedScreenRect.insetBy(dx: -10, dy: -5).contains(point)
+    }
+
+    private func closedEarClickTarget(at point: CGPoint) -> ClosedEarClickTarget? {
+        guard !hoverExpansionAllowed else { return nil }
+        guard closedScreenRect.insetBy(dx: -10, dy: -5).contains(point) else { return nil }
+
+        let contentRect = closedScreenRect.insetBy(dx: Self.closedHorizontalContentInset, dy: 0)
+        let protectedCenterWidth = min(
+            closedScreenRect.width,
+            max(geometry.notchScreenRect.width, ScreenNotchMetrics.fallbackNotchWidth)
+        )
+        let protectedCenterRect = CGRect(
+            x: screenRect.midX - protectedCenterWidth / 2,
+            y: closedScreenRect.minY,
+            width: protectedCenterWidth,
+            height: closedScreenRect.height
+        )
+        let leftEarRect = CGRect(
+            x: closedScreenRect.minX - 10,
+            y: contentRect.minY - 5,
+            width: max(0, protectedCenterRect.minX - closedScreenRect.minX),
+            height: contentRect.height + 10
+        )
+        let rightEarRect = CGRect(
+            x: protectedCenterRect.maxX,
+            y: contentRect.minY - 5,
+            width: max(0, closedScreenRect.maxX - protectedCenterRect.maxX) + 10,
+            height: contentRect.height + 10
+        )
+
+        let arbiter = PluginSlotArbiter.shared
+        if leftEarRect.contains(point) {
+            return .left(pluginId: arbiter.activeLeftPluginId ?? arbiter.leftEarAssignment)
+        }
+        if rightEarRect.contains(point) {
+            return .right(pluginId: arbiter.activeRightPluginId ?? arbiter.rightEarAssignment)
+        }
+        return nil
     }
 
     func updateIdleAutoHiddenState(hasVisibleSessionActivity: Bool) {
