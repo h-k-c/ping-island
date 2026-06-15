@@ -1046,11 +1046,17 @@ private struct SettingsPanelContentView: View {
             }
 
             SettingsSectionCard(title: "面板") {
-                IslandSurfaceModeSelector(mode: $settings.surfaceMode)
-                SettingsLineDivider()
-
-                if settings.surfaceMode == .floatingPet {
-                    FloatingPetPlacementInfoCard()
+                SettingsInfoLine(
+                    title: "展示方式",
+                    subtitle: "当前固定使用刘海屏方式，Island 会停靠在屏幕顶部中央。"
+                ) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(appLocalized: "刘海屏方式")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundColor(TerminalColors.blue)
                 }
             }
         }
@@ -2588,268 +2594,6 @@ private struct AutoRoutePromptsIdleDelayPicker: View {
     }
 }
 
-
-private struct FloatingPetSizeModePicker: View {
-    @Binding var mode: FloatingPetSizeMode
-
-    var body: some View {
-        Picker("", selection: $mode) {
-            ForEach(FloatingPetSizeMode.allCases) { candidate in
-                Text(appLocalized: candidate.title).tag(candidate)
-            }
-        }
-        .labelsHidden()
-        .accessibilityLabel(Text(appLocalized: "宠物大小"))
-        .settingsMenuPicker(width: 132)
-        .help(AppLocalization.string(mode.subtitle))
-    }
-}
-
-struct IslandSurfaceModeSelector: View {
-    @Binding var mode: IslandSurfaceMode
-    var title: String? = "展示模式"
-    var subtitle: String? = "选择 Ping Island 的主显示方式。你随时可以在设置里切换，并立即看到新的渲染效果。"
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let title {
-                Text(appLocalized: title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-            }
-
-            if let subtitle {
-                Text(appLocalized: subtitle)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white.opacity(0.58))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            HStack(spacing: 12) {
-                ForEach(IslandSurfaceMode.allCases) { candidate in
-                    IslandSurfaceModeCard(
-                        mode: candidate,
-                        isSelected: mode == candidate
-                    ) {
-                        mode = candidate
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-    }
-}
-
-struct IslandSurfaceModeCard: View {
-    let mode: IslandSurfaceMode
-    let isSelected: Bool
-    let action: () -> Void
-    @ObservedObject private var settings = AppSettings.shared
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(previewBackground)
-                        .aspectRatio(7.0 / 3.0, contentMode: .fit)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .strokeBorder(previewBorder, lineWidth: 1)
-                        )
-                        .overlay {
-                            IslandSurfaceModePreviewScene(
-                                surfaceMode: mode,
-                                notchDisplayMode: settings.notchDisplayMode,
-                                floatingPetSizeMode: settings.floatingPetSizeMode
-                            )
-                            .padding(12)
-                        }
-                }
-
-                HStack(alignment: .top, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(appLocalized: mode.title)
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.white)
-
-                        Text(appLocalized: mode.subtitle)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.white.opacity(0.62))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isSelected ? accentColor : .white.opacity(0.26))
-                }
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(isSelected ? 0.09 : 0.035))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(isSelected ? accentColor.opacity(0.56) : Color.white.opacity(0.08), lineWidth: 1)
-            )
-            .shadow(color: isSelected ? accentColor.opacity(0.18) : .clear, radius: 16, y: 8)
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var accentColor: Color {
-        switch mode {
-        case .notch:
-            return Color(red: 0.24, green: 0.72, blue: 0.98)
-        case .floatingPet:
-            return Color(red: 0.98, green: 0.64, blue: 0.26)
-        }
-    }
-
-    private var previewBackground: LinearGradient {
-        switch mode {
-        case .notch:
-            return LinearGradient(
-                colors: [
-                    Color(red: 0.10, green: 0.18, blue: 0.30),
-                    Color(red: 0.05, green: 0.09, blue: 0.18)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .floatingPet:
-            return LinearGradient(
-                colors: [
-                    Color(red: 0.27, green: 0.17, blue: 0.08),
-                    Color(red: 0.10, green: 0.08, blue: 0.06)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-    }
-
-    private var previewBorder: Color {
-        isSelected ? accentColor.opacity(0.42) : Color.white.opacity(0.10)
-    }
-}
-
-private struct IslandSurfaceModePreviewScene: View {
-    let surfaceMode: IslandSurfaceMode
-    let notchDisplayMode: NotchDisplayMode
-    let floatingPetSizeMode: FloatingPetSizeMode
-    @ObservedObject private var settings = AppSettings.shared
-    @State private var isHovered = false
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.035))
-
-                switch surfaceMode {
-                case .notch:
-                    notchPreview(in: proxy.size)
-                case .floatingPet:
-                    floatingPreview(in: proxy.size)
-                }
-            }
-        }
-        .environment(\.mascotAnimationsEnabled, isHovered)
-        .onHover { hovering in
-            isHovered = hovering
-        }
-    }
-
-    private func notchPreview(in size: CGSize) -> some View {
-        let notchWidth = min(max(size.width * 0.9, 112), 168)
-        let notchHeight = min(max(size.height * 0.28, 22), 28)
-
-        return VStack(spacing: 0) {
-            NotchDisplayPreviewMock(
-                mode: notchDisplayMode,
-                mascotKind: settings.previewMascotKind,
-                width: notchWidth,
-                height: notchHeight
-            )
-            .padding(.top, 10)
-
-            Spacer(minLength: 0)
-
-            HStack {
-                Spacer()
-                Text(appLocalized: "顶部 Island")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.42))
-            }
-            .padding(.horizontal, 10)
-            .padding(.bottom, 8)
-        }
-    }
-
-    private func floatingPreview(in size: CGSize) -> some View {
-        let mascotSize = 34 * previewScale
-        let numberSize = 12 * min(previewScale, 1.14)
-
-        return ZStack(alignment: .bottomTrailing) {
-            VStack {
-                HStack {
-                    Text(appLocalized: "右下角悬浮")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.46))
-                    Spacer()
-                }
-                Spacer()
-            }
-            .padding(10)
-
-            VStack(alignment: .trailing, spacing: 4) {
-                HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                        .fill(Color.white.opacity(0.16))
-                        .frame(width: min(24, size.width * 0.10), height: 2)
-
-                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                        .fill(Color.white.opacity(0.10))
-                        .frame(width: min(12, size.width * 0.05), height: 2)
-                }
-
-                HStack(alignment: .bottom, spacing: 3) {
-                    MascotView(
-                        kind: settings.previewMascotKind,
-                        status: .idle,
-                        size: mascotSize
-                    )
-
-                    Text("2")
-                        .font(.system(size: numberSize, weight: .bold, design: .rounded))
-                        .foregroundColor(Color(red: 1.0, green: 0.55, blue: 0.26))
-                        .offset(y: -1)
-                }
-            }
-            .padding(.trailing, 16)
-            .padding(.bottom, 12)
-        }
-    }
-
-    private var previewScale: CGFloat {
-        switch floatingPetSizeMode {
-        case .automatic:
-            return 1.08
-        case .standard:
-            return 1
-        case .large:
-            return 1.16
-        }
-    }
-}
-
 private struct DisplayPreviewMascotPicker: View {
     private let accessibilityTitleKey = "默认宠物形象"
     @Binding var kind: MascotKind
@@ -2873,23 +2617,6 @@ private struct DisplayPreviewMascotPicker: View {
         .accessibilityLabel(Text(verbatim: AppLocalization.string(accessibilityTitleKey)))
         .pickerStyle(.menu)
         .frame(minWidth: 180, alignment: .trailing)
-    }
-}
-
-private struct FloatingPetPlacementInfoCard: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(appLocalized: "独立悬浮宠物")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.white)
-
-            Text(appLocalized: "独立悬浮宠物默认贴近当前激活窗口右下角显示。拖动后会记住新位置，右键宠物形象可重新打开设置面板。")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.white.opacity(0.58))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
     }
 }
 

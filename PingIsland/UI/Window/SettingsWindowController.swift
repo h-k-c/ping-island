@@ -610,7 +610,6 @@ private struct HookInstallWelcomeView: View {
 private struct PresentationModeWelcomeView: View {
     let onComplete: (IslandSurfaceMode, Bool) -> Void
 
-    @State private var selectedMode: IslandSurfaceMode
     @State private var analyticsOptIn = true
 
     init(
@@ -618,7 +617,6 @@ private struct PresentationModeWelcomeView: View {
         onComplete: @escaping (IslandSurfaceMode, Bool) -> Void
     ) {
         self.onComplete = onComplete
-        _selectedMode = State(initialValue: initialMode)
     }
 
     var body: some View {
@@ -643,26 +641,20 @@ private struct PresentationModeWelcomeView: View {
 
             VStack(alignment: .leading, spacing: 22) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(appLocalized: "首次使用，选择展示方式")
+                    Text(appLocalized: "首次使用 Ping Island")
                         .font(.system(size: 30, weight: .bold))
                         .foregroundColor(.white)
 
-                    Text(appLocalized: "你可以把 Ping Island 放在屏幕顶部，也可以让宠物默认贴近当前激活窗口右下角显示。之后都能在设置里随时切换。")
+                    Text(appLocalized: "Ping Island 会固定使用刘海屏方式，停靠在屏幕顶部中央展示会话、工具和通知。")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.white.opacity(0.70))
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(appLocalized: "进入独立悬浮宠物模式后，右键宠物形象可重新打开设置面板。")
+                    Text(appLocalized: "之后可以在设置中调整显示器、默认宠物形象和刘海展示细节。")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white.opacity(0.60))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-
-                IslandSurfaceModeSelector(
-                    mode: $selectedMode,
-                    title: nil,
-                    subtitle: nil
-                )
 
                 Toggle(isOn: $analyticsOptIn) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -679,14 +671,14 @@ private struct PresentationModeWelcomeView: View {
                 .tint(.white)
 
                 HStack {
-                    Text(appLocalized: "稍后可在 设置 -> 显示 中重新切换")
+                    Text(appLocalized: "稍后可在 设置 -> 显示 中调整位置与展示细节")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white.opacity(0.56))
 
                     Spacer(minLength: 16)
 
                     Button(action: {
-                        onComplete(selectedMode, analyticsOptIn)
+                        onComplete(.notch, analyticsOptIn)
                     }) {
                         Text(appLocalized: "开始使用")
                             .font(.system(size: 15, weight: .bold))

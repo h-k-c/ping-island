@@ -1390,7 +1390,10 @@ final class AppSettingsStore: ObservableObject {
             rawValue: closedNotchTrailingContentModeRaw ?? ""
         ) ?? .sessionCount)
         _previewMascotKind = Published(initialValue: MascotKind(rawValue: previewMascotKindRaw ?? "") ?? .claude)
-        _surfaceMode = Published(initialValue: IslandSurfaceMode(rawValue: surfaceModeRaw ?? "") ?? .notch)
+        _surfaceMode = Published(initialValue: .notch)
+        if surfaceModeRaw != IslandSurfaceMode.notch.rawValue {
+            defaults.set(IslandSurfaceMode.notch.rawValue, forKey: Keys.surfaceMode)
+        }
         _floatingPetAnchor = Published(initialValue: floatingPetAnchor)
         _floatingPetSizeMode = Published(
             initialValue: FloatingPetSizeMode(rawValue: floatingPetSizeModeRaw ?? "") ?? .automatic

@@ -73,7 +73,6 @@ final class IslandPresentationCoordinator {
             windowSize: windowSize
         )
         detachedWindowController.present(at: origin)
-        AppSettings.surfaceMode = .floatingPet
     }
 
     func updateDetachment(cursorLocation: CGPoint) {
@@ -104,10 +103,8 @@ final class IslandPresentationCoordinator {
         case .notch:
             showDockedIsland(performBootAnimation: performBootAnimation)
         case .floatingPet:
-            presentFloatingPet(
-                playSound: false,
-                activationPolicy: activationPolicy
-            )
+            AppSettings.surfaceMode = .notch
+            showDockedIsland(performBootAnimation: performBootAnimation)
         }
     }
 

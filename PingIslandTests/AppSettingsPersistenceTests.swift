@@ -240,15 +240,15 @@ final class AppSettingsPersistenceTests: XCTestCase {
         )
     }
 
-    func testSurfaceModePersists() {
+    func testSurfaceModeMigratesToNotch() {
         let defaults = makeDefaults()
         let store = makeStore(defaults: defaults)
 
         store.surfaceMode = .floatingPet
 
         let reloadedStore = makeStore(defaults: defaults)
-        XCTAssertEqual(reloadedStore.surfaceMode, .floatingPet)
-        XCTAssertEqual(defaults.string(forKey: AppSettingsDefaultKeys.surfaceMode), IslandSurfaceMode.floatingPet.rawValue)
+        XCTAssertEqual(reloadedStore.surfaceMode, .notch)
+        XCTAssertEqual(defaults.string(forKey: AppSettingsDefaultKeys.surfaceMode), IslandSurfaceMode.notch.rawValue)
     }
 
     func testFloatingPetSizeModePersists() {
