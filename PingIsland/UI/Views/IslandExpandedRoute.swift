@@ -120,6 +120,7 @@ enum IslandExpandedRouteResolver {
 
 struct PluginExpandedPanelView: View {
     private static let procMonitorPluginId = "com.wudanwu.pingisland.procmonitor"
+    private static let usageMonitorPluginId = "com.wudanwu.pingisland.usage"
     private static let weatherDemoPluginId = "com.example.weatherdemo"
 
     let pluginId: String
@@ -130,6 +131,11 @@ struct PluginExpandedPanelView: View {
         Group {
             if pluginId == Self.procMonitorPluginId {
                 ProcMonitorIslandPanelView()
+            } else if pluginId == Self.usageMonitorPluginId {
+                UsageMonitorIslandPanelView(
+                    pluginId: pluginId,
+                    sections: arbiter.expandedContent[pluginId] ?? []
+                )
             } else if pluginId == Self.weatherDemoPluginId {
                 WeatherDemoIslandPanelView(
                     pluginId: pluginId,
@@ -385,6 +391,323 @@ private struct WeatherDemoIslandPanelView: View {
         }
         return nil
     }
+}
+
+private struct UsageMonitorIslandPanelView: View {
+    let pluginId: String
+    let sections: [ExpandedSection]
+
+    private var claudeStatus: StatSection? {
+        stat(containing: "Claude 状态")
+    }
+
+    private var codexStatus: StatSection? {
+        stat(containing: "Codex 状态")
+    }
+
+    private var claudeSession: ProgressSection? {
+        progress(containing: "Claude 5小时")
+    }
+
+    private var claudeWeekly: ProgressSection? {
+        progress(containing: "Claude 7日")
+    }
+
+    private var codexPrimary: ProgressSection? {
+        progress(containing: "Codex 5小时")
+    }
+
+    private var codexSecondary: ProgressSection? {
+        progress(containing: "Codex 7日")
+    }
+
+    private var todayTokens: StatSection? {
+        stat(containing: "今日 Tokens")
+    }
+
+    private var credits: StatSection? {
+        stat(containing: "Credits")
+    }
+
+    private var updateText: String {
+        text(containing: "更新于") ?? "等待首次刷新"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            header
+
+            HStack(alignment: .top, spacing: 10) {
+                providerCard(
+                    title: "Claude",
+                    subtitle: claudeStatus?.value ?? "加载中",
+                    icon: "brain.head.profile",
+                    tint: color(for: claudeStatus?.tint),
+                    rows: [
+                        usageRow("5小时", claudeSession),
+                        usageRow("7日", claudeWeekly)
+                    ],
+                    footer: todayTokens.map { ("今日 Tokens", $0.value) }
+                )
+
+                providerCard(
+                    title: "Codex",
+                    subtitle: codexStatus?.value ?? "加载中",
+                    icon: "terminal.fill",
+                    tint: color(for: codexStatus?.tint),
+                    rows: [
+                        usageRow("5小时", codexPrimary),
+                        usageRow("7日", codexSecondary)
+                    ],
+                    footer: credits.map { ("Credits", $0.value) }
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(extraMessages, id: \.self) { message in
+                    Text(message)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: "clock")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.45))
+                Text(updateText)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.52))
+
+                Spacer(minLength: 0)
+
+                Button {
+                    NotificationCenter.default.post(
+                        name: .pluginButtonTapped,
+                        object: nil,
+                        userInfo: [
+                            "pluginId": pluginId,
+                            "actionId": "refresh"
+                        ]
+                    )
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.82))
+                        .frame(width: 28, height: 24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(.white.opacity(0.08))
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("刷新")
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.055))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                )
+        )
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.18, green: 0.64, blue: 0.94),
+                                Color(red: 0.34, green: 0.45, blue: 0.94)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                Image(systemName: "chart.pie.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("AI Monitor")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+                Text("Claude / Codex 配额与用量")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.52))
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func providerCard(
+        title: String,
+        subtitle: String,
+        icon: String,
+        tint: Color,
+        rows: [UsageMonitorRow],
+        footer: (String, String)?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(tint)
+                    .frame(width: 20, height: 20)
+                    .background(Circle().fill(tint.opacity(0.16)))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.92))
+                    Text(subtitle)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(tint.opacity(0.9))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            VStack(spacing: 7) {
+                ForEach(rows) { row in
+                    usageMeter(row)
+                }
+            }
+
+            if let footer {
+                Divider().overlay(.white.opacity(0.08))
+                HStack {
+                    Text(footer.0)
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.48))
+                    Spacer(minLength: 0)
+                    Text(footer.1)
+                        .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.82))
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.black.opacity(0.18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(.white.opacity(0.065), lineWidth: 0.5)
+                )
+        )
+    }
+
+    private func usageMeter(_ row: UsageMonitorRow) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(row.label)
+                    .font(.system(size: 9.8, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.56))
+                Spacer(minLength: 0)
+                Text(row.valueText)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(row.tint.opacity(0.9))
+            }
+
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(.white.opacity(0.12))
+                    Capsule()
+                        .fill(row.tint)
+                        .frame(width: geometry.size.width * row.value)
+                }
+            }
+            .frame(height: 5)
+        }
+    }
+
+    private func usageRow(_ label: String, _ section: ProgressSection?) -> UsageMonitorRow {
+        guard let section else {
+            return UsageMonitorRow(label: label, value: 0, valueText: "--", tint: .white.opacity(0.35))
+        }
+        let value = min(max(section.value, 0), 1)
+        return UsageMonitorRow(
+            label: label,
+            value: value,
+            valueText: "\(Int((value * 100).rounded()))%",
+            tint: color(for: section.tint)
+        )
+    }
+
+    private var extraMessages: [String] {
+        sections.compactMap { section in
+            guard case .text(let text) = section else { return nil }
+            if text.style == .heading || text.content.contains("更新于") {
+                return nil
+            }
+            return text.content
+        }
+    }
+
+    private func stat(containing needle: String) -> StatSection? {
+        sections.compactMap { section -> StatSection? in
+            guard case .stat(let stat) = section else { return nil }
+            return stat.label.contains(needle) ? stat : nil
+        }.first
+    }
+
+    private func progress(containing needle: String) -> ProgressSection? {
+        sections.compactMap { section -> ProgressSection? in
+            guard case .progress(let progress) = section,
+                  progress.label?.contains(needle) == true else { return nil }
+            return progress
+        }.first
+    }
+
+    private func text(containing needle: String) -> String? {
+        sections.compactMap { section -> String? in
+            guard case .text(let text) = section,
+                  text.content.contains(needle) else { return nil }
+            return text.content
+        }.first
+    }
+
+    private func color(for tint: PluginTint?) -> Color {
+        switch tint {
+        case .green:
+            return Color(red: 0.24, green: 0.86, blue: 0.48)
+        case .yellow:
+            return Color(red: 1.0, green: 0.78, blue: 0.26)
+        case .orange:
+            return Color(red: 1.0, green: 0.56, blue: 0.24)
+        case .red:
+            return Color(red: 1.0, green: 0.32, blue: 0.32)
+        case .blue:
+            return Color(red: 0.34, green: 0.68, blue: 1.0)
+        case .purple:
+            return Color(red: 0.62, green: 0.48, blue: 1.0)
+        case .default, .none:
+            return Color(red: 0.58, green: 0.70, blue: 0.86)
+        }
+    }
+}
+
+private struct UsageMonitorRow: Identifiable {
+    let id = UUID()
+    let label: String
+    let value: Double
+    let valueText: String
+    let tint: Color
 }
 
 private struct ProcMonitorIslandPanelView: View {

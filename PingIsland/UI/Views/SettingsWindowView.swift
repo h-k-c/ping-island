@@ -1072,25 +1072,27 @@ private struct SettingsPanelContentView: View {
     private var aboutContent: some View {
         VStack(alignment: .leading, spacing: 18) {
             SettingsSectionCard(title: "应用信息") {
-                SettingsValueLine(title: "版本", value: appVersion)
+                SettingsValueLine(title: "版本", value: appVersion, style: .compactDetail)
                 SettingsLineDivider()
-                SettingsValueLine(title: "构建", value: appBuild)
+                SettingsValueLine(title: "构建", value: appBuild, style: .compactDetail)
                 SettingsLineDivider()
-                SettingsValueLine(title: "安装时间", value: versionMetadata)
+                SettingsValueLine(title: "安装时间", value: versionMetadata, style: .compactDetail)
                 SettingsLineDivider()
-                SettingsValueLine(title: "之前版本", value: previousVersion)
+                SettingsValueLine(title: "之前版本", value: previousVersion, style: .compactDetail)
             }
 
             SettingsSectionCard(title: "隐私与分析") {
                 SettingsToggleLine(
                     title: "匿名使用统计",
                     subtitle: "匿名统计启动、功能使用、Hook 安装和会话状态；不包含内容、代码、路径或主机信息。",
-                    isOn: $settings.analyticsEnabled
+                    isOn: $settings.analyticsEnabled,
+                    style: .compactDetail
                 )
                 SettingsLineDivider()
                 SettingsInfoLine(
                     title: "采集范围",
-                    subtitle: "未同意前不上传；开启后有每日上限，可随时关闭。"
+                    subtitle: "未同意前不上传；开启后有每日上限，可随时关闭。",
+                    style: .compactDetail
                 ) {
                     Image(systemName: "lock.shield")
                         .font(.system(size: 14, weight: .semibold))
@@ -1102,13 +1104,15 @@ private struct SettingsPanelContentView: View {
                 SettingsToggleLine(
                     title: "自动检查更新",
                     subtitle: "启动时和空闲时自动检查、下载并安装更新；关闭后仅在手动检查时更新",
-                    isOn: $settings.automaticUpdateChecksEnabled
+                    isOn: $settings.automaticUpdateChecksEnabled,
+                    style: .compactDetail
                 )
                 SettingsLineDivider()
 
                 SettingsActionLine(
                     title: updateTitle,
-                    subtitle: updateSubtitle
+                    subtitle: updateSubtitle,
+                    style: .compactDetail
                 ) {
                     handleUpdateAction()
                 } accessory: {
@@ -1120,7 +1124,8 @@ private struct SettingsPanelContentView: View {
 
                     SettingsActionLine(
                         title: updateManager.releaseNotesActionTitle,
-                        subtitle: updateManager.releaseNotesActionSubtitle
+                        subtitle: updateManager.releaseNotesActionSubtitle,
+                        style: .compactDetail
                     ) {
                         updateManager.showReleaseNotes()
                     } accessory: {
@@ -2198,13 +2203,76 @@ private struct HookManagementButton: View {
     }
 }
 
+private enum SettingsLineVisualStyle {
+    case standard
+    case compactDetail
+
+    var bodySpacing: CGFloat {
+        switch self {
+        case .standard: return 6
+        case .compactDetail: return 5
+        }
+    }
+
+    var verticalPadding: CGFloat {
+        switch self {
+        case .standard: return 14
+        case .compactDetail: return 12
+        }
+    }
+
+    var subtitleFont: Font {
+        switch self {
+        case .standard:
+            return .system(size: 11, weight: .medium)
+        case .compactDetail:
+            return .system(size: 10.5, weight: .regular)
+        }
+    }
+
+    var subtitleColor: Color {
+        switch self {
+        case .standard:
+            return .white.opacity(0.58)
+        case .compactDetail:
+            return .white.opacity(0.62)
+        }
+    }
+
+    var subtitleLineSpacing: CGFloat {
+        switch self {
+        case .standard: return 0
+        case .compactDetail: return 1
+        }
+    }
+
+    var valueFont: Font {
+        switch self {
+        case .standard:
+            return .system(size: 13, weight: .semibold)
+        case .compactDetail:
+            return .system(size: 12.5, weight: .medium)
+        }
+    }
+
+    var valueColor: Color {
+        switch self {
+        case .standard:
+            return .white.opacity(0.72)
+        case .compactDetail:
+            return .white.opacity(0.68)
+        }
+    }
+}
+
 private struct SettingsToggleLine: View {
     let title: String
     let subtitle: String?
     @Binding var isOn: Bool
+    var style: SettingsLineVisualStyle = .standard
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: style.bodySpacing) {
             HStack(alignment: .center, spacing: 16) {
                 Text(appLocalized: title)
                     .font(.system(size: 14, weight: .semibold))
@@ -2219,13 +2287,14 @@ private struct SettingsToggleLine: View {
 
             if let subtitle {
                 Text(appLocalized: subtitle)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white.opacity(0.58))
+                    .font(style.subtitleFont)
+                    .foregroundColor(style.subtitleColor)
+                    .lineSpacing(style.subtitleLineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 14)
+        .padding(.vertical, style.verticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.clear)
     }
@@ -2251,10 +2320,11 @@ private extension View {
 private struct SettingsInfoLine<Accessory: View>: View {
     let title: String
     let subtitle: String?
+    var style: SettingsLineVisualStyle = .standard
     @ViewBuilder let accessory: Accessory
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: style.bodySpacing) {
             HStack(alignment: .center, spacing: 16) {
                 Text(appLocalized: title)
                     .font(.system(size: 14, weight: .semibold))
@@ -2267,13 +2337,14 @@ private struct SettingsInfoLine<Accessory: View>: View {
 
             if let subtitle {
                 Text(appLocalized: subtitle)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white.opacity(0.58))
+                    .font(style.subtitleFont)
+                    .foregroundColor(style.subtitleColor)
+                    .lineSpacing(style.subtitleLineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 14)
+        .padding(.vertical, style.verticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -2281,12 +2352,13 @@ private struct SettingsInfoLine<Accessory: View>: View {
 private struct SettingsActionLine<Accessory: View>: View {
     let title: String
     let subtitle: String?
+    var style: SettingsLineVisualStyle = .standard
     let action: () -> Void
     @ViewBuilder let accessory: Accessory
 
     var body: some View {
         Button(action: action) {
-            SettingsInfoLine(title: title, subtitle: subtitle) {
+            SettingsInfoLine(title: title, subtitle: subtitle, style: style) {
                 accessory
             }
             .contentShape(Rectangle())
@@ -2328,6 +2400,7 @@ private struct SettingsCodeCapsule: View {
 private struct SettingsValueLine: View {
     let title: String
     let value: String
+    var style: SettingsLineVisualStyle = .standard
 
     var body: some View {
         HStack(spacing: 16) {
@@ -2338,11 +2411,11 @@ private struct SettingsValueLine: View {
             Spacer(minLength: 12)
 
             Text(value)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.white.opacity(0.72))
+                .font(style.valueFont)
+                .foregroundColor(style.valueColor)
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 14)
+        .padding(.vertical, style.verticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
