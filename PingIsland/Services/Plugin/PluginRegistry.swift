@@ -7,12 +7,9 @@ final class PluginRegistry: ObservableObject {
     static let shared = PluginRegistry()
 
     @Published private(set) var installedPlugins: [InstalledPlugin] = []
-    let enabledStateChanged = PassthroughSubject<String, Never>()
 
     private let pluginsDirectoryURL: URL
-    private let defaults: UserDefaults
     private let includeBuiltInPlugins: Bool
-    private let enabledKey = "PluginRegistry.enabled.v1"
     private var watchSource: DispatchSourceFileSystemObject?
     private var fsEventStream: FSEventStreamRef?
 
@@ -29,11 +26,9 @@ final class PluginRegistry: ObservableObject {
 
     init(
         pluginsDirectoryURL: URL = PluginRegistry.defaultPluginsDirectoryURL,
-        defaults: UserDefaults = .standard,
         includeBuiltInPlugins: Bool = true
     ) {
         self.pluginsDirectoryURL = pluginsDirectoryURL
-        self.defaults = defaults
         self.includeBuiltInPlugins = includeBuiltInPlugins
     }
 
@@ -88,14 +83,6 @@ final class PluginRegistry: ObservableObject {
         installedPlugins = found
     }
 
-    func isEnabled(_ pluginId: String) -> Bool {
-        if let plugin = installedPlugins.first(where: { $0.id == pluginId }),
-           plugin.manifest.isBuiltIn {
-            return true
-        }
-        return enabledMap[pluginId] ?? true
-    }
-
     private func loadPlugin(at bundleURL: URL) -> InstalledPlugin? {
         let manifestURL = bundleURL
             .appendingPathComponent("Contents")
@@ -105,17 +92,6 @@ final class PluginRegistry: ObservableObject {
             let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data)
         else { return nil }
         return InstalledPlugin(manifest: manifest, bundleURL: bundleURL)
-    }
-
-    func setEnabled(_ enabled: Bool, for pluginId: String) {
-        var map = enabledMap
-        map[pluginId] = enabled
-        defaults.set(map, forKey: enabledKey)
-        enabledStateChanged.send(pluginId)
-    }
-
-    private var enabledMap: [String: Bool] {
-        (defaults.dictionary(forKey: enabledKey) as? [String: Bool]) ?? [:]
     }
 
     private func createDirectoryIfNeeded() {

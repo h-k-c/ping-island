@@ -746,17 +746,12 @@ struct NotchView: View {
         if let plugin = activePluginNotification.flatMap({ installedPlugin(for: $0.pluginId) }) {
             pluginSourceIcon(plugin, size: size)
         } else if let session = notificationSourceSession,
-                  let profile = realtimeSourceProfile(for: session) {
-            switch settings.realtimeNotificationIconStyle(for: profile.id) {
-            case .official:
-                officialRealtimeSourceIcon(profile, size: size)
-            case .mascot:
-                MascotView(
-                    kind: settings.mascotKind(for: session.mascotClient),
-                    status: status,
-                    size: size
-                )
-            }
+                  realtimeSourceProfile(for: session) != nil {
+            MascotView(
+                kind: settings.mascotKind(for: session.mascotClient),
+                status: status,
+                size: size
+            )
         } else {
             MascotView(
                 kind: closedMascotKind,
@@ -783,30 +778,6 @@ struct NotchView: View {
     }
 
     @ViewBuilder
-    private func officialRealtimeSourceIcon(
-        _ profile: ManagedHookClientProfile,
-        size: CGFloat
-    ) -> some View {
-        if let logoAssetName = preferredLogoAssetName(for: profile) {
-            Image(logoAssetName)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .frame(width: size, height: size)
-        } else if let appIcon = ClientAppLocator.icon(bundleIdentifiers: profile.localAppBundleIdentifiers) {
-            Image(nsImage: appIcon)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .frame(width: size, height: size)
-        } else {
-            Image(systemName: profile.iconSymbolName)
-                .font(.system(size: size, weight: .bold))
-                .foregroundStyle(profile.brand.tintColor)
-        }
-    }
-
-    @ViewBuilder
     private func pluginSourceIcon(_ plugin: InstalledPlugin, size: CGFloat) -> some View {
         if let iconPath = plugin.manifest.iconPath,
            let image = NSImage(contentsOfFile: plugin.bundleURL.appendingPathComponent(iconPath).path) {
@@ -828,17 +799,6 @@ struct NotchView: View {
 
     private func installedPlugin(for pluginId: String) -> InstalledPlugin? {
         PluginRegistry.shared.installedPlugins.first { $0.id == pluginId }
-    }
-
-    private func preferredLogoAssetName(for profile: ManagedHookClientProfile) -> String? {
-        guard let logoAssetName = profile.logoAssetName else {
-            return nil
-        }
-
-        let appIcon = ClientAppLocator.icon(bundleIdentifiers: profile.localAppBundleIdentifiers)
-        return profile.prefersBundledLogoOverAppIcon || appIcon == nil
-            ? logoAssetName
-            : nil
     }
 
     private func realtimeSourceProfile(for session: SessionState) -> ManagedHookClientProfile? {

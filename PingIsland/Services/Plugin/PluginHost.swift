@@ -16,7 +16,6 @@ final class PluginHost: ObservableObject {
     private var processes: [String: PluginProcess] = [:]
     private var listenerTasks: [String: [Task<Void, Never>]] = [:]
     private var registryCancellable: AnyCancellable?
-    private var enabledStateCancellable: AnyCancellable?
     private var hasStarted = false
 
     init(registry: PluginRegistry = .shared, arbiter: PluginSlotArbiter = .shared) {
@@ -41,7 +40,7 @@ final class PluginHost: ObservableObject {
 
         // Start all plugins concurrently — each has its own timeout and retry logic
         await withTaskGroup(of: Void.self) { group in
-            for plugin in registry.installedPlugins where registry.isEnabled(plugin.id) {
+            for plugin in registry.installedPlugins {
                 group.addTask { [weak self] in
                     await self?.startPlugin(plugin)
                 }
@@ -55,20 +54,12 @@ final class PluginHost: ObservableObject {
                     await self?.reconcilePlugins(plugins)
                 }
             }
-
-        enabledStateCancellable = registry.enabledStateChanged
-            .sink { [weak self] pluginId in
-                Task { [weak self] in
-                    await self?.handleEnabledStateChange(pluginId)
-                }
-            }
     }
 
     func stop() async {
         guard hasStarted else { return }
         hasStarted = false
         registryCancellable = nil
-        enabledStateCancellable = nil
 
         for tasks in listenerTasks.values {
             tasks.forEach { $0.cancel() }
@@ -92,19 +83,6 @@ final class PluginHost: ObservableObject {
     func notifyConfigUpdate(pluginId: String, key: String, value: Any) async {
         if let process = processes[pluginId] {
             await process.sendConfigUpdate(key: key, value: value)
-        }
-    }
-
-    private func handleEnabledStateChange(_ pluginId: String) async {
-        let isEnabled = registry.isEnabled(pluginId)
-        let isRunning = processes[pluginId] != nil
-
-        if isEnabled && !isRunning {
-            if let plugin = registry.installedPlugins.first(where: { $0.id == pluginId }) {
-                await startPlugin(plugin)
-            }
-        } else if !isEnabled && isRunning {
-            await stopPlugin(pluginId)
         }
     }
 
@@ -154,8 +132,7 @@ final class PluginHost: ObservableObject {
             await stopPlugin(id)
         }
 
-        for plugin in plugins
-            where !runningIds.contains(plugin.id) && registry.isEnabled(plugin.id) {
+        for plugin in plugins where !runningIds.contains(plugin.id) {
             await startPlugin(plugin)
         }
     }
