@@ -19,7 +19,11 @@ final class PluginHost: ObservableObject {
     private var arbiterCancellables: Set<AnyCancellable> = []
     private var hasStarted = false
 
-    init(registry: PluginRegistry = .shared, arbiter: PluginSlotArbiter = .shared) {
+    convenience init() {
+        self.init(registry: .shared, arbiter: .shared)
+    }
+
+    init(registry: PluginRegistry, arbiter: PluginSlotArbiter) {
         self.registry = registry
         self.arbiter = arbiter
     }
