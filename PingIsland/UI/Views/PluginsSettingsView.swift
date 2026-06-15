@@ -14,8 +14,13 @@ struct PluginsSettingsView: View {
                 slotAssignmentCard
             }
 
-            // One card per plugin, including built-in session monitors. The plugin
-            // page is the single place users decide which tools appear on the island.
+            if !realtimeNotificationSources.isEmpty {
+                realtimeNotificationCard
+            }
+
+            // One card per user-facing island tool. Core session monitors subscribe
+            // to hookEvent internally, but they are product defaults rather than
+            // configurable plugins.
             ForEach(visiblePlugins) { plugin in
                 pluginCard(plugin)
             }
@@ -47,6 +52,56 @@ struct PluginsSettingsView: View {
                 .foregroundStyle(.secondary)
             }
         }
+    }
+
+    // MARK: - Realtime Notification Sources
+
+    private var realtimeNotificationCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("实时通知源")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.primary)
+                .padding(.bottom, 10)
+
+            card {
+                ForEach(Array(realtimeNotificationSources.enumerated()), id: \.element.id) { index, source in
+                    if index > 0 { rowDivider() }
+                    realtimeNotificationRow(source)
+                }
+            }
+        }
+    }
+
+    private func realtimeNotificationRow(_ source: ManagedHookClientProfile) -> some View {
+        HStack(spacing: 10) {
+            RealtimeSourceIcon(profile: source)
+                .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(source.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Text("通知时左耳来源图标")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Picker("", selection: Binding(
+                get: { settings.realtimeNotificationIconStyle(for: source.id) },
+                set: { settings.setRealtimeNotificationIconStyle($0, for: source.id) }
+            )) {
+                ForEach(RealtimeNotificationIconStyle.allCases) { style in
+                    Text(style.title).tag(style)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 150)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 
     // MARK: - Slot Assignment
@@ -200,14 +255,18 @@ struct PluginsSettingsView: View {
 
     /// Plugins shown as configurable cards.
     private var visiblePlugins: [InstalledPlugin] {
-        registry.installedPlugins
+        registry.installedPlugins.filter { !$0.manifest.isCoreSessionMonitor }
+    }
+
+    private var realtimeNotificationSources: [ManagedHookClientProfile] {
+        ClientProfileRegistry.managedHookProfiles.filter(\.alwaysVisibleInSettings)
     }
 
     /// Plugins that can render a compact ear, regardless of the specific side
     /// they declare. Both ears can be assigned any of these — the user's choice
     /// decides placement (see PluginSlotArbiter), not the plugin's declared side.
     private var compactCapablePlugins: [InstalledPlugin] {
-        visiblePlugins.filter { p in
+        registry.installedPlugins.filter { p in
             p.manifest.slots.contains { $0 == .compactLeft || $0 == .compactRight || $0 == .compact }
         }
     }
@@ -272,6 +331,52 @@ struct PluginsSettingsView: View {
                         .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5))
             )
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private extension PluginManifest {
+    var isCoreSessionMonitor: Bool {
+        isBuiltIn && subscribesTo.contains("hookEvent")
+    }
+}
+
+private struct RealtimeSourceIcon: View {
+    let profile: ManagedHookClientProfile
+
+    var body: some View {
+        if let logoAssetName = preferredLogoAssetName {
+            Image(logoAssetName)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 28, height: 28)
+        } else if let resolvedAppIcon {
+            Image(nsImage: resolvedAppIcon)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 28, height: 28)
+        } else {
+            Image(systemName: profile.iconSymbolName)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(.white.opacity(0.92))
+                .frame(width: 28, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(profile.brand.tintColor.opacity(0.22))
+                )
+        }
+    }
+
+    private var resolvedAppIcon: NSImage? {
+        ClientAppLocator.icon(bundleIdentifiers: profile.localAppBundleIdentifiers)
+    }
+
+    private var preferredLogoAssetName: String? {
+        guard let logoAssetName = profile.logoAssetName else { return nil }
+        return profile.prefersBundledLogoOverAppIcon || resolvedAppIcon == nil
+            ? logoAssetName
+            : nil
     }
 }
 

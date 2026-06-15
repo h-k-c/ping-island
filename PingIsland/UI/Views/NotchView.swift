@@ -193,6 +193,10 @@ struct NotchView: View {
         return settings.mascotKind(for: client)
     }
 
+    private var notificationSourceSession: SessionState? {
+        activeCompletionNotification?.session ?? representativeClosedSession
+    }
+
     private var areReminderNotificationsSuppressed: Bool {
         settings.areNotificationsMutedTemporarily
     }
@@ -536,8 +540,9 @@ struct NotchView: View {
             .animation(.spring(response: 0.3, dampingFraction: 0.5), value: isBouncing)
             .contentShape(Rectangle())
             .onHover { hovering in
+                let shouldShowHoverFeedback = hovering && (isOpened || isInNotificationMoment)
                 withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
-                    isHovering = hovering
+                    isHovering = shouldShowHoverFeedback
                 }
             }
             .onTapGesture {
@@ -560,16 +565,15 @@ struct NotchView: View {
 
     /// Whether the closed notch is currently surfacing a notification/attention
     /// moment (approval, intervention, just-completed, or a plugin notification).
-    /// The mascot only appears during these moments; otherwise the ears show
-    /// their assigned plugins.
+    /// Idle states keep both ears assigned to plugins.
     private var isInNotificationMoment: Bool {
         hasPendingPermission || hasHumanIntervention || hasCompletedReadyState
             || activeCompletionNotification != nil || activePluginNotification != nil
     }
 
-    /// In the closed state the mascot is shown as the leading icon only during a
-    /// notification moment; idle closed states hand the left ear to its plugin.
-    private var showsClosedLeadingIcon: Bool {
+    /// In the closed state the leading ear shows the notification source only
+    /// during a notification moment; idle closed states hand it to its plugin.
+    private var showsClosedNotificationSource: Bool {
         viewModel.status != .opened && isInNotificationMoment
     }
 
@@ -616,17 +620,12 @@ struct NotchView: View {
                     .frame(width: closedInnerWidth, height: closedNotchSize.height)
             } else {
                 HStack(spacing: 0) {
-                    // Left ear — mascot only during a notification moment, otherwise
-                    // the assigned plugin. Fixed width keeps the notch footprint stable.
+                    // Left ear — notification source only during a notification
+                    // moment, otherwise the assigned plugin.
                     if viewModel.status != .opened {
                         ZStack {
-                            if showsClosedLeadingIcon {
-                                MascotView(
-                                    kind: closedMascotKind,
-                                    status: closedMascotStatus,
-                                    size: petIconSize
-                                )
-                                .matchedGeometryEffect(id: "pet", in: activityNamespace, isSource: showsClosedLeadingIcon)
+                            if showsClosedNotificationSource {
+                                notificationSourceIcon(size: petIconSize, status: closedMascotStatus)
                             } else if let pluginContent = pluginArbiter.activeLeft {
                                 IslandPluginRenderer.compactView(content: pluginContent)
                                     .onTapGesture {
@@ -648,12 +647,12 @@ struct NotchView: View {
                         closedCenterContent
                     }
 
-                    // Right side - in the closed state show session count by default,
-                    // or the selected 7d usage remainder when available. Attention still wins.
+                    // Right ear — notification icon during notification moments,
+                    // otherwise the assigned plugin.
                     if viewModel.status != .opened {
                         ZStack {
-                            if hasManualAttentionIndicator {
-                                BellIndicatorIcon(size: 12, color: closedIndicatorTone.emphasisColor)
+                            if isInNotificationMoment {
+                                notificationIndicatorIcon(size: 12)
                             } else if let pluginContent = pluginArbiter.activeRight {
                                 IslandPluginRenderer.compactView(content: pluginContent)
                                     .onTapGesture {
@@ -720,13 +719,8 @@ struct NotchView: View {
     @ViewBuilder
     private var openedHeaderContent: some View {
         HStack(spacing: 8) {
-            if viewModel.openReason == .notification,
-               activeCompletionNotification != nil {
-                MascotView(
-                    kind: completionNotificationMascotKind,
-                    status: .idle,
-                    size: petIconSize
-                )
+            if viewModel.openReason == .notification, isInNotificationMoment {
+                notificationSourceIcon(size: petIconSize, status: .idle)
                 .padding(.leading, 14)
             }
 
@@ -745,6 +739,163 @@ struct NotchView: View {
         }
         .padding(.trailing, 12)
         .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func notificationSourceIcon(size: CGFloat, status: MascotStatus) -> some View {
+        if let plugin = activePluginNotification.flatMap({ installedPlugin(for: $0.pluginId) }) {
+            pluginSourceIcon(plugin, size: size)
+        } else if let session = notificationSourceSession,
+                  let profile = realtimeSourceProfile(for: session) {
+            switch settings.realtimeNotificationIconStyle(for: profile.id) {
+            case .official:
+                officialRealtimeSourceIcon(profile, size: size)
+            case .mascot:
+                MascotView(
+                    kind: settings.mascotKind(for: session.mascotClient),
+                    status: status,
+                    size: size
+                )
+            }
+        } else {
+            MascotView(
+                kind: closedMascotKind,
+                status: status,
+                size: size
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func notificationIndicatorIcon(size: CGFloat) -> some View {
+        if let activePluginNotification {
+            IslandPluginRenderer.iconView(activePluginNotification.content.icon, size: size)
+                .foregroundStyle(.white.opacity(0.9))
+        } else if activeCompletionNotification != nil || hasCompletedReadyState {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: size, weight: .bold))
+                .foregroundStyle(TerminalColors.green)
+        } else if hasHumanIntervention {
+            WaitingForInputIcon(size: size, color: closedIndicatorTone.emphasisColor)
+        } else {
+            BellIndicatorIcon(size: size, color: closedIndicatorTone.emphasisColor)
+        }
+    }
+
+    @ViewBuilder
+    private func officialRealtimeSourceIcon(
+        _ profile: ManagedHookClientProfile,
+        size: CGFloat
+    ) -> some View {
+        if let logoAssetName = preferredLogoAssetName(for: profile) {
+            Image(logoAssetName)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: size, height: size)
+        } else if let appIcon = ClientAppLocator.icon(bundleIdentifiers: profile.localAppBundleIdentifiers) {
+            Image(nsImage: appIcon)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: size, height: size)
+        } else {
+            Image(systemName: profile.iconSymbolName)
+                .font(.system(size: size, weight: .bold))
+                .foregroundStyle(profile.brand.tintColor)
+        }
+    }
+
+    @ViewBuilder
+    private func pluginSourceIcon(_ plugin: InstalledPlugin, size: CGFloat) -> some View {
+        if let iconPath = plugin.manifest.iconPath,
+           let image = NSImage(contentsOfFile: plugin.bundleURL.appendingPathComponent(iconPath).path) {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: size, height: size)
+        } else if let icon = plugin.manifest.icon {
+            Image(systemName: icon.sfSymbol)
+                .font(.system(size: size, weight: .bold))
+                .foregroundStyle(Color(hex: icon.color) ?? .white.opacity(0.9))
+        } else {
+            Image(systemName: "puzzlepiece.extension.fill")
+                .font(.system(size: size, weight: .bold))
+                .foregroundStyle(.white.opacity(0.9))
+        }
+    }
+
+    private func installedPlugin(for pluginId: String) -> InstalledPlugin? {
+        PluginRegistry.shared.installedPlugins.first { $0.id == pluginId }
+    }
+
+    private func preferredLogoAssetName(for profile: ManagedHookClientProfile) -> String? {
+        guard let logoAssetName = profile.logoAssetName else {
+            return nil
+        }
+
+        let appIcon = ClientAppLocator.icon(bundleIdentifiers: profile.localAppBundleIdentifiers)
+        return profile.prefersBundledLogoOverAppIcon || appIcon == nil
+            ? logoAssetName
+            : nil
+    }
+
+    private func realtimeSourceProfile(for session: SessionState) -> ManagedHookClientProfile? {
+        let runtimeID = session.clientInfo.resolvedProfile(for: session.provider)?.id
+        let managedID = managedHookProfileID(forRuntimeProfileID: runtimeID, provider: session.provider)
+        return ClientProfileRegistry.managedHookProfile(id: managedID)
+    }
+
+    private func managedHookProfileID(
+        forRuntimeProfileID runtimeProfileID: String?,
+        provider: SessionProvider
+    ) -> String {
+        switch runtimeProfileID {
+        case "codex-app", "codex-cli":
+            return "codex-hooks"
+        case "gemini":
+            return "gemini-hooks"
+        case "hermes":
+            return "hermes-hooks"
+        case "qwen-code":
+            return "qwen-code-hooks"
+        case "openclaw":
+            return "openclaw-hooks"
+        case "opencode":
+            return "opencode-hooks"
+        case "kimi":
+            return "kimi-hooks"
+        case "copilot-cli":
+            return "copilot-hooks"
+        case "codebuddy":
+            return "codebuddy-hooks"
+        case "codebuddy-cli":
+            return "codebuddy-cli-hooks"
+        case "workbuddy":
+            return "workbuddy-hooks"
+        case "cursor":
+            return "cursor-hooks"
+        case "qoder":
+            return "qoder-hooks"
+        case "qoder-cli":
+            return "qoder-cli-hooks"
+        case "qoderwork":
+            return "qoderwork-hooks"
+        default:
+            switch provider {
+            case .claude:
+                return "claude-hooks"
+            case .codex:
+                return "codex-hooks"
+            case .copilot:
+                return "copilot-hooks"
+            case .kimi:
+                return "kimi-hooks"
+            case .gemini:
+                return "gemini-hooks"
+            }
+        }
     }
 
     // MARK: - Content View (Opened State)

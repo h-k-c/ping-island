@@ -341,6 +341,22 @@ enum NotchPetStyle: String, CaseIterable, Identifiable {
     }
 }
 
+enum RealtimeNotificationIconStyle: String, CaseIterable, Identifiable, Codable, Sendable {
+    case official
+    case mascot
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .official:
+            return "官方图标"
+        case .mascot:
+            return "宠物形象"
+        }
+    }
+}
+
 @MainActor
 final class AppSettingsStore: ObservableObject {
     static let shared = AppSettingsStore()
@@ -403,6 +419,7 @@ final class AppSettingsStore: ObservableObject {
         static let labsSettingsUnlocked = "labsSettingsUnlocked"
         static let automaticUpdateChecksEnabled = "automaticUpdateChecksEnabled"
         static let mascotOverrides = "mascotOverrides"
+        static let realtimeNotificationIconStyles = "realtimeNotificationIconStyles"
         static let openActiveSessionShortcut = "openActiveSessionShortcut"
         static let openActiveSessionShortcutDisabled = "openActiveSessionShortcutDisabled"
         static let openSessionListShortcut = "openSessionListShortcut"
@@ -858,6 +875,18 @@ final class AppSettingsStore: ObservableObject {
         }
     }
 
+    @Published var realtimeNotificationIconStyles: [String: String] {
+        didSet {
+            let sanitized = Self.sanitizedRealtimeNotificationIconStyles(realtimeNotificationIconStyles)
+            if realtimeNotificationIconStyles != sanitized {
+                realtimeNotificationIconStyles = sanitized
+                return
+            }
+            guard !isBootstrapping else { return }
+            Self.persistValue(realtimeNotificationIconStyles, defaults: defaults, key: Keys.realtimeNotificationIconStyles)
+        }
+    }
+
     @Published var openActiveSessionShortcut: GlobalShortcut? {
         didSet {
             guard !isBootstrapping else { return }
@@ -992,6 +1021,28 @@ final class AppSettingsStore: ObservableObject {
         mascotOverrides = [:]
     }
 
+    func realtimeNotificationIconStyle(for sourceID: String?) -> RealtimeNotificationIconStyle {
+        guard let sourceID,
+              let rawValue = realtimeNotificationIconStyles[sourceID],
+              let style = RealtimeNotificationIconStyle(rawValue: rawValue) else {
+            return .official
+        }
+        return style
+    }
+
+    func setRealtimeNotificationIconStyle(
+        _ style: RealtimeNotificationIconStyle,
+        for sourceID: String
+    ) {
+        var updated = realtimeNotificationIconStyles
+        if style == .official {
+            updated.removeValue(forKey: sourceID)
+        } else {
+            updated[sourceID] = style.rawValue
+        }
+        realtimeNotificationIconStyles = updated
+    }
+
     func shortcut(for action: GlobalShortcutAction) -> GlobalShortcut? {
         switch action {
         case .openActiveSession:
@@ -1105,6 +1156,18 @@ final class AppSettingsStore: ObservableObject {
         }
     }
 
+    private static func sanitizedRealtimeNotificationIconStyles(_ rawStyles: [String: String]) -> [String: String] {
+        rawStyles.reduce(into: [:]) { result, entry in
+            let sourceID = entry.key.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !sourceID.isEmpty,
+                  let style = RealtimeNotificationIconStyle(rawValue: entry.value),
+                  style != .official else {
+                return
+            }
+            result[sourceID] = style.rawValue
+        }
+    }
+
     private static func sanitizedShortcut(_ shortcut: GlobalShortcut?) -> GlobalShortcut? {
         guard let shortcut else { return nil }
         return GlobalShortcut(keyCode: shortcut.keyCode, modifierFlags: shortcut.modifierFlags)
@@ -1176,6 +1239,22 @@ final class AppSettingsStore: ObservableObject {
         return legacyOverrides
     }
 
+    private static func realtimeNotificationIconStyles(
+        from defaults: UserDefaults,
+        key: String
+    ) -> [String: String] {
+        if let styles = decodeValue([String: String].self, from: defaults, key: key) {
+            return styles
+        }
+
+        let legacyStyles = defaults.dictionary(forKey: key) as? [String: String] ?? [:]
+        if !legacyStyles.isEmpty {
+            persistValue(legacyStyles, defaults: defaults, key: key)
+        }
+
+        return legacyStyles
+    }
+
     private func applyIsland8BitStartSoundMigrationIfNeeded(for mode: SoundThemeMode) {
         guard mode == .island8Bit else { return }
         guard !containsPersistedValue(forKey: Keys.island8BitStartSoundMigrated) else { return }
@@ -1220,6 +1299,10 @@ final class AppSettingsStore: ObservableObject {
         let floatingPetAnchor = Self.decodeValue(FloatingPetAnchor.self, from: defaults, key: Keys.floatingPetAnchor)
         let floatingPetSizeModeRaw = defaults.string(forKey: Keys.floatingPetSizeMode)
         let mascotOverrideRaw = Self.mascotOverrides(from: defaults, key: Keys.mascotOverrides)
+        let realtimeNotificationIconStylesRaw = Self.realtimeNotificationIconStyles(
+            from: defaults,
+            key: Keys.realtimeNotificationIconStyles
+        )
         let openActiveSessionShortcut = Self.resolvedShortcut(
             from: defaults,
             key: Keys.openActiveSessionShortcut,
@@ -1447,6 +1530,9 @@ final class AppSettingsStore: ObservableObject {
             default: false
         ))
         _mascotOverrides = Published(initialValue: Self.sanitizedMascotOverrides(mascotOverrideRaw))
+        _realtimeNotificationIconStyles = Published(
+            initialValue: Self.sanitizedRealtimeNotificationIconStyles(realtimeNotificationIconStylesRaw)
+        )
         _openActiveSessionShortcut = Published(initialValue: openActiveSessionShortcut)
         _openSessionListShortcut = Published(initialValue: openSessionListShortcut)
         // Migration: if legacy global key was true, seed per-provider keys

@@ -100,6 +100,24 @@ final class AppSettingsPersistenceTests: XCTestCase {
         XCTAssertNil(defaults.dictionary(forKey: key))
     }
 
+    func testRealtimeNotificationIconStylesLegacyDictionaryMigratesToDataStorage() {
+        let defaults = makeDefaults()
+        let key = "realtimeNotificationIconStyles"
+
+        defaults.set(
+            [
+                "codex-hooks": RealtimeNotificationIconStyle.mascot.rawValue
+            ],
+            forKey: key
+        )
+
+        let store = makeStore(defaults: defaults)
+
+        XCTAssertEqual(store.realtimeNotificationIconStyle(for: "codex-hooks"), .mascot)
+        XCTAssertNotNil(defaults.data(forKey: key))
+        XCTAssertNil(defaults.dictionary(forKey: key))
+    }
+
     func testShortcutWritesTypedDataForFreshValues() {
         let defaults = makeDefaults()
         let key = "openSessionListShortcut"
@@ -286,6 +304,26 @@ final class AppSettingsPersistenceTests: XCTestCase {
         store.previewMascotKind = .qwen
 
         XCTAssertEqual(store.mascotKind(for: client), .qwen)
+    }
+
+    func testRealtimeNotificationIconStylePersistsAndClearsDefault() {
+        let defaults = makeDefaults()
+        let key = "realtimeNotificationIconStyles"
+        let store = makeStore(defaults: defaults)
+
+        XCTAssertEqual(store.realtimeNotificationIconStyle(for: "claude-hooks"), .official)
+
+        store.setRealtimeNotificationIconStyle(.mascot, for: "claude-hooks")
+
+        let reloadedStore = makeStore(defaults: defaults)
+        XCTAssertEqual(reloadedStore.realtimeNotificationIconStyle(for: "claude-hooks"), .mascot)
+        XCTAssertNotNil(defaults.data(forKey: key))
+
+        reloadedStore.setRealtimeNotificationIconStyle(.official, for: "claude-hooks")
+
+        let clearedStore = makeStore(defaults: defaults)
+        XCTAssertEqual(clearedStore.realtimeNotificationIconStyle(for: "claude-hooks"), .official)
+        XCTAssertTrue(clearedStore.realtimeNotificationIconStyles.isEmpty)
     }
 
     func testFloatingPetAnchorPersists() {

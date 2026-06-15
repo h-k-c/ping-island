@@ -232,6 +232,25 @@ final class PluginModelsTests: XCTestCase {
         XCTAssertEqual(manifest.builtIn, true)
     }
 
+    func testProcMonitorBuiltInManifestDecodes() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let manifestURL = repoRoot
+            .appendingPathComponent("PingIsland/Resources/PluginBundles/com.wudanwu.pingisland.procmonitor.pingplugin/Contents/com.wudanwu.pingisland.procmonitor.manifest.json")
+        let manifest = try JSONDecoder().decode(
+            PluginManifest.self,
+            from: try Data(contentsOf: manifestURL)
+        )
+
+        XCTAssertEqual(manifest.id, "com.wudanwu.pingisland.procmonitor")
+        XCTAssertEqual(manifest.executable, "PingIslandPlugin")
+        XCTAssertEqual(manifest.category, .system)
+        XCTAssertEqual(manifest.slots, [.compact, .expanded])
+        XCTAssertEqual(manifest.builtIn, true)
+        XCTAssertNil(manifest.validationFailureReason)
+    }
+
     func testMissingSubscriptionsDefaultsToNil() throws {
         let json = """
         {"id":"com.test.x","name":"X","version":"1.0.0","executable":"x","slots":["compact-right"]}

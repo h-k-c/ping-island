@@ -13,6 +13,7 @@
 		8058B1E4956C5019C4C6D978 /* UsageData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 824CA02CD231CB5BBEB45D50 /* UsageData.swift */; };
 		891327B1EC410EAFA3E36043 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7714FB8939B10AA8FB6E3CA /* KeychainHelper.swift */; };
 		9CDA5E32C5112EDF56D1D940 /* ClaudeAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3F69826FF508BC7A87889D8 /* ClaudeAPIService.swift */; };
+		A7C0DE000000000000000001 /* ProcMonitorPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C0DE000000000000000002 /* ProcMonitorPlugin.swift */; };
 		A1000000000000000000001B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1000000000000000000001C /* Sparkle */; };
 		CBDB9972CBCC8574E49D7966 /* UsageMonitorPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = E436CA0A9DB3721C052CC07B /* UsageMonitorPlugin.swift */; };
 		D3C833ECE1588C2F0B68182D /* CodexUsageData.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1CECA490057A2439F1E2335 /* CodexUsageData.swift */; };
@@ -63,6 +64,7 @@
 		37DD0FBACB423D066514B0FD /* PingIslandPlugin */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = text; path = PingIslandPlugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		824CA02CD231CB5BBEB45D50 /* UsageData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UsageData.swift; sourceTree = "<group>"; };
 		94FE6ADABB2E23CDFC5F6835 /* CodexCredentialLoader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexCredentialLoader.swift; sourceTree = "<group>"; };
+		A7C0DE000000000000000002 /* ProcMonitorPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcMonitorPlugin.swift; sourceTree = "<group>"; };
 		A10000000000000000000001 /* PingIslandTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PingIslandTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000002 /* PingIslandUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PingIslandUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000000000000000000001E /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
@@ -168,6 +170,7 @@
 				C7F0C9474542E5F77EE7ACB7 /* main.swift */,
 				8649E8313439F264ED1AAA51 /* Usage */,
 				E436CA0A9DB3721C052CC07B /* UsageMonitorPlugin.swift */,
+				A7C0DE000000000000000002 /* ProcMonitorPlugin.swift */,
 			);
 			path = PingIslandPlugin;
 			sourceTree = "<group>";
@@ -492,6 +495,7 @@
 				8058B1E4956C5019C4C6D978 /* UsageData.swift in Sources */,
 				D3C833ECE1588C2F0B68182D /* CodexUsageData.swift in Sources */,
 				CBDB9972CBCC8574E49D7966 /* UsageMonitorPlugin.swift in Sources */,
+				A7C0DE000000000000000001 /* ProcMonitorPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

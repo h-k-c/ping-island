@@ -227,6 +227,12 @@ elif method == "hookEvent":
 | `icon` | string | — | Bundle 内图标路径，128×128 PNG |
 | `subscriptions` | array | — | 订阅的事件类型，目前支持 `"hookEvent"` |
 
+### 内置插件
+
+内置插件复用同一套 IPP 协议，但由 app bundle 内的 `PingIslandPlugin` 可执行文件按 `PING_ISLAND_PLUGIN_ID` 分流运行。内置 manifest 放在 `PingIsland/Resources/PluginBundles/<plugin-id>.pingplugin/Contents/` 下，并使用 `<plugin-id>.manifest.json` 命名；Xcode 会把这些 manifest 扁平化复制到 app Resources。
+
+当前用户可配置的内置工具插件包括 AI Monitor 和只读的 Proc Monitor。Claude/Codex 会话监控也复用同一套内部协议传递 compact/notification 数据，但在产品概念上属于核心实时通知源，不作为插件卡片展示。Proc Monitor 使用 `compact` 展示内存占用百分比，`expanded` 展示内存总览和 Top 进程列表，不提供进程终止操作。
+
 ---
 
 ## 调试

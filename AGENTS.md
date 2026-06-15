@@ -5,7 +5,7 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 ## Mission
 
 - `PingIsland` is a macOS **Dynamic Island plugin platform** that surfaces AI session status for Claude Code, Codex, Gemini CLI, Hermes Agent, Qwen Code, Kimi CLI, and compatible hook-driven sessions.
-- Third-party apps can display content on the island by installing a `.pingplugin` bundle and communicating via JSON-RPC over stdin/stdout (`island/compact`, `island/notify`, `island/expanded`). Claude and Codex session monitoring are built-in plugins.
+- Third-party apps can display content on the island by installing a `.pingplugin` bundle and communicating via JSON-RPC over stdin/stdout (`island/compact`, `island/notify`, `island/expanded`). Claude, Codex, and other hook-driven session monitors are core realtime notification sources, not user-facing plugin cards.
 - The main runtime path is:
   - hook or app-server events → `SessionMonitor` → `SessionStore` → `NotchViewModel` → SwiftUI notch UI
   - hook events also forwarded via `PluginEventBus` → subscribed plugin processes → `PluginSlotArbiter` → notch UI
@@ -27,7 +27,7 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - Notch state and layout: `PingIsland/Core/NotchViewModel.swift`, `PingIsland/UI/Views/NotchView.swift`
 - App-wide low-power policy for background polling, event monitoring, UI animation tiers, and silent update gating: `PingIsland/Core/EnergyGovernor.swift`
 - User idle protection and per-provider approval routing (`claudeRoutePromptsToTerminal`, `codexRoutePromptsToTerminal` in `Settings.swift`): `PingIsland/Core/UserIdleAutoProtection.swift`, `PingIsland/Core/Settings.swift`, `PingIsland/Services/Hooks/BridgeRuntimeConfigWriter.swift`
-- **Plugin platform**: `PingIsland/Services/Plugin/` (PluginRegistry, PluginProcess, PluginHost, PluginSlotArbiter, IslandPluginRenderer, PluginEventBus), `PingIslandPlugin/main.swift` (built-in Swift CLI for Claude/Codex/Usage plugins), `PingIsland/Resources/PluginBundles/` (built-in plugin manifests)
+- **Plugin platform**: `PingIsland/Services/Plugin/` (PluginRegistry, PluginProcess, PluginHost, PluginSlotArbiter, IslandPluginRenderer, PluginEventBus), `PingIslandPlugin/main.swift` (built-in Swift CLI for core session monitors plus Usage/Proc Monitor plugins), `PingIsland/Resources/PluginBundles/` (built-in plugin manifests)
 - Detached floating capsule: `PingIsland/UI/Window/DetachedIslandWindowController.swift`, `PingIsland/UI/Views/DetachedIslandPanelView.swift`, `PingIsland/UI/Views/IslandOpenedContentView.swift`
   - Detached pet interactions now keep the pet anchored in place while hover/click previews expand sideways as message-bubble lists; trace both the panel layout and window-anchor math together when changing this flow
   - Expanded content routing is shared with the docked notch through `IslandOpenedContentView` + `IslandExpandedRouteResolver`; keep hover/click/notification semantics aligned instead of reintroducing detached-only content priorities
@@ -63,7 +63,7 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - `PingIsland/Services/Window/IDEExtensionInstaller.swift`: installs the VS Code-compatible terminal-focus extension used by Cursor / VS Code / CodeBuddy / Qoder style IDE hosts (`QoderWork` is hook-only, not an IDE extension host)
 - `PingIsland/UI`: SwiftUI views, reusable components, AppKit-backed window controllers
 - `PingIsland/Services/Plugin`: plugin protocol infrastructure — registry, subprocess lifecycle, slot arbitration, event bus, SwiftUI renderer
-- `PingIslandPlugin`: Swift CLI target compiled into app bundle; reads `PING_ISLAND_PLUGIN_ID` env var to run Claude, Codex, or Usage plugin logic
+- `PingIslandPlugin`: Swift CLI target compiled into app bundle; reads `PING_ISLAND_PLUGIN_ID` env var to run core session monitors, Usage, or Proc Monitor logic
 - `PingIsland/Resources/PluginBundles`: built-in plugin manifests (Xcode flattens contents into `Resources/` — each manifest is named `<plugin-id>.manifest.json`)
 - `PingIsland/Resources`: hook assets, entitlements, bundled fonts
 - `Prototype`: Swift package prototype and testbed
@@ -103,9 +103,10 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - If you change background polling, global event monitors, silent update scheduling, or idle animation behavior, inspect `PingIsland/Core/EnergyGovernor.swift` plus the affected service/view so active sessions stay responsive while quiet, locked, or sleeping periods remain low-power.
 - If you change built-in notification sounds or startup audio, inspect `PingIsland/Core/Settings.swift`, `PingIsland/Core/SoundPackCatalog.swift`, `PingIsland/UI/Views/SettingsWindowView.swift`, `PingIsland/App/AppDelegate.swift`, and `PingIsland/Resources/Sounds/` together so mode selection, fixed mappings, previews, and bundled assets stay aligned.
 - If you change client mascot selection or mascot animations, trace through `PingIsland/Models/ClientProfile.swift`, `PingIsland/Core/Settings.swift`, `PingIsland/UI/Components/MascotView.swift`, and the mascot callsites in `NotchView`, `SessionListView`, `SessionHoverPreviewView`, and `MascotSettingsView` so runtime overrides and previews stay aligned.
+- If you change realtime notification source presentation, keep it separate from plugin cards: update `ClientProfileRegistry`, `AppSettings.realtimeNotificationIconStyles`, `PluginsSettingsView`'s realtime source section, and `NotchView`'s notification-source/indicator ears together.
 - If you change completion-result popup behavior, trace through `SessionStore`, `SessionMonitor`, `NotchView.swift`, and `SessionCompletionNotificationView.swift` for the legacy session path; also check `PluginSlotArbiter.pendingNotifications` and `NotchView.dequeuePluginNotification()` for the plugin path.
-- If you add or modify a plugin, the entry point is `PingIsland/Services/Plugin/`. `PluginManifest` (in `PluginModels.swift`) declares slots, subscriptions, permissions, config, and builtIn flag. Built-in plugins go in `PingIsland/Resources/PluginBundles/` with `<id>.manifest.json` naming. The `PingIslandPlugin` Swift CLI handles `com.wudanwu.pingisland.claude`, `com.wudanwu.pingisland.codex`, and `com.wudanwu.pingisland.usage` via `PING_ISLAND_PLUGIN_ID` env var.
-- If you add a new AI provider hook client, also add a corresponding plugin case to `PingIslandPlugin/main.swift` and a manifest in `PingIsland/Resources/PluginBundles/`.
+- If you add or modify a user-facing island plugin, the entry point is `PingIsland/Services/Plugin/`. `PluginManifest` (in `PluginModels.swift`) declares slots, subscriptions, permissions, config, and builtIn flag. Built-in plugin manifests go in `PingIsland/Resources/PluginBundles/` with `<id>.manifest.json` naming. The `PingIslandPlugin` Swift CLI handles `com.wudanwu.pingisland.usage` and `com.wudanwu.pingisland.procmonitor` via `PING_ISLAND_PLUGIN_ID` env var; Claude/Codex-style session monitors use the same protocol internally but should remain core notification sources in settings.
+- If you add a new AI provider hook client, add its client profile and notification-source presentation first; only add a user-facing plugin card when the client also exposes independent island tool UI.
 - Settings no longer has a dedicated 集成 tab. Hook install status is in the Plugins settings tab (plugin row); IDE extensions, idle routing, and system permissions are in the 通用 tab.
 - If you change tmux or terminal focusing, trace through `Services/Tmux`, `Services/Window`, and `TerminalVisibilityDetector`.
 - If you change IDE terminal jump behavior, inspect both `TerminalSessionFocuser` and `IDEExtensionInstaller`, plus the Plugins settings UI so install state and URI schemes stay aligned.
