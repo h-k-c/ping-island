@@ -18,15 +18,14 @@ final class PluginRegistry: ObservableObject {
             .appendingPathComponent("PingIsland/Plugins", isDirectory: true)
     }
 
-    /// Xcode flattens bundle contents into Resources/, so built-in plugins
-    /// have their manifest.json and executable directly in Resources.
+    /// Xcode flattens bundled plugin seed contents into Resources/.
     nonisolated static var appBundleResourcesURL: URL? {
         Bundle.main.resourceURL
     }
 
     init(
         pluginsDirectoryURL: URL = PluginRegistry.defaultPluginsDirectoryURL,
-        includeBuiltInPlugins: Bool = true
+        includeBuiltInPlugins: Bool = false
     ) {
         self.pluginsDirectoryURL = pluginsDirectoryURL
         self.includeBuiltInPlugins = includeBuiltInPlugins
@@ -34,6 +33,7 @@ final class PluginRegistry: ObservableObject {
 
     func start() {
         createDirectoryIfNeeded()
+        installDefaultPluginSeedsIfNeeded()
         rescan()
         startWatching()
     }
@@ -52,9 +52,6 @@ final class PluginRegistry: ObservableObject {
     func rescan() {
         var found: [InstalledPlugin] = []
 
-        // Built-in plugins: Xcode flattens PluginBundles contents into Resources/.
-        // Each plugin uses a unique filename: {plugin-id}.manifest.json
-        // This avoids filename collisions between multiple built-in plugins.
         if includeBuiltInPlugins,
            let resourcesURL = Self.appBundleResourcesURL,
            let contents = try? FileManager.default.contentsOfDirectory(
@@ -81,6 +78,53 @@ final class PluginRegistry: ObservableObject {
         }
 
         installedPlugins = found
+    }
+
+    private func installDefaultPluginSeedsIfNeeded() {
+        guard
+            let resourcesURL = Self.appBundleResourcesURL,
+            let contents = try? FileManager.default.contentsOfDirectory(
+                at: resourcesURL,
+                includingPropertiesForKeys: nil
+            )
+        else { return }
+
+        let executableURL = resourcesURL.appendingPathComponent("PingIslandPlugin")
+        let hasSharedExecutable = FileManager.default.isExecutableFile(atPath: executableURL.path)
+
+        for manifestURL in contents where manifestURL.lastPathComponent.hasSuffix(".manifest.json") {
+            guard
+                let data = try? Data(contentsOf: manifestURL),
+                let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data),
+                manifest.isBuiltIn
+            else { continue }
+
+            let bundleURL = pluginsDirectoryURL
+                .appendingPathComponent("\(manifest.id).pingplugin", isDirectory: true)
+            let contentsURL = bundleURL.appendingPathComponent("Contents", isDirectory: true)
+            let destinationManifestURL = contentsURL.appendingPathComponent("manifest.json")
+
+            if let existingData = try? Data(contentsOf: destinationManifestURL),
+               let existingManifest = try? JSONDecoder().decode(PluginManifest.self, from: existingData),
+               !existingManifest.isBuiltIn {
+                continue
+            }
+
+            try? FileManager.default.createDirectory(
+                at: contentsURL,
+                withIntermediateDirectories: true
+            )
+            try? data.write(to: destinationManifestURL, options: .atomic)
+
+            guard hasSharedExecutable else { continue }
+            let destinationExecutableURL = bundleURL.appendingPathComponent(manifest.executable)
+            try? FileManager.default.removeItem(at: destinationExecutableURL)
+            try? FileManager.default.copyItem(at: executableURL, to: destinationExecutableURL)
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o755],
+                ofItemAtPath: destinationExecutableURL.path
+            )
+        }
     }
 
     private func loadPlugin(at bundleURL: URL) -> InstalledPlugin? {

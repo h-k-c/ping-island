@@ -1446,6 +1446,7 @@ private enum ProcMonitorIslandStyle {
 
 struct PluginNotificationPanelView: View {
     let notification: PluginNotifyUpdate
+    let onDismiss: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1469,6 +1470,16 @@ struct PluginNotificationPanelView: View {
                 }
 
                 Spacer(minLength: 0)
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .frame(width: 24, height: 24)
+                        .background(.white.opacity(0.08), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .help("关闭通知")
             }
 
             if let actionLabel = notification.content.actionLabel,

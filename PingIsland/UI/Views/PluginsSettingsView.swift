@@ -21,7 +21,12 @@ struct PluginsSettingsView: View {
             }
 
             // Footer
-            HStack {
+            VStack(alignment: .leading, spacing: 7) {
+                Text("默认工具和第三方插件都会从这个文件夹加载。")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                HStack {
                 Button {
                     NSWorkspace.shared.open(PluginRegistry.defaultPluginsDirectoryURL)
                 } label: {
@@ -30,19 +35,6 @@ struct PluginsSettingsView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-
-                if let resourcesURL = PluginRegistry.appBundleResourcesURL {
-                    Button {
-                        NSWorkspace.shared.activateFileViewerSelecting([
-                            resourcesURL.appendingPathComponent("com.wudanwu.pingisland.usage.manifest.json")
-                        ])
-                    } label: {
-                        Label("内置插件资源", systemImage: "shippingbox")
-                            .font(.system(size: 10))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                }
 
                 Spacer()
 
@@ -54,6 +46,7 @@ struct PluginsSettingsView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+                }
             }
         }
     }

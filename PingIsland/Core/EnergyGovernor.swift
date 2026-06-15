@@ -43,7 +43,7 @@ struct EnergyPolicy: Equatable {
         switch mode {
         case .active:
             EnergyPolicy(
-                codexThreadListRefreshInterval: .seconds(15),
+                codexThreadListRefreshInterval: .seconds(5),
                 sessionMaintenanceInterval: .seconds(60),
                 usageRefreshInterval: .seconds(60),
                 animationLevel: .full,
@@ -53,7 +53,7 @@ struct EnergyPolicy: Equatable {
             )
         case .idleVisible:
             EnergyPolicy(
-                codexThreadListRefreshInterval: .seconds(60),
+                codexThreadListRefreshInterval: .seconds(15),
                 sessionMaintenanceInterval: .seconds(5 * 60),
                 usageRefreshInterval: .seconds(5 * 60),
                 animationLevel: .reduced,
@@ -63,7 +63,7 @@ struct EnergyPolicy: Equatable {
             )
         case .quietBackground:
             EnergyPolicy(
-                codexThreadListRefreshInterval: .seconds(5 * 60),
+                codexThreadListRefreshInterval: .seconds(60),
                 sessionMaintenanceInterval: .seconds(10 * 60),
                 usageRefreshInterval: .seconds(15 * 60),
                 animationLevel: .staticFrames,

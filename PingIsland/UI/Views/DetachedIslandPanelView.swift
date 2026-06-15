@@ -844,7 +844,8 @@ struct DetachedIslandPanelView: View {
                     contentWidthOverride: contentWidth,
                     onAttentionActionCompleted: onAttentionActionCompleted,
                     onCompletionNotificationHoverChanged: onCompletionNotificationHoverChanged,
-                    onDismissCompletionNotification: onDismissCompletionNotification
+                    onDismissCompletionNotification: onDismissCompletionNotification,
+                    onDismissPluginNotification: {}
                 )
 
 

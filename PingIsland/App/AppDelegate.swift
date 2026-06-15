@@ -94,7 +94,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         shouldPresentSettingsAfterOnboarding = launchFlow.shouldPresentSettingsWindowAfterOnboarding
         shouldRunHookWalkthroughAfterOnboarding = launchFlow.shouldPresentSurfaceModeOnboarding
 
-        if launchFlow.shouldStartMonitoringImmediately {
+        if launchFlow.shouldStartMonitoringImmediately && !launchFlow.shouldCreateInitialIslandWindow {
             // Keep hook and app-server ingestion alive even when first-run onboarding
             // defers the initial Island window.
             startupSessionMonitor.startMonitoring()
@@ -226,6 +226,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             windowManager = WindowManager()
         }
         _ = windowManager?.setupNotchWindow()
+        startupSessionMonitor.stopMonitoring()
     }
 
     func applicationWillTerminate(_ notification: Notification) {

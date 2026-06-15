@@ -769,18 +769,7 @@ struct NotchView: View {
 
     @ViewBuilder
     private func notificationIndicatorIcon(size: CGFloat) -> some View {
-        if let activePluginNotification {
-            IslandPluginRenderer.iconView(activePluginNotification.content.icon, size: size)
-                .foregroundStyle(.white.opacity(0.9))
-        } else if activeCompletionNotification != nil || hasCompletedReadyState {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: size, weight: .bold))
-                .foregroundStyle(TerminalColors.green)
-        } else if hasHumanIntervention {
-            WaitingForInputIcon(size: size, color: closedIndicatorTone.emphasisColor)
-        } else {
-            BellIndicatorIcon(size: size, color: closedIndicatorTone.emphasisColor)
-        }
+        RingingBellIndicatorIcon(size: size + 2, color: closedIndicatorTone.emphasisColor)
     }
 
     @ViewBuilder
@@ -880,6 +869,9 @@ struct NotchView: View {
             onCompletionNotificationHoverChanged: handleCompletionNotificationHover,
             onDismissCompletionNotification: {
                 clearCompletionNotifications(keepPanelOpen: true)
+            },
+            onDismissPluginNotification: {
+                clearActivePluginNotification(keepPanelOpen: true)
             }
         )
         .frame(width: notchSize.width - 24) // Fixed width to prevent text reflow
@@ -1192,19 +1184,29 @@ struct NotchView: View {
 
     private func dequeuePluginNotification() {
         guard let update = PluginSlotArbiter.shared.dequeueNotification() else { return }
+        pluginNotificationDismissWork?.cancel()
+        pluginNotificationDismissWork = nil
         activePluginNotification = update
         viewModel.notchOpen(reason: .notification)
+    }
 
-        let duration = update.content.duration ?? 4.0
-        let work = DispatchWorkItem { [self] in
-            withAnimation(.smooth) { activePluginNotification = nil }
-            if completionNotificationQueue.isEmpty && activeCompletionNotification == nil {
-                viewModel.contentType = .instances
-                viewModel.notchClose()
-            }
+    private func clearActivePluginNotification(keepPanelOpen: Bool) {
+        pluginNotificationDismissWork?.cancel()
+        pluginNotificationDismissWork = nil
+        guard activePluginNotification != nil else { return }
+        withAnimation(.smooth) {
+            activePluginNotification = nil
         }
-        pluginNotificationDismissWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
+        if !keepPanelOpen,
+           viewModel.status == .opened,
+           viewModel.openReason == .notification,
+           activeCompletionNotification == nil,
+           completionNotificationQueue.isEmpty,
+           !hasPendingPermission,
+           !hasHumanIntervention {
+            viewModel.contentType = .instances
+            viewModel.notchClose()
+        }
     }
 
     private func handleCompletionNotificationChange(_ instances: [SessionState]) {
@@ -1353,7 +1355,8 @@ struct NotchView: View {
             viewModel.notchOpen(reason: .notification)
         }
 
-        scheduleCompletionNotificationDismissal(for: nextNotification.id)
+        completionNotificationDismissWorkItem?.cancel()
+        completionNotificationDismissWorkItem = nil
     }
 
     private func scheduleCompletionNotificationDismissal(for notificationID: UUID) {
@@ -1389,16 +1392,9 @@ struct NotchView: View {
             return
         }
 
-        if isHovering {
-            shouldDismissCompletionNotificationOnHoverExit = true
-            completionNotificationDismissWorkItem?.cancel()
-            completionNotificationDismissWorkItem = nil
-            return
-        }
-
-        guard shouldDismissCompletionNotificationOnHoverExit else { return }
         shouldDismissCompletionNotificationOnHoverExit = false
-        dismissActiveCompletionNotification(closePanel: true, advanceQueue: true)
+        completionNotificationDismissWorkItem?.cancel()
+        completionNotificationDismissWorkItem = nil
     }
 
     private func dismissActiveCompletionNotification(
@@ -1554,6 +1550,7 @@ struct NotchView: View {
         } else {
             AppSettings.muteReminderNotifications(for: Self.temporaryReminderMuteDuration)
             clearCompletionNotifications(keepPanelOpen: true)
+            clearActivePluginNotification(keepPanelOpen: true)
 
             if viewModel.openReason == .notification {
                 viewModel.exitChat()
@@ -1687,6 +1684,33 @@ private struct NotchSettingsButton: View {
                 isHovering = hovering
             }
         }
+    }
+}
+
+private struct RingingBellIndicatorIcon: View {
+    let size: CGFloat
+    let color: Color
+
+    @ObservedObject private var energyGovernor = EnergyGovernor.shared
+    @State private var isRinging = false
+
+    var body: some View {
+        Image(systemName: "bell.fill")
+            .font(.system(size: max(9, size - 3), weight: .bold))
+            .foregroundStyle(color)
+            .frame(width: size, height: size)
+            .rotationEffect(.degrees(isRinging ? 11 : -11), anchor: .top)
+            .symbolEffect(.pulse, options: .repeating, value: isRinging)
+            .shadow(color: color.opacity(0.28), radius: 3)
+            .onAppear {
+                guard energyGovernor.policy.animationLevel != .staticFrames else { return }
+                withAnimation(.easeInOut(duration: 0.16).repeatForever(autoreverses: true)) {
+                    isRinging = true
+                }
+            }
+            .onDisappear {
+                isRinging = false
+            }
     }
 }
 

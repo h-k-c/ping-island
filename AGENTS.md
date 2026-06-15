@@ -46,6 +46,8 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 - Session list UI: `PingIsland/UI/Views/SessionListView.swift`
 - Client mascot system: `PingIsland/UI/Components/MascotView.swift`, `PingIsland/UI/Views/MascotSettingsView.swift`
 - App updates and release notes: `PingIsland/Services/Update/`, `PingIsland/UI/Views/ReleaseNotesWindowView.swift`, `PingIsland/UI/Window/ReleaseNotesWindowController.swift`
+- Island plugin runtime: `PingIsland/Services/Plugin/`, `PingIslandPlugin/`
+  - Default island tools are seeded into the user plugin folder and then loaded from that same folder, so bundled tools and third-party plugins share one runtime path.
 - Sparkle build configuration: `Config/App.xcconfig`, `Config/LocalSecrets.xcconfig`, `docs/sparkle-release.md`
 - Mac App Store distribution lane: `PingIslandAppStore` target / scheme, `PingIsland/Info-AppStore.plist`, `PingIsland/Resources/PingIsland-AppStore.entitlements`, `Config/AppStore.xcconfig`, `scripts/build-app-store.sh`, and `docs/mac-app-store-submission.md`
 

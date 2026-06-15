@@ -1610,7 +1610,8 @@ final class DetachedIslandWindowController: NSWindowController, NSWindowDelegate
         applyBubbleStateChange {
             interactionModel.presentHoverPreview(canPresentBubble: true)
         }
-        scheduleCompletionNotificationDismissal(for: nextNotification.id)
+        completionNotificationDismissWorkItem?.cancel()
+        completionNotificationDismissWorkItem = nil
     }
 
     private func scheduleCompletionNotificationDismissal(for notificationID: UUID) {

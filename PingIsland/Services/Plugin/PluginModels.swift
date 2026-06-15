@@ -264,7 +264,7 @@ enum CompactPosition: String, Codable, Equatable, Sendable {
 }
 
 struct PluginCompactContent: Codable, Equatable, Sendable {
-    let icon: PluginIcon
+    let icon: PluginIcon?
     let label: String?
     let badge: Int?
     let tint: PluginTint?

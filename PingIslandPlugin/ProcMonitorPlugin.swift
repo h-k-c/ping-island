@@ -5,7 +5,8 @@ import Darwin
 import Foundation
 
 enum ProcMonitorPlugin {
-    private static let refreshInterval: TimeInterval = 10
+    private static let compactRefreshInterval: DispatchTimeInterval = .seconds(1)
+    private static let detailsRefreshInterval: TimeInterval = 10
     private static let topProcessLimit = 8
 
     static func run() {
@@ -20,9 +21,26 @@ enum ProcMonitorPlugin {
         let stop = DispatchSemaphore(value: 0)
 
         refreshQueue.async {
+            var previousNetworkSample = SystemSampler.fetchNetworkBytes()
+            var nextDetailsRefreshAt = Date.distantPast
+
             while true {
-                refresh()
-                if stop.wait(timeout: .now() + refreshInterval) == .success {
+                let now = Date()
+                let currentNetworkSample = SystemSampler.fetchNetworkBytes()
+                let network = NetworkSpeedSnapshot(
+                    previous: previousNetworkSample,
+                    current: currentNetworkSample
+                )
+                previousNetworkSample = currentNetworkSample
+
+                if now >= nextDetailsRefreshAt {
+                    refreshDetails()
+                    nextDetailsRefreshAt = now.addingTimeInterval(detailsRefreshInterval)
+                }
+
+                sendCompact(network: network)
+
+                if stop.wait(timeout: .now() + compactRefreshInterval) == .success {
                     break
                 }
             }
@@ -43,30 +61,29 @@ enum ProcMonitorPlugin {
             "params": [
                 "position": "right",
                 "content": [
-                    "icon": ["type": "sf", "name": "cpu.fill"],
-                    "tint": "default"
+                    "label": "--",
+                    "tint": "blue"
                 ]
             ]
         ])
     }
 
-    private static func refresh() {
+    private static func refreshDetails() {
         let memory = SystemSampler.fetchMemory()
         let groups = SystemSampler.fetchProcessGroups()
 
-        sendCompact(memory: memory)
         sendExpanded(memory: memory, groups: groups)
     }
 
-    private static func sendCompact(memory: MemorySnapshot) {
+    private static func sendCompact(network: NetworkSpeedSnapshot) {
         sendJSON([
             "jsonrpc": "2.0",
             "method": "island/compact",
             "params": [
                 "position": "right",
                 "content": [
-                    "icon": ["type": "sf", "name": "cpu.fill"],
-                    "tint": tint(forPercent: memory.percent)
+                    "label": network.compactLabel,
+                    "tint": network.tint
                 ]
             ]
         ])
@@ -147,6 +164,54 @@ private struct MemorySnapshot {
     let percent: Double
 }
 
+private struct NetworkByteSample {
+    let date: Date
+    let received: UInt64
+    let sent: UInt64
+}
+
+private struct NetworkSpeedSnapshot {
+    let totalBytesPerSecond: Double
+
+    init(previous: NetworkByteSample, current: NetworkByteSample) {
+        let elapsed = current.date.timeIntervalSince(previous.date)
+        guard elapsed > 0 else {
+            totalBytesPerSecond = 0
+            return
+        }
+
+        let receivedDelta = current.received >= previous.received
+            ? current.received - previous.received
+            : 0
+        let sentDelta = current.sent >= previous.sent
+            ? current.sent - previous.sent
+            : 0
+        totalBytesPerSecond = Double(receivedDelta + sentDelta) / elapsed
+    }
+
+    var compactLabel: String {
+        let mbps = max(0, totalBytesPerSecond) * 8 / 1_000_000
+        switch mbps {
+        case 100...:
+            return String(format: "%.0fM", mbps)
+        case 1..<100:
+            return String(format: "%.1fM", mbps)
+        default:
+            let kbps = max(0, totalBytesPerSecond) * 8 / 1_000
+            return String(format: "%.0fK", kbps)
+        }
+    }
+
+    var tint: String {
+        let mbps = max(0, totalBytesPerSecond) * 8 / 1_000_000
+        switch mbps {
+        case 50...: return "orange"
+        case 10..<50: return "green"
+        default: return "blue"
+        }
+    }
+}
+
 private struct ProcessSnapshot {
     let pid: Int
     let parentPid: Int
@@ -205,6 +270,38 @@ private enum SystemSampler {
         fetchProcesses()
             .sorted { $0.residentBytes > $1.residentBytes }
             .map { ProcessGroupSnapshot(parent: $0, children: []) }
+    }
+
+    static func fetchNetworkBytes() -> NetworkByteSample {
+        var received: UInt64 = 0
+        var sent: UInt64 = 0
+        var interfaces: UnsafeMutablePointer<ifaddrs>?
+
+        guard getifaddrs(&interfaces) == 0, let firstInterface = interfaces else {
+            return NetworkByteSample(date: Date(), received: 0, sent: 0)
+        }
+        defer { freeifaddrs(interfaces) }
+
+        var cursor: UnsafeMutablePointer<ifaddrs>? = firstInterface
+        while let interface = cursor {
+            defer { cursor = interface.pointee.ifa_next }
+
+            let name = String(cString: interface.pointee.ifa_name)
+            guard !name.hasPrefix("lo") else { continue }
+
+            let flags = interface.pointee.ifa_flags
+            guard (flags & UInt32(IFF_UP)) != 0,
+                  (flags & UInt32(IFF_LOOPBACK)) == 0,
+                  let dataPointer = interface.pointee.ifa_data else {
+                continue
+            }
+
+            let data = dataPointer.assumingMemoryBound(to: if_data.self).pointee
+            received &+= UInt64(data.ifi_ibytes)
+            sent &+= UInt64(data.ifi_obytes)
+        }
+
+        return NetworkByteSample(date: Date(), received: received, sent: sent)
     }
 
     private static func fetchProcesses() -> [ProcessSnapshot] {

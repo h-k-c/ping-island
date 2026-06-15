@@ -663,11 +663,11 @@ struct MascotView: View {
     ) {
         let space = PixelSpace(canvasSize, logicalWidth: 16, logicalHeight: 14, yOffset: 2)
         let motion = motionValues(for: mode, time: time)
-        let cloud = Color(red: 0.93, green: 0.93, blue: 0.94)
-        let dark = Color(red: 0.67, green: 0.68, blue: 0.70)
-        let prompt = Color.black
-        let keyboardBase = Color(red: 0.18, green: 0.18, blue: 0.20)
-        let keyboardKey = Color(red: 0.39, green: 0.40, blue: 0.43)
+        let cloud = Color(red: 0.45, green: 0.55, blue: 1.0)
+        let dark = Color(red: 0.30, green: 0.26, blue: 0.78)
+        let prompt = Color(red: 0.18, green: 0.96, blue: 0.58)
+        let keyboardBase = Color(red: 0.10, green: 0.12, blue: 0.22)
+        let keyboardKey = Color(red: 0.30, green: 0.35, blue: 0.68)
 
         drawShadow(in: context, space: space, centerX: 8, y: 15.5, width: 7.6 - abs(motion.bounce) * 0.3, opacity: 0.23)
 
@@ -691,6 +691,8 @@ struct MascotView: View {
         for row in rows {
             context.fill(Path(space.rect(row.1 + motion.shake, row.0 + motion.vertical, row.2 * motion.squashX, 1 * motion.squashY)), with: .color(cloud))
         }
+        context.fill(Path(space.rect(4.4 + motion.shake, 7.0 + motion.vertical, 7.2 * motion.squashX, 1.2)), with: .color(Color(red: 0.62, green: 0.72, blue: 1.0).opacity(0.58)))
+        context.fill(Path(space.rect(5.0 + motion.shake, 5.7 + motion.vertical, 5.8 * motion.squashX, 0.7)), with: .color(Color.white.opacity(0.38)))
 
         context.fill(Path(space.rect(5.1 + motion.shake, 13.7 + motion.vertical, 0.9, 1.1)), with: .color(dark))
         context.fill(Path(space.rect(9.6 + motion.shake, 13.7 + motion.vertical, 0.9, 1.1)), with: .color(dark))

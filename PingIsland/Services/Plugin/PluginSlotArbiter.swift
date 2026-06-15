@@ -126,7 +126,8 @@ final class PluginSlotArbiter: ObservableObject {
     }
 
     private func sanitize(_ content: PluginCompactContent) -> PluginCompactContent {
-        let label = content.label.map { String($0.prefix(4)) }
+        let labelLimit = content.icon == nil ? 5 : 4
+        let label = content.label.map { String($0.prefix(labelLimit)) }
         let badge = content.badge.map { max(0, $0) }
         return PluginCompactContent(icon: content.icon, label: label, badge: badge, tint: content.tint)
     }

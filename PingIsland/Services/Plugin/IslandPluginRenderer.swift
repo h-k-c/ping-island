@@ -8,14 +8,17 @@ enum IslandPluginRenderer {
     @ViewBuilder
     static func compactView(content: PluginCompactContent) -> some View {
         HStack(spacing: 3) {
-            iconView(content.icon, size: 11)
-                .foregroundStyle(tintColor(content.tint).opacity(0.9))
+            if let icon = content.icon {
+                iconView(icon, size: 11)
+                    .foregroundStyle(tintColor(content.tint).opacity(0.9))
+            }
 
             if let label = content.label {
                 Text(label)
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(.system(size: content.icon == nil ? 9.2 : 10, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.85))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
 
             if let badge = content.badge, badge > 0 {

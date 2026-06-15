@@ -13,6 +13,7 @@ struct IslandOpenedContentView: View {
     let onAttentionActionCompleted: () -> Void
     let onCompletionNotificationHoverChanged: (Bool) -> Void
     let onDismissCompletionNotification: () -> Void
+    let onDismissPluginNotification: () -> Void
 
     var body: some View {
         routeContent
@@ -78,7 +79,10 @@ struct IslandOpenedContentView: View {
                 }
             )
         case .pluginNotification(let notification):
-            PluginNotificationPanelView(notification: notification)
+            PluginNotificationPanelView(
+                notification: notification,
+                onDismiss: onDismissPluginNotification
+            )
                 .background(
                     GeometryReader { geometry in
                         Color.clear.preference(
