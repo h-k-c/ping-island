@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 enum SettingsCategory: String, CaseIterable, Identifiable {
     case general
     case display
+    case realtimeNotifications
     case plugins
     case about
 
@@ -17,6 +18,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "通用"
         case .display: return "显示"
+        case .realtimeNotifications: return "实时通知"
         case .plugins: return "插件"
         case .about: return "关于"
         }
@@ -26,6 +28,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "基础行为"
         case .display: return "显示方式"
+        case .realtimeNotifications: return "会话来源"
         case .plugins: return "岛上工具"
         case .about: return "版本与更新"
         }
@@ -35,6 +38,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape.fill"
         case .display: return "rectangle.on.rectangle"
+        case .realtimeNotifications: return "bell.badge.fill"
         case .plugins: return "puzzlepiece.extension.fill"
         case .about: return "info.circle.fill"
         }
@@ -44,13 +48,14 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: return Color(red: 0.12, green: 0.42, blue: 0.95)
         case .display: return Color(red: 0.46, green: 0.40, blue: 0.96)
+        case .realtimeNotifications: return Color(red: 0.20, green: 0.68, blue: 0.92)
         case .plugins: return Color(red: 0.55, green: 0.36, blue: 0.96)
         case .about: return Color(red: 0.17, green: 0.60, blue: 0.96)
         }
     }
 
     static var visibleCategories: [SettingsCategory] {
-        [.general, .display, .plugins, .about]
+        [.general, .display, .realtimeNotifications, .plugins, .about]
     }
 }
 
@@ -161,7 +166,7 @@ final class SettingsPanelViewModel: ObservableObject {
         switch category {
         case .display:
             ScreenSelector.shared.refreshScreens()
-        case .general, .plugins, .about:
+        case .general, .realtimeNotifications, .plugins, .about:
             break
         }
     }
@@ -395,7 +400,7 @@ private struct SettingsCategoryLoadingView: View {
         switch category {
         case .display:
             return AppLocalization.string("正在刷新显示器与用量展示状态")
-        case .general, .plugins, .about:
+        case .general, .realtimeNotifications, .plugins, .about:
             return AppLocalization.string("马上就好")
         }
     }
@@ -788,6 +793,8 @@ private struct SettingsPanelContentView: View {
                         generalContent
                     case .display:
                         displayContent
+                    case .realtimeNotifications:
+                        RealtimeNotificationsSettingsView()
                     case .plugins:
                         PluginsSettingsView()
                     case .about:
@@ -893,7 +900,7 @@ private struct SettingsPanelContentView: View {
         switch category {
         case .display:
             return true
-        case .general, .plugins, .about:
+        case .general, .realtimeNotifications, .plugins, .about:
             return false
         }
     }

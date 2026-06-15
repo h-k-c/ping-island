@@ -4,7 +4,6 @@ import SwiftUI
 struct PluginsSettingsView: View {
     @ObservedObject private var registry = PluginRegistry.shared
     @ObservedObject private var host = PluginHost.shared
-    @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var arbiter = PluginSlotArbiter.shared
 
     var body: some View {
@@ -12,10 +11,6 @@ struct PluginsSettingsView: View {
             // Slot assignment — always at top
             if !compactCapablePlugins.isEmpty {
                 slotAssignmentCard
-            }
-
-            if !realtimeNotificationSources.isEmpty {
-                realtimeNotificationCard
             }
 
             // One card per user-facing island tool. Core session monitors subscribe
@@ -52,56 +47,6 @@ struct PluginsSettingsView: View {
                 .foregroundStyle(.secondary)
             }
         }
-    }
-
-    // MARK: - Realtime Notification Sources
-
-    private var realtimeNotificationCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("实时通知源")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(.primary)
-                .padding(.bottom, 10)
-
-            card {
-                ForEach(Array(realtimeNotificationSources.enumerated()), id: \.element.id) { index, source in
-                    if index > 0 { rowDivider() }
-                    realtimeNotificationRow(source)
-                }
-            }
-        }
-    }
-
-    private func realtimeNotificationRow(_ source: ManagedHookClientProfile) -> some View {
-        HStack(spacing: 10) {
-            RealtimeSourceIcon(profile: source)
-                .frame(width: 34, height: 34)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(source.title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.primary)
-                Text("通知时左耳来源图标")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Picker("", selection: Binding(
-                get: { settings.realtimeNotificationIconStyle(for: source.id) },
-                set: { settings.setRealtimeNotificationIconStyle($0, for: source.id) }
-            )) {
-                ForEach(RealtimeNotificationIconStyle.allCases) { style in
-                    Text(style.title).tag(style)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 150)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
     }
 
     // MARK: - Slot Assignment
@@ -258,10 +203,6 @@ struct PluginsSettingsView: View {
         registry.installedPlugins.filter { !$0.manifest.isCoreSessionMonitor }
     }
 
-    private var realtimeNotificationSources: [ManagedHookClientProfile] {
-        ClientProfileRegistry.managedHookProfiles.filter(\.alwaysVisibleInSettings)
-    }
-
     /// Plugins that can render a compact ear, regardless of the specific side
     /// they declare. Both ears can be assigned any of these — the user's choice
     /// decides placement (see PluginSlotArbiter), not the plugin's declared side.
@@ -337,6 +278,106 @@ struct PluginsSettingsView: View {
 private extension PluginManifest {
     var isCoreSessionMonitor: Bool {
         isBuiltIn && subscribesTo.contains("hookEvent")
+    }
+}
+
+struct RealtimeNotificationsSettingsView: View {
+    @ObservedObject private var settings = AppSettings.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            if realtimeNotificationSources.isEmpty {
+                emptyCard
+            } else {
+                sourceCard
+            }
+        }
+    }
+
+    private var sourceCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("实时通知源")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.primary)
+                .padding(.bottom, 10)
+
+            card {
+                ForEach(Array(realtimeNotificationSources.enumerated()), id: \.element.id) { index, source in
+                    if index > 0 { rowDivider() }
+                    realtimeNotificationRow(source)
+                }
+            }
+        }
+    }
+
+    private var emptyCard: some View {
+        card {
+            VStack(spacing: 10) {
+                Image(systemName: "bell.badge")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(.secondary)
+                Text("没有实时通知源")
+                    .font(.system(size: 13, weight: .medium))
+                Text("安装默认 Hooks 后，Claude、Codex 等会话源会显示在这里")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 28)
+        }
+    }
+
+    private func realtimeNotificationRow(_ source: ManagedHookClientProfile) -> some View {
+        HStack(spacing: 10) {
+            RealtimeSourceIcon(profile: source)
+                .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(source.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Text("通知时左耳来源图标")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Picker("", selection: Binding(
+                get: { settings.realtimeNotificationIconStyle(for: source.id) },
+                set: { settings.setRealtimeNotificationIconStyle($0, for: source.id) }
+            )) {
+                ForEach(RealtimeNotificationIconStyle.allCases) { style in
+                    Text(style.title).tag(style)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 150)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private var realtimeNotificationSources: [ManagedHookClientProfile] {
+        ClientProfileRegistry.managedHookProfiles.filter(\.alwaysVisibleInSettings)
+    }
+
+    private func rowDivider() -> some View {
+        Divider().background(Color.white.opacity(0.05)).padding(.leading, 14)
+    }
+
+    @ViewBuilder
+    private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) { content() }
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.045))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 

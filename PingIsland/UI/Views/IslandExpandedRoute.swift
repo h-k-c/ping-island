@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import SwiftUI
 
 enum IslandExpandedSurface: Equatable {
@@ -118,26 +119,92 @@ enum IslandExpandedRouteResolver {
 struct PluginExpandedPanelView: View {
     let pluginId: String
     @ObservedObject private var arbiter = PluginSlotArbiter.shared
+    @ObservedObject private var registry = PluginRegistry.shared
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 10) {
+            header
+
             if let sections = arbiter.expandedContent[pluginId] {
                 ScrollView {
                     IslandPluginRenderer.expandedView(sections: sections, pluginId: pluginId)
                 }
             } else {
-                Text("加载中…")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.4))
-                    .padding()
+                loadingDetail
             }
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.white.opacity(0.06))
+        )
         .onAppear { arbiter.currentlyDisplayedExpandedPluginId = pluginId }
         .onDisappear {
             if arbiter.currentlyDisplayedExpandedPluginId == pluginId {
                 arbiter.currentlyDisplayedExpandedPluginId = nil
             }
         }
+    }
+
+    @ViewBuilder
+    private var header: some View {
+        HStack(alignment: .center, spacing: 10) {
+            pluginIcon
+                .frame(width: 24, height: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(plugin?.manifest.name ?? "插件详情")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                if let description = plugin?.manifest.description {
+                    Text(description)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.52))
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var loadingDetail: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+                .tint(.white.opacity(0.75))
+            Text("等待插件详情…")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.52))
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 10)
+    }
+
+    @ViewBuilder
+    private var pluginIcon: some View {
+        if let plugin,
+           let iconPath = plugin.manifest.iconPath,
+           let image = NSImage(contentsOfFile: plugin.bundleURL.appendingPathComponent(iconPath).path) {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+        } else if let icon = plugin?.manifest.icon {
+            Image(systemName: icon.sfSymbol)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color(hex: icon.color) ?? .white.opacity(0.88))
+        } else {
+            Image(systemName: "puzzlepiece.extension.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.88))
+        }
+    }
+
+    private var plugin: InstalledPlugin? {
+        registry.installedPlugins.first { $0.id == pluginId }
     }
 }
 
