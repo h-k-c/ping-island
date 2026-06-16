@@ -54,6 +54,7 @@ struct NotchView: View {
     @State private var previousResourceLimitIds: Set<String> = []
     @State private var previousRealtimeHookMessages: [String: String] = [:]
     @State private var activeRealtimeNotificationSessionId: String?
+    @State private var acknowledgedRealtimeNotificationKeys: Set<String> = []
     @State private var previousCompletionNotificationPhases: [String: SessionPhase] = [:]
     @State private var completionNotificationQueue: [SessionCompletionNotification] = []
     @State private var activeCompletionNotification: SessionCompletionNotification?
@@ -204,6 +205,12 @@ struct NotchView: View {
     }
 
     private var activeRealtimeNotificationSession: SessionState? {
+        guard let session = trackedRealtimeNotificationSession else { return nil }
+        guard !isRealtimeNotificationAcknowledged(for: session) else { return nil }
+        return session
+    }
+
+    private var trackedRealtimeNotificationSession: SessionState? {
         guard let activeRealtimeNotificationSessionId else { return nil }
         return sessionMonitor.instances.first {
             $0.stableId == activeRealtimeNotificationSessionId
@@ -943,6 +950,11 @@ struct NotchView: View {
             isVisible = true
             cancelScheduledDetachmentHintPresentation()
             dismissDetachmentHint()
+            if newStatus == .opened,
+               viewModel.openReason == .hover || viewModel.openReason == .notification,
+               let session = activeRealtimeNotificationSession {
+                viewModel.showChat(for: session)
+            }
             if oldStatus != .opened, newStatus == .opened {
                 recordIslandOpened()
             }
@@ -953,6 +965,10 @@ struct NotchView: View {
             }
         case .closed:
             if oldStatus == .opened {
+                if let session = trackedRealtimeNotificationSession {
+                    acknowledgeRealtimeNotification(for: session)
+                }
+                activeRealtimeNotificationSessionId = nil
                 recordIslandClosed()
             }
             isVisible = !viewModel.shouldHideWindowPresentation
@@ -1157,6 +1173,8 @@ struct NotchView: View {
 
     private func handleRealtimeHookNotificationChange(_ instances: [SessionState]) {
         let currentMessages = realtimeNotificationMessages(from: instances)
+        let currentKeys = Set(instances.compactMap { realtimeNotificationKey(for: $0) })
+        acknowledgedRealtimeNotificationKeys.formIntersection(currentKeys)
         defer { previousRealtimeHookMessages = currentMessages }
 
         if activeRealtimeNotificationSession == nil {
@@ -1169,6 +1187,7 @@ struct NotchView: View {
 
         let changedSessions = instances.filter { session in
             guard let message = realtimeNotificationText(for: session), session.phase != .ended else { return false }
+            guard !isRealtimeNotificationAcknowledged(for: session) else { return false }
             return previousRealtimeHookMessages[session.stableId] != message
         }
 
@@ -1178,6 +1197,23 @@ struct NotchView: View {
 
         activeRealtimeNotificationSessionId = target.stableId
         viewModel.presentNotificationChat(for: target)
+    }
+
+    private func acknowledgeRealtimeNotification(for session: SessionState) {
+        guard let key = realtimeNotificationKey(for: session) else { return }
+        acknowledgedRealtimeNotificationKeys.insert(key)
+    }
+
+    private func isRealtimeNotificationAcknowledged(for session: SessionState) -> Bool {
+        guard let key = realtimeNotificationKey(for: session) else { return false }
+        return acknowledgedRealtimeNotificationKeys.contains(key)
+    }
+
+    private func realtimeNotificationKey(for session: SessionState) -> String? {
+        guard let message = realtimeNotificationText(for: session), session.phase != .ended else {
+            return nil
+        }
+        return "\(session.stableId)::\(message)"
     }
 
     private func realtimeNotificationMessages(from instances: [SessionState]) -> [String: String] {
