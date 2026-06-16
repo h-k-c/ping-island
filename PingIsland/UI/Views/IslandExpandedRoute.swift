@@ -33,6 +33,7 @@ enum IslandExpandedRouteResolver {
         contentType: NotchContentType,
         sessions: [SessionState],
         activeCompletionNotification: SessionCompletionNotification? = nil,
+        activeRealtimeNotificationSession: SessionState? = nil,
         activePluginNotification: PluginNotifyUpdate? = nil
     ) -> IslandExpandedRoute {
         switch trigger {
@@ -43,10 +44,20 @@ enum IslandExpandedRouteResolver {
             if let activeCompletionNotification {
                 return .completionNotification(activeCompletionNotification)
             }
+            if let activeRealtimeNotificationSession {
+                return .chat(activeRealtimeNotificationSession)
+            }
             if let activePluginNotification {
                 return .pluginNotification(activePluginNotification)
             }
-        case .click, .hover, .pinnedList:
+        case .hover:
+            if let session = highestPriorityAttentionSession(from: sessions) {
+                return .attentionNotification(session)
+            }
+            if let activeRealtimeNotificationSession {
+                return .chat(activeRealtimeNotificationSession)
+            }
+        case .click, .pinnedList:
             break
         }
 
@@ -65,6 +76,9 @@ enum IslandExpandedRouteResolver {
             }
             if let activeCompletionNotification {
                 return .completionNotification(activeCompletionNotification)
+            }
+            if let activeRealtimeNotificationSession {
+                return .chat(activeRealtimeNotificationSession)
             }
             if let activePluginNotification {
                 return .pluginNotification(activePluginNotification)

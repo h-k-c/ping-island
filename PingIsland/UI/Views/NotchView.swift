@@ -564,7 +564,11 @@ struct NotchView: View {
             }
             .onTapGesture {
                 if !isOpened {
-                    viewModel.notchOpen(reason: isInNotificationMoment ? .notification : .click)
+                    if let session = activeRealtimeNotificationSession {
+                        viewModel.presentNotificationChat(for: session)
+                    } else {
+                        viewModel.notchOpen(reason: isInNotificationMoment ? .notification : .click)
+                    }
                 }
             }
     }
@@ -882,6 +886,7 @@ struct NotchView: View {
             trigger: triggerForCurrentPresentation,
             style: .docked,
             activeCompletionNotification: activeCompletionNotification,
+            activeRealtimeNotificationSession: activeRealtimeNotificationSession,
             activePluginNotification: activePluginNotification,
             onAttentionActionCompleted: {},
             onCompletionNotificationHoverChanged: handleCompletionNotificationHover,

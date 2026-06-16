@@ -7,6 +7,7 @@ struct IslandOpenedContentView: View {
     let trigger: IslandExpandedTrigger
     let style: IslandOpenedPresentationStyle
     let activeCompletionNotification: SessionCompletionNotification?
+    var activeRealtimeNotificationSession: SessionState? = nil
     var activePluginNotification: PluginNotifyUpdate? = nil
     var highlightedSessionStableID: String? = nil
     var contentWidthOverride: CGFloat? = nil
@@ -30,6 +31,7 @@ struct IslandOpenedContentView: View {
             contentType: viewModel.contentType,
             sessions: sessionMonitor.instances,
             activeCompletionNotification: activeCompletionNotification,
+            activeRealtimeNotificationSession: activeRealtimeNotificationSession,
             activePluginNotification: activePluginNotification
         )
     }
