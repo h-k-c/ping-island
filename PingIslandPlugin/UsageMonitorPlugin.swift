@@ -216,6 +216,7 @@ enum UsageMonitorPlugin {
             "params": [
                 "position": "right",
                 "content": [
+                    "icon": ["type": "sf", "name": "chart.pie.fill"],
                     "label": "--",
                     "tint": "default"
                 ]
@@ -240,6 +241,7 @@ enum UsageMonitorPlugin {
         let content: [String: Any]
         if let codex = snapshot.codex.data, codex.hasPrimaryData {
             content = [
+                "icon": ["type": "sf", "name": "chart.pie.fill"],
                 "label": "\(min(max(codex.primaryUsedPercent, 0), 999))%",
                 "tint": tint(codex.primaryFraction)
             ]
@@ -255,6 +257,7 @@ enum UsageMonitorPlugin {
             ]
         } else {
             content = [
+                "icon": ["type": "sf", "name": "chart.pie.fill"],
                 "label": "--",
                 "tint": "default"
             ]

@@ -7,19 +7,14 @@ enum IslandPluginRenderer {
 
     @ViewBuilder
     static func compactView(content: PluginCompactContent) -> some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 2.5) {
             if let icon = content.icon {
-                iconView(icon, size: 11)
-                    .foregroundStyle(tintColor(content.tint).opacity(0.9))
+                iconView(icon, size: 8.8)
+                    .foregroundStyle(tintColor(content.tint).opacity(0.86))
             }
 
             if let label = content.label {
-                Text(label)
-                    .font(compactLabelFont(hasIcon: content.icon != nil))
-                    .monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.78))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                compactLabelView(label, hasIcon: content.icon != nil)
             }
 
             if let badge = content.badge, badge > 0 {
@@ -34,7 +29,30 @@ enum IslandPluginRenderer {
     }
 
     private static func compactLabelFont(hasIcon: Bool) -> Font {
-        .system(size: hasIcon ? 9.8 : 9.6, weight: .medium, design: .default)
+        .custom("AvenirNextCondensed-Medium", size: hasIcon ? 10.2 : 10.4)
+    }
+
+    @ViewBuilder
+    private static func compactLabelView(_ label: String, hasIcon: Bool) -> some View {
+        if label.hasSuffix("/s") {
+            HStack(alignment: .firstTextBaseline, spacing: 1) {
+                Text(String(label.dropLast(2)))
+                    .font(compactLabelFont(hasIcon: hasIcon))
+                Text("/s")
+                    .font(.custom("AvenirNextCondensed-Medium", size: hasIcon ? 8.0 : 7.8))
+                    .baselineOffset(0.2)
+                    .foregroundStyle(.white.opacity(0.68))
+            }
+            .foregroundStyle(.white.opacity(0.84))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+        } else {
+            Text(label)
+                .font(compactLabelFont(hasIcon: hasIcon))
+                .foregroundStyle(.white.opacity(0.82))
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+        }
     }
 
     // MARK: - Expanded sections

@@ -688,7 +688,7 @@ struct NotchView: View {
                                 IslandPluginRenderer.compactView(content: pluginContent)
                             }
                         }
-                        .frame(width: sideWidth)
+                        .frame(width: closedLeadingWidth, alignment: .leading)
                         .contentShape(Rectangle())
                         .highPriorityGesture(
                             TapGesture().onEnded {
@@ -734,7 +734,7 @@ struct NotchView: View {
     }
 
     private var closedLeadingWidth: CGFloat {
-        sideWidth
+        compactSlotWidth(for: pluginArbiter.activeLeft)
     }
 
     private func presentAssignedPlugin(_ pluginId: String?) {
@@ -743,7 +743,18 @@ struct NotchView: View {
     }
 
     private var closedTrailingWidth: CGFloat {
-        return sideWidth
+        compactSlotWidth(for: pluginArbiter.activeRight)
+    }
+
+    private func compactSlotWidth(for content: PluginCompactContent?) -> CGFloat {
+        guard let content else {
+            return sideWidth
+        }
+        let labelWidth = CGFloat(content.label?.count ?? 0) * 6.3
+        let iconWidth: CGFloat = content.icon == nil ? 0 : 11.5
+        let badgeWidth: CGFloat = (content.badge ?? 0) > 0 ? 16 : 0
+        let estimatedWidth = labelWidth + iconWidth + badgeWidth + 6
+        return max(sideWidth, min(64, estimatedWidth))
     }
 
     private var closedCenterWidth: CGFloat {
