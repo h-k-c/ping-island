@@ -69,8 +69,7 @@ class NotchViewModel: ObservableObject {
     private static let defaultClosedWidth: CGFloat = 266
     // Preserve the visible side rails that the default closed island has beyond
     // the physical camera housing, so mascot/count content never sits under it.
-    private static let physicalNotchContentAllowance: CGFloat =
-        defaultClosedWidth - ScreenNotchMetrics.fallbackNotchWidth
+    private static let physicalNotchContentAllowance: CGFloat = 118
     private static let clickedInstancesPanelWidthRatio: CGFloat = 0.44
     private static let clickedInstancesPanelMaximumWidth: CGFloat = 520
     private static let procMonitorPluginId = "com.auralink.procmonitor"

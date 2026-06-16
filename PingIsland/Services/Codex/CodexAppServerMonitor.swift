@@ -564,6 +564,12 @@ actor CodexAppServerMonitor {
                 phase: phase,
                 intervention: pendingRequestsByThread[threadId]?.intervention
             )
+            await dispatchPluginSessionEvent(
+                sessionId: threadId,
+                event: "StatusChanged",
+                phase: phase,
+                message: statusType
+            )
 
         case "item/autoApprovalReview/started":
             guard let threadId = params["threadId"] as? String,
@@ -581,10 +587,21 @@ actor CodexAppServerMonitor {
                 phase: .waitingForInput,
                 intervention: intervention
             )
+            await dispatchPluginSessionEvent(
+                sessionId: threadId,
+                event: "Notification",
+                phase: .waitingForInput,
+                message: intervention.message
+            )
 
         case "item/autoApprovalReview/completed":
             guard let threadId = params["threadId"] as? String else { return }
             await SessionStore.shared.resolveCodexIntervention(sessionId: threadId, nextPhase: .processing)
+            await dispatchPluginSessionEvent(
+                sessionId: threadId,
+                event: "NotificationResolved",
+                phase: .processing
+            )
             _ = try? await readThread(threadId: threadId, includeTurns: true)
 
         case "thread/started":
@@ -611,6 +628,11 @@ actor CodexAppServerMonitor {
             logger.info("Codex thread archived thread=\(threadId, privacy: .public)")
             removeThreadDiagnostics(threadId: threadId)
             await SessionStore.shared.process(.sessionEnded(sessionId: threadId))
+            await dispatchPluginSessionEvent(
+                sessionId: threadId,
+                event: "SessionEnd",
+                phase: .ended
+            )
 
         default:
             break
@@ -661,6 +683,18 @@ actor CodexAppServerMonitor {
                 )),
                 intervention: intervention
             )
+            await dispatchPluginSessionEvent(
+                sessionId: threadId,
+                event: "PermissionRequest",
+                phase: .waitingForApproval(PermissionContext(
+                    toolUseId: params["callId"] as? String ?? id,
+                    toolName: "exec_command",
+                    toolInput: nil,
+                    receivedAt: Date()
+                )),
+                cwd: cwd,
+                message: intervention.message
+            )
 
         case "item/fileChange/requestApproval":
             guard let threadId = params["threadId"] as? String else { return }
@@ -700,6 +734,17 @@ actor CodexAppServerMonitor {
                 )),
                 intervention: intervention
             )
+            await dispatchPluginSessionEvent(
+                sessionId: threadId,
+                event: "PermissionRequest",
+                phase: .waitingForApproval(PermissionContext(
+                    toolUseId: params["itemId"] as? String ?? id,
+                    toolName: "file_change",
+                    toolInput: nil,
+                    receivedAt: Date()
+                )),
+                message: intervention.message
+            )
 
         case "item/permissions/requestApproval":
             guard let threadId = params["threadId"] as? String else { return }
@@ -738,6 +783,17 @@ actor CodexAppServerMonitor {
                 )),
                 intervention: intervention
             )
+            await dispatchPluginSessionEvent(
+                sessionId: threadId,
+                event: "PermissionRequest",
+                phase: .waitingForApproval(PermissionContext(
+                    toolUseId: params["itemId"] as? String ?? id,
+                    toolName: "permissions_request",
+                    toolInput: nil,
+                    receivedAt: Date()
+                )),
+                message: intervention.message
+            )
 
         case "item/tool/requestUserInput":
             guard let threadId = params["threadId"] as? String else { return }
@@ -772,6 +828,12 @@ actor CodexAppServerMonitor {
                 cwd: nil,
                 phase: .waitingForInput,
                 intervention: intervention
+            )
+            await dispatchPluginSessionEvent(
+                sessionId: threadId,
+                event: "Notification",
+                phase: .waitingForInput,
+                message: intervention.message
             )
 
         default:
@@ -879,6 +941,14 @@ actor CodexAppServerMonitor {
             intervention: pendingRequestsByThread[threadId]?.intervention,
             clientInfo: clientInfo,
             activityAt: diagnostics.updatedAt
+        )
+        await dispatchPluginSessionEvent(
+            sessionId: threadId,
+            event: "ThreadUpdated",
+            phase: phase,
+            cwd: cwd,
+            message: preview ?? name,
+            skipIdle: true
         )
     }
 
@@ -1188,6 +1258,49 @@ actor CodexAppServerMonitor {
         }
 
         return .idle
+    }
+
+    private func dispatchPluginSessionEvent(
+        sessionId: String,
+        event: String,
+        phase: SessionPhase,
+        cwd: String? = nil,
+        message: String? = nil,
+        skipIdle: Bool = false
+    ) async {
+        let status = pluginStatus(for: phase)
+        if skipIdle && status == "idle" {
+            return
+        }
+
+        await MainActor.run {
+            PluginEventBus.shared.dispatchSessionEvent(
+                sessionId: sessionId,
+                event: event,
+                status: status,
+                provider: .codex,
+                cwd: cwd,
+                message: message,
+                phase: status
+            )
+        }
+    }
+
+    private func pluginStatus(for phase: SessionPhase) -> String {
+        switch phase {
+        case .waitingForApproval:
+            return "waiting_for_approval"
+        case .waitingForInput:
+            return "waiting_for_input"
+        case .processing:
+            return "processing"
+        case .compacting:
+            return "processing"
+        case .ended:
+            return "ended"
+        case .idle:
+            return "idle"
+        }
     }
 
     static func guardianReviewIntervention(from params: [String: Any]) -> SessionIntervention? {

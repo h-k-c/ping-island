@@ -20,6 +20,32 @@ final class PluginEventBus {
             message: event.message,
             phase: resolvedPhase(from: event)
         )
+        dispatchHookEventJSON(json)
+    }
+
+    /// Dispatch a normalized app-server session event to plugins that subscribe to "hookEvent".
+    func dispatchSessionEvent(
+        sessionId: String,
+        event: String,
+        status: String,
+        provider: SessionProvider,
+        cwd: String?,
+        message: String?,
+        phase: String
+    ) {
+        let json = hookEventJSON(
+            sessionId: sessionId,
+            event: event,
+            status: status,
+            provider: provider.rawValue,
+            cwd: cwd ?? "",
+            message: message,
+            phase: phase
+        )
+        dispatchHookEventJSON(json)
+    }
+
+    private func dispatchHookEventJSON(_ json: [String: Any]) {
         let subscribed = PluginHost.shared.subscribedProcesses(for: "hookEvent")
         for process in subscribed {
             Task {

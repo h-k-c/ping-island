@@ -6,7 +6,19 @@ enum IslandPluginRenderer {
     // MARK: - Compact slot
 
     @ViewBuilder
-    static func compactView(content: PluginCompactContent) -> some View {
+    static func compactView(content: PluginCompactContent, pluginId: String? = nil) -> some View {
+        switch pluginId {
+        case "com.auralink.usage":
+            UsageFlameCompactView(content: content)
+        case "com.auralink.procmonitor":
+            NetworkSpeedCompactView(content: content)
+        default:
+            defaultCompactView(content: content)
+        }
+    }
+
+    @ViewBuilder
+    private static func defaultCompactView(content: PluginCompactContent) -> some View {
         HStack(spacing: 3) {
             if let icon = content.icon {
                 iconView(icon, size: 11)
@@ -388,6 +400,123 @@ enum IslandPluginRenderer {
     private static func normalizeValues(_ values: [Double]) -> [Double] {
         guard let max = values.max(), max > 0 else { return values.map { _ in 0 } }
         return values.map { $0 / max }
+    }
+}
+
+private struct UsageFlameCompactView: View {
+    let content: PluginCompactContent
+
+    private var percentage: Int? {
+        guard let label = content.label else { return nil }
+        let digits = label.filter(\.isNumber)
+        guard let value = Int(digits) else { return nil }
+        return max(0, min(100, value))
+    }
+
+    private var fillFraction: Double {
+        Double(percentage ?? 0) / 100.0
+    }
+
+    private var flameSize: CGFloat {
+        8.5 + CGFloat(fillFraction) * 2.5
+    }
+
+    private var flameGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(red: 1.0, green: 0.90, blue: 0.24),
+                Color(red: 1.0, green: 0.45, blue: 0.12),
+                Color(red: 0.96, green: 0.15, blue: 0.08)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    var body: some View {
+        HStack(spacing: 2.5) {
+            Image(systemName: "flame.fill")
+                .font(.system(size: flameSize, weight: .bold))
+                .foregroundStyle(flameGradient)
+                .shadow(color: Color.orange.opacity(0.35 + fillFraction * 0.2), radius: 2, y: 0.5)
+
+            Text(content.label ?? "--")
+                .font(.system(size: 8, weight: .black, design: .rounded))
+                .foregroundStyle(.white.opacity(0.92))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .shadow(color: .black.opacity(0.55), radius: 1, y: 0.5)
+        }
+        .padding(.horizontal, 4)
+        .frame(width: 32, height: 16)
+        .background(
+            Capsule()
+                .fill(Color(red: 0.16, green: 0.09, blue: 0.03).opacity(0.68))
+                .overlay(Capsule().stroke(Color.orange.opacity(0.24), lineWidth: 0.7))
+        )
+        .accessibilityLabel("Codex 用量 \(content.label ?? "--")")
+    }
+}
+
+private struct NetworkSpeedCompactView: View {
+    let content: PluginCompactContent
+
+    private var label: String {
+        guard let raw = content.label else { return "--" }
+        let compact = raw
+            .replacingOccurrences(of: ".0K", with: "K")
+            .replacingOccurrences(of: ".0M", with: "M")
+            .replacingOccurrences(of: " ", with: "")
+        if compact.count <= 4 { return compact }
+        return String(compact.prefix(4))
+    }
+
+    private var tint: Color {
+        switch content.tint ?? .default {
+        case .green: return Color(red: 0.22, green: 0.92, blue: 0.58)
+        case .orange, .yellow: return Color(red: 1.0, green: 0.62, blue: 0.18)
+        case .red: return Color(red: 1.0, green: 0.32, blue: 0.28)
+        case .blue, .purple, .default: return Color(red: 0.40, green: 0.76, blue: 1.0)
+        }
+    }
+
+    private var barWidths: [CGFloat] {
+        let digits = Double(label.filter(\.isNumber)) ?? 0
+        let normalized = min(1, digits / 999)
+        return [
+            2.5 + CGFloat(normalized) * 1.5,
+            4.5 + CGFloat(normalized) * 2.5,
+            3.2 + CGFloat(normalized) * 3
+        ]
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            VStack(alignment: .leading, spacing: 1.6) {
+                ForEach(Array(barWidths.enumerated()), id: \.offset) { index, width in
+                    Capsule()
+                        .fill(index == 1 ? tint : tint.opacity(0.46))
+                        .frame(width: width, height: 1)
+                }
+            }
+
+            Text(label)
+                .font(.system(size: 7.8, weight: .black, design: .rounded))
+                .foregroundStyle(.white.opacity(0.94))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .padding(.horizontal, 3)
+        .frame(width: 34, height: 16)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.055))
+                .overlay(
+                    Capsule().stroke(tint.opacity(0.34), lineWidth: 0.7)
+                )
+        )
+        .shadow(color: tint.opacity(0.18), radius: 2, y: 0.5)
+        .accessibilityLabel("实时网速 \(label)")
     }
 }
 

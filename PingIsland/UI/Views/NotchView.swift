@@ -650,10 +650,15 @@ struct NotchView: View {
                             if showsClosedNotificationSource {
                                 notificationSourceIcon(size: petIconSize, status: closedMascotStatus)
                             } else if let pluginContent = pluginArbiter.activeLeft {
-                                IslandPluginRenderer.compactView(content: pluginContent)
+                                IslandPluginRenderer.compactView(
+                                    content: pluginContent,
+                                    pluginId: pluginArbiter.activeLeftPluginId
+                                )
                             }
                         }
                         .frame(width: sideWidth)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 3)
                         .contentShape(Rectangle())
                         .highPriorityGesture(
                             TapGesture().onEnded {
@@ -677,10 +682,15 @@ struct NotchView: View {
                             if isInNotificationMoment {
                                 notificationIndicatorIcon(size: 12)
                             } else if let pluginContent = pluginArbiter.activeRight {
-                                IslandPluginRenderer.compactView(content: pluginContent)
+                                IslandPluginRenderer.compactView(
+                                    content: pluginContent,
+                                    pluginId: pluginArbiter.activeRightPluginId
+                                )
                             }
                         }
                         .frame(width: closedTrailingWidth, alignment: .trailing)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 3)
                         .contentShape(Rectangle())
                         .highPriorityGesture(
                             TapGesture().onEnded {
@@ -695,7 +705,7 @@ struct NotchView: View {
     }
 
     private var sideWidth: CGFloat {
-        max(0, closedNotchSize.height - 12) + 10
+        max(36, closedNotchSize.height + 4)
     }
 
     private var closedLeadingWidth: CGFloat {

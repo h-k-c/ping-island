@@ -5,7 +5,7 @@ import Darwin
 import Foundation
 
 enum ProcMonitorPlugin {
-    private static let compactRefreshInterval: DispatchTimeInterval = .seconds(3)
+    private static let compactRefreshInterval: DispatchTimeInterval = .seconds(5)
     private static let detailsRefreshInterval: TimeInterval = 10
     private static let topProcessLimit = 8
 
@@ -22,15 +22,18 @@ enum ProcMonitorPlugin {
 
         refreshQueue.async {
             var previousNetworkSample = SystemSampler.fetchNetworkBytes()
+            var smoothedNetwork: NetworkSpeedSnapshot?
             var nextDetailsRefreshAt = Date.distantPast
 
             while true {
                 let now = Date()
                 let currentNetworkSample = SystemSampler.fetchNetworkBytes()
-                let network = NetworkSpeedSnapshot(
+                let rawNetwork = NetworkSpeedSnapshot(
                     previous: previousNetworkSample,
                     current: currentNetworkSample
                 )
+                let network = smoothedNetwork?.smoothed(toward: rawNetwork) ?? rawNetwork
+                smoothedNetwork = network
                 previousNetworkSample = currentNetworkSample
 
                 if now >= nextDetailsRefreshAt {
@@ -190,6 +193,19 @@ private struct NetworkSpeedSnapshot {
             : 0
         receivedBytesPerSecond = Double(receivedDelta) / elapsed
         sentBytesPerSecond = Double(sentDelta) / elapsed
+    }
+
+    init(receivedBytesPerSecond: Double, sentBytesPerSecond: Double) {
+        self.receivedBytesPerSecond = receivedBytesPerSecond
+        self.sentBytesPerSecond = sentBytesPerSecond
+    }
+
+    func smoothed(toward next: NetworkSpeedSnapshot) -> NetworkSpeedSnapshot {
+        let alpha = 0.45
+        return NetworkSpeedSnapshot(
+            receivedBytesPerSecond: receivedBytesPerSecond * (1 - alpha) + next.receivedBytesPerSecond * alpha,
+            sentBytesPerSecond: sentBytesPerSecond * (1 - alpha) + next.sentBytesPerSecond * alpha
+        )
     }
 
     var compactLabel: String {
