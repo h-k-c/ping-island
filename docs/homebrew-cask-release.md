@@ -1,6 +1,6 @@
 # Homebrew Cask Release Setup
 
-Ping Island distributes Homebrew installs from the same notarized DMG that the
+Auralink distributes Homebrew installs from the same notarized DMG that the
 GitHub Release and Sparkle release flow already publish.
 
 ## Tap

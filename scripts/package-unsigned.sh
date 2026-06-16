@@ -13,14 +13,14 @@ RELEASE_DIR="$PROJECT_DIR/releases/unsigned"
 DMG_BACKGROUND_SOURCE="${PING_ISLAND_DMG_BACKGROUND_SOURCE:-$PROJECT_DIR/docs/images/ping-island-dmg-installer-background.png}"
 DMG_LOGO_SOURCE="${PING_ISLAND_DMG_LOGO_SOURCE:-$PROJECT_DIR/docs/images/ping-island-icon-transparent.svg}"
 
-APP_BUNDLE_NAME="Ping Island.app"
+APP_BUNDLE_NAME="Auralink.app"
 APP_PRODUCT_NAME="PingIsland"
 SCHEME="PingIsland"
 PROJECT_FILE="$PROJECT_DIR/PingIsland.xcodeproj"
 APP_PATH="$DERIVED_DATA_PATH/Build/Products/Release/$APP_BUNDLE_NAME"
 BUILD_MODE_LABEL="release"
 
-echo "=== Packaging Unsigned Ping Island ==="
+echo "=== Packaging Unsigned Auralink ==="
 echo ""
 
 resolve_exported_app_icon() {
@@ -126,7 +126,7 @@ echo "Creating ZIP..."
 ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
 
 echo "Creating DMG..."
-create_styled_dmg "$APP_PATH" "$DMG_PATH" "Ping Island" "$STAGING_DIR" "$PROJECT_DIR"
+create_styled_dmg "$APP_PATH" "$DMG_PATH" "Auralink" "$STAGING_DIR" "$PROJECT_DIR"
 
 echo ""
 echo "=== Unsigned Package Ready ==="

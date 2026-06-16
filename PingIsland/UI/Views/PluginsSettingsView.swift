@@ -229,9 +229,9 @@ struct PluginsSettingsView: View {
         switch manifest.id {
         case "com.example.weatherdemo":
             return ("sun.max.fill", Color(red: 1.0, green: 0.62, blue: 0.16))
-        case "com.wudanwu.pingisland.procmonitor":
+        case "com.auralink.procmonitor":
             return ("cpu.fill", Color(red: 0.22, green: 0.82, blue: 0.52))
-        case "com.wudanwu.pingisland.usage":
+        case "com.auralink.usage":
             return ("chart.xyaxis.line", Color(red: 0.32, green: 0.62, blue: 0.96))
         default:
             break

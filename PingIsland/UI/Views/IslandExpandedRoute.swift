@@ -119,8 +119,8 @@ enum IslandExpandedRouteResolver {
 }
 
 struct PluginExpandedPanelView: View {
-    private static let procMonitorPluginId = "com.wudanwu.pingisland.procmonitor"
-    private static let usageMonitorPluginId = "com.wudanwu.pingisland.usage"
+    private static let procMonitorPluginId = "com.auralink.procmonitor"
+    private static let usageMonitorPluginId = "com.auralink.usage"
     private static let weatherDemoPluginId = "com.example.weatherdemo"
 
     let pluginId: String
@@ -1002,6 +1002,8 @@ private struct ProcMonitorIslandRow: View {
                         .font(.system(size: isChild ? 11 : 12, weight: isChild ? .regular : .medium))
                         .foregroundStyle(isChild ? ProcMonitorIslandStyle.text.opacity(0.7) : ProcMonitorIslandStyle.text)
                         .lineLimit(1)
+                        .truncationMode(.tail)
+                        .layoutPriority(1)
 
                     if childCount > 0 {
                         HStack(spacing: 2) {
@@ -1013,8 +1015,10 @@ private struct ProcMonitorIslandRow: View {
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
                         .background(ProcMonitorIslandStyle.tagBackground, in: RoundedRectangle(cornerRadius: 6))
+                        .fixedSize(horizontal: true, vertical: false)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text(process.subtitle)
                     .font(.system(size: 9))
@@ -1414,8 +1418,8 @@ private enum ProcMonitorIslandStyle {
         "node": "Node.js JavaScript 运行时",
         "python3": "Python 3 解释器",
         "xcodebuild": "Xcode 命令行构建工具",
-        "Ping Island": "当前应用：Ping Island",
-        "PingIslandPlugin": "Ping Island 插件运行进程"
+        "Auralink": "当前应用：Auralink",
+        "PingIslandPlugin": "Auralink 插件运行进程"
     ]
 
     static func barColor(_ percent: Double) -> Color {

@@ -544,7 +544,7 @@ private struct SettingsPanelContentView: View {
             viewModel.refreshLocalizedState()
         }
         .alert(
-            AppLocalization.string("帮助提升 Ping Island 体验？"),
+            AppLocalization.string("帮助提升 Auralink 体验？"),
             isPresented: $showingAnalyticsConsentPrompt
         ) {
             Button(AppLocalization.string("暂不开启"), role: .cancel) {

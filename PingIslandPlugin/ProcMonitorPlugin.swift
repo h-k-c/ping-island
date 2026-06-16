@@ -5,7 +5,7 @@ import Darwin
 import Foundation
 
 enum ProcMonitorPlugin {
-    private static let compactRefreshInterval: DispatchTimeInterval = .seconds(1)
+    private static let compactRefreshInterval: DispatchTimeInterval = .seconds(3)
     private static let detailsRefreshInterval: TimeInterval = 10
     private static let topProcessLimit = 8
 
@@ -171,12 +171,14 @@ private struct NetworkByteSample {
 }
 
 private struct NetworkSpeedSnapshot {
-    let totalBytesPerSecond: Double
+    let receivedBytesPerSecond: Double
+    let sentBytesPerSecond: Double
 
     init(previous: NetworkByteSample, current: NetworkByteSample) {
         let elapsed = current.date.timeIntervalSince(previous.date)
         guard elapsed > 0 else {
-            totalBytesPerSecond = 0
+            receivedBytesPerSecond = 0
+            sentBytesPerSecond = 0
             return
         }
 
@@ -186,27 +188,30 @@ private struct NetworkSpeedSnapshot {
         let sentDelta = current.sent >= previous.sent
             ? current.sent - previous.sent
             : 0
-        totalBytesPerSecond = Double(receivedDelta + sentDelta) / elapsed
+        receivedBytesPerSecond = Double(receivedDelta) / elapsed
+        sentBytesPerSecond = Double(sentDelta) / elapsed
     }
 
     var compactLabel: String {
-        let mbps = max(0, totalBytesPerSecond) * 8 / 1_000_000
-        switch mbps {
-        case 100...:
-            return String(format: "%.0fM", mbps)
-        case 1..<100:
-            return String(format: "%.1fM", mbps)
+        let activeBytesPerSecond = max(0, max(receivedBytesPerSecond, sentBytesPerSecond))
+        guard activeBytesPerSecond >= 16 * 1024 else { return "0K" }
+
+        let kbPerSecond = activeBytesPerSecond / 1024
+        switch kbPerSecond {
+        case ..<1000.0:
+            return String(format: "%.0fK", kbPerSecond)
+        case ..<10_240.0:
+            return String(format: "%.1fM", kbPerSecond / 1024)
         default:
-            let kbps = max(0, totalBytesPerSecond) * 8 / 1_000
-            return String(format: "%.0fK", kbps)
+            return String(format: "%.0fM", kbPerSecond / 1024)
         }
     }
 
     var tint: String {
-        let mbps = max(0, totalBytesPerSecond) * 8 / 1_000_000
-        switch mbps {
-        case 50...: return "orange"
-        case 10..<50: return "green"
+        let mbPerSecond = max(0, max(receivedBytesPerSecond, sentBytesPerSecond)) / 1_048_576
+        switch mbPerSecond {
+        case 8...: return "orange"
+        case 1..<8: return "green"
         default: return "blue"
         }
     }
@@ -287,7 +292,14 @@ private enum SystemSampler {
             defer { cursor = interface.pointee.ifa_next }
 
             let name = String(cString: interface.pointee.ifa_name)
-            guard !name.hasPrefix("lo") else { continue }
+            guard isPrimaryNetworkInterface(name) else { continue }
+
+            guard
+                let address = interface.pointee.ifa_addr,
+                Int32(address.pointee.sa_family) == AF_LINK
+            else {
+                continue
+            }
 
             let flags = interface.pointee.ifa_flags
             guard (flags & UInt32(IFF_UP)) != 0,
@@ -302,6 +314,10 @@ private enum SystemSampler {
         }
 
         return NetworkByteSample(date: Date(), received: received, sent: sent)
+    }
+
+    private static func isPrimaryNetworkInterface(_ name: String) -> Bool {
+        name.hasPrefix("en") || name.hasPrefix("pdp_ip")
     }
 
     private static func fetchProcesses() -> [ProcessSnapshot] {

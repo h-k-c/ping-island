@@ -216,7 +216,7 @@ enum UsageMonitorPlugin {
             "params": [
                 "position": "right",
                 "content": [
-                    "icon": ["type": "sf", "name": "chart.xyaxis.line"],
+                    "label": "--",
                     "tint": "default"
                 ]
             ]
@@ -237,34 +237,25 @@ enum UsageMonitorPlugin {
     // MARK: - island/compact
 
     private static func sendCompact(_ snapshot: RefreshSnapshot) {
-        let percentages = usagePercentages(snapshot)
-
         let content: [String: Any]
-        if let pct = percentages.max() {
-            let (tint, icon): (String, String) = {
-                switch pct {
-                case ..<0.6: return ("green",  "chart.xyaxis.line")
-                case ..<0.9: return ("yellow", "chart.xyaxis.line")
-                default:     return ("red",    "exclamationmark.circle.fill")
-                }
-            }()
+        if let codex = snapshot.codex.data, codex.hasPrimaryData {
             content = [
-                "icon": ["type": "sf", "name": icon],
-                "tint": tint
+                "label": "\(min(max(codex.primaryUsedPercent, 0), 999))%",
+                "tint": tint(codex.primaryFraction)
             ]
-        } else if snapshot.claude.errorMessage != nil || snapshot.codex.errorMessage != nil {
+        } else if snapshot.codex.errorMessage != nil {
             content = [
                 "icon": ["type": "sf", "name": "exclamationmark.triangle.fill"],
                 "tint": "red"
             ]
-        } else if snapshot.claude.needsLogin || snapshot.codex.needsLogin {
+        } else if snapshot.codex.needsLogin {
             content = [
                 "icon": ["type": "sf", "name": "person.crop.circle.badge.exclamationmark"],
                 "tint": "orange"
             ]
         } else {
             content = [
-                "icon": ["type": "sf", "name": "chart.xyaxis.line"],
+                "label": "--",
                 "tint": "default"
             ]
         }
@@ -412,19 +403,6 @@ enum UsageMonitorPlugin {
             "value": min(max(value, 0), 1),
             "tint": tint(value)
         ])
-    }
-
-    private static func usagePercentages(_ snapshot: RefreshSnapshot) -> [Double] {
-        var percentages: [Double] = []
-        if let c = snapshot.claude.data {
-            if c.hasSessionData { percentages.append(c.sessionPercentage) }
-            if c.messagesLimit > 0 { percentages.append(c.weeklyPercentage) }
-        }
-        if let cx = snapshot.codex.data {
-            if cx.hasPrimaryData { percentages.append(cx.primaryFraction) }
-            if cx.hasSecondaryData { percentages.append(cx.secondaryFraction) }
-        }
-        return percentages
     }
 
     private static func statusText<T>(_ result: ProviderResult<T>, connectedLabel: String?) -> String {

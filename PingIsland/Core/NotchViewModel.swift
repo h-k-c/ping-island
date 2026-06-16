@@ -73,7 +73,7 @@ class NotchViewModel: ObservableObject {
         defaultClosedWidth - ScreenNotchMetrics.fallbackNotchWidth
     private static let clickedInstancesPanelWidthRatio: CGFloat = 0.44
     private static let clickedInstancesPanelMaximumWidth: CGFloat = 520
-    private static let procMonitorPluginId = "com.wudanwu.pingisland.procmonitor"
+    private static let procMonitorPluginId = "com.auralink.procmonitor"
     private static let detachmentLongPressNarrowedWidthScale: CGFloat = 0.82
     private static let detachmentLongPressMaximumShrink: CGFloat = 56
     private static let closedCenterInteractionReduction: CGFloat = 40

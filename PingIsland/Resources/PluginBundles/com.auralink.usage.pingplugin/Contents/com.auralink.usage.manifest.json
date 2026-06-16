@@ -1,9 +1,9 @@
 {
-  "id": "com.wudanwu.pingisland.usage",
+  "id": "com.auralink.usage",
   "name": "AI Monitor",
   "version": "1.0.0",
   "protocolVersion": "2.0",
-  "author": "PingIsland",
+  "author": "Auralink",
   "category": "monitoring",
   "executable": "PingIslandPlugin",
   "slots": ["compact", "expanded"],

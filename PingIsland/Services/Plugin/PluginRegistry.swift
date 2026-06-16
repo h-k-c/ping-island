@@ -12,8 +12,19 @@ final class PluginRegistry: ObservableObject {
     private let includeBuiltInPlugins: Bool
     private var watchSource: DispatchSourceFileSystemObject?
     private var fsEventStream: FSEventStreamRef?
+    private static let legacyBuiltInPluginIds: Set<String> = [
+        "com.wudanwu.pingisland.claude",
+        "com.wudanwu.pingisland.codex",
+        "com.wudanwu.pingisland.usage",
+        "com.wudanwu.pingisland.procmonitor",
+    ]
 
     nonisolated static var defaultPluginsDirectoryURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Auralink/Plugins", isDirectory: true)
+    }
+
+    nonisolated static var legacyPluginsDirectoryURL: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("PingIsland/Plugins", isDirectory: true)
     }
@@ -33,6 +44,8 @@ final class PluginRegistry: ObservableObject {
 
     func start() {
         createDirectoryIfNeeded()
+        migrateLegacyPluginsIfNeeded()
+        removeLegacyBuiltInPluginBundlesIfNeeded()
         installDefaultPluginSeedsIfNeeded()
         rescan()
         startWatching()
@@ -75,6 +88,7 @@ final class PluginRegistry: ObservableObject {
             found += contents
                 .filter { $0.pathExtension == "pingplugin" }
                 .compactMap { loadPlugin(at: $0) }
+                .filter { !Self.legacyBuiltInPluginIds.contains($0.manifest.id) }
         }
 
         installedPlugins = found
@@ -127,7 +141,56 @@ final class PluginRegistry: ObservableObject {
         }
     }
 
+    private func migrateLegacyPluginsIfNeeded() {
+        let legacyURL = Self.legacyPluginsDirectoryURL
+        guard legacyURL != pluginsDirectoryURL,
+              FileManager.default.fileExists(atPath: legacyURL.path),
+              let legacyContents = try? FileManager.default.contentsOfDirectory(
+                at: legacyURL,
+                includingPropertiesForKeys: nil
+              )
+        else { return }
+
+        for itemURL in legacyContents where itemURL.pathExtension == "pingplugin" {
+            if let manifest = loadManifest(at: itemURL),
+               manifest.isBuiltIn,
+               Self.legacyBuiltInPluginIds.contains(manifest.id) {
+                continue
+            }
+
+            let destinationURL = pluginsDirectoryURL.appendingPathComponent(
+                itemURL.lastPathComponent,
+                isDirectory: true
+            )
+            guard !FileManager.default.fileExists(atPath: destinationURL.path) else { continue }
+            try? FileManager.default.copyItem(at: itemURL, to: destinationURL)
+        }
+    }
+
+    private func removeLegacyBuiltInPluginBundlesIfNeeded() {
+        guard
+            let contents = try? FileManager.default.contentsOfDirectory(
+                at: pluginsDirectoryURL,
+                includingPropertiesForKeys: nil
+            )
+        else { return }
+
+        for bundleURL in contents where bundleURL.pathExtension == "pingplugin" {
+            guard
+                let manifest = loadManifest(at: bundleURL),
+                manifest.isBuiltIn,
+                Self.legacyBuiltInPluginIds.contains(manifest.id)
+            else { continue }
+            try? FileManager.default.removeItem(at: bundleURL)
+        }
+    }
+
     private func loadPlugin(at bundleURL: URL) -> InstalledPlugin? {
+        guard let manifest = loadManifest(at: bundleURL) else { return nil }
+        return InstalledPlugin(manifest: manifest, bundleURL: bundleURL)
+    }
+
+    private func loadManifest(at bundleURL: URL) -> PluginManifest? {
         let manifestURL = bundleURL
             .appendingPathComponent("Contents")
             .appendingPathComponent("manifest.json")
@@ -135,7 +198,7 @@ final class PluginRegistry: ObservableObject {
             let data = try? Data(contentsOf: manifestURL),
             let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data)
         else { return nil }
-        return InstalledPlugin(manifest: manifest, bundleURL: bundleURL)
+        return manifest
     }
 
     private func createDirectoryIfNeeded() {

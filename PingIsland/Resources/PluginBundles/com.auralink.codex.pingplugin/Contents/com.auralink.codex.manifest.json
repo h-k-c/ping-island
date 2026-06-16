@@ -1,9 +1,9 @@
 {
-  "id": "com.wudanwu.pingisland.codex",
+  "id": "com.auralink.codex",
   "name": "Codex 会话",
   "version": "1.0.0",
   "protocolVersion": "2.0",
-  "author": "PingIsland",
+  "author": "Auralink",
   "category": "ai",
   "executable": "PingIslandPlugin",
   "slots": ["compact", "notification"],

@@ -1,6 +1,6 @@
 <h1 align="center">
-  <img src="docs/images/ping-island-icon.svg" width="64" height="64" alt="Ping Island app icon" valign="middle">&nbsp;
-  Ping Island
+  <img src="docs/images/ping-island-icon.svg" width="64" height="64" alt="Auralink app icon" valign="middle">&nbsp;
+  Auralink
 </h1>
 <p align="center">
   <b>AI coding session monitor for the macOS menu bar</b><br>
@@ -29,7 +29,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/notch-panel.png" width="480" alt="Ping Island preview">
+  <img src="docs/images/notch-panel.png" width="480" alt="Auralink preview">
 </p>
 
 
@@ -62,10 +62,10 @@
 <a id="buddy-detach"></a>
 ## Buddy Detach in v0.5.0+
 
-Starting in `v0.5.0` - the first release after `v0.4.0` - Ping Island can detach the active Buddy from the notch. Press and hold the notch, drag the Buddy upward out of the notch area, and it becomes an independent floating companion that stays with you across other windows.
+Starting in `v0.5.0` - the first release after `v0.4.0` - Auralink can detach the active Buddy from the notch. Press and hold the notch, drag the Buddy upward out of the notch area, and it becomes an independent floating companion that stays with you across other windows.
 
 <p align="center">
-  <img src="docs/images/ping-island-0.5.0-buddy-detach.png" width="960" alt="Ping Island v0.5.0 Buddy detach poster">
+  <img src="docs/images/ping-island-0.5.0-buddy-detach.png" width="960" alt="Auralink v0.5.0 Buddy detach poster">
 </p>
 
 - **Three-step interaction** - press and hold, drag outward, then let go to keep the Buddy floating.
@@ -73,15 +73,15 @@ Starting in `v0.5.0` - the first release after `v0.4.0` - Ping Island can detach
 - **Free placement with low disruption** - move the Buddy where it helps without pinning it to the menu bar.
 - **Same Island context** - the floating Buddy still represents the same live session, mascot identity, and progress cues.
 
-## What is Ping Island?
+## What is Auralink?
 
-Ping Island is a macOS menu bar app that expands into a compact session surface when your coding agents need attention. It listens to Claude-style hooks, Codex hooks, Gemini CLI hooks, Hermes Agent plugin hooks, Qwen Code hooks, Kimi CLI hooks, OpenClaw internal hooks plus session transcripts, the Codex app-server, OpenCode plugins, and compatible IDE integrations so approvals, input requests, completions, and session summaries show up without babysitting terminal tabs.
+Auralink is a macOS menu bar app that expands into a compact session surface when your coding agents need attention. It listens to Claude-style hooks, Codex hooks, Gemini CLI hooks, Hermes Agent plugin hooks, Qwen Code hooks, Kimi CLI hooks, OpenClaw internal hooks plus session transcripts, the Codex app-server, OpenCode plugins, and compatible IDE integrations so approvals, input requests, completions, and session summaries show up without babysitting terminal tabs.
 
-If you have seen [Vibe Island](https://vibeisland.app/), Ping Island is positioned as an independent open-source alternative in the same category: a native macOS notch/menu bar surface for monitoring and controlling AI coding sessions.
+If you have seen [Vibe Island](https://vibeisland.app/), Auralink is positioned as an independent open-source alternative in the same category: a native macOS notch/menu bar surface for monitoring and controlling AI coding sessions.
 
 ## Features
 
-Ping Island focuses on the moments that actually interrupt coding flow, then keeps them visible and actionable from a native macOS notch surface.
+Auralink focuses on the moments that actually interrupt coding flow, then keeps them visible and actionable from a native macOS notch surface.
 
 - **Attention-first UI** - Stay compact until a session needs approval, input, review, or intervention.
 - **Act from the notch** - Approve tools, deny requests, and answer follow-up prompts without hunting through tabs.
@@ -102,24 +102,24 @@ Ping Island focuses on the moments that actually interrupt coding flow, then kee
 ## Supported Tools
 
 <p align="center">
-  <img src="docs/images/ping-island-mascot-poster.png" width="960" alt="Ping Island supported tools poster">
+  <img src="docs/images/ping-island-mascot-poster.png" width="960" alt="Auralink supported tools poster">
 </p>
 
-Ping Island also ships VS Code-compatible focus extensions for VS Code, Cursor, CodeBuddy, WorkBuddy, and Qoder. `QoderWork` is hook-only today and does not participate in the IDE extension path.
+Auralink also ships VS Code-compatible focus extensions for VS Code, Cursor, CodeBuddy, WorkBuddy, and Qoder. `QoderWork` is hook-only today and does not participate in the IDE extension path.
 
-Qoder IDE and Qoder CLI both store hooks in `~/.qoder/settings.json`, but Ping Island treats them as separate managed integrations because their hook behavior is not identical. On launch, Ping Island checks `qodercli -v`; when the local CLI is newer than 0.2.5, it refreshes only the Qoder CLI managed entries while preserving Qoder IDE hooks and unrelated JSON settings. New Qoder CLI follows Claude Code-compatible blocking hooks and response payloads, while Qoder IDE and `QoderWork` stay notify-only so Ping Island does not submit answers or approvals back into those clients.
+Qoder IDE and Qoder CLI both store hooks in `~/.qoder/settings.json`, but Auralink treats them as separate managed integrations because their hook behavior is not identical. On launch, Auralink checks `qodercli -v`; when the local CLI is newer than 0.2.5, it refreshes only the Qoder CLI managed entries while preserving Qoder IDE hooks and unrelated JSON settings. New Qoder CLI follows Claude Code-compatible blocking hooks and response payloads, while Qoder IDE and `QoderWork` stay notify-only so Auralink does not submit answers or approvals back into those clients.
 
-CodeBuddy IDE and CodeBuddy CLI both use `~/.codebuddy/settings.json`, but Ping Island manages them as separate hook profiles. The CodeBuddy CLI profile writes its own `codebuddy-cli` hooks, uses the CLI's Claude-compatible hook response shape, and preserves CodeBuddy IDE hooks plus unrelated settings in the same file.
+CodeBuddy IDE and CodeBuddy CLI both use `~/.codebuddy/settings.json`, but Auralink manages them as separate hook profiles. The CodeBuddy CLI profile writes its own `codebuddy-cli` hooks, uses the CLI's Claude-compatible hook response shape, and preserves CodeBuddy IDE hooks plus unrelated settings in the same file.
 
-Hermes Agent is integrated through a generated plugin directory at `~/.hermes/plugins/ping_island/`. Hermes' gateway hook directories under `~/.hermes/hooks/` do not run in the CLI, so Ping Island uses the official `ctx.register_hook()` plugin surface to observe prompt submission, tool activity, model replies, and session end events.
+Hermes Agent is integrated through a generated plugin directory at `~/.hermes/plugins/ping_island/`. Hermes' gateway hook directories under `~/.hermes/hooks/` do not run in the CLI, so Auralink uses the official `ctx.register_hook()` plugin surface to observe prompt submission, tool activity, model replies, and session end events.
 
 Qwen Code is supported as a first-class hook client through `~/.qwen/settings.json`, and its built-in mascot is the mint-scarf capybara shown in the README GIF strip. The visual is meant to feel calm and dependable, while still carrying a small Qwen-tinted scarf and reply bubble instead of another generic bird or blob.
 
-Kimi CLI is supported through its official hooks in `~/.kimi/config.toml`. Ping Island installs managed `[[hooks]]` entries while preserving unrelated TOML configuration, treats Kimi `Stop` as an assistant-turn completion rather than a closed session, and waits for `SessionEnd` before marking the session ended. Its built-in mascot is the original blue keyboard-orb GIF shown above.
+Kimi CLI is supported through its official hooks in `~/.kimi/config.toml`. Auralink installs managed `[[hooks]]` entries while preserving unrelated TOML configuration, treats Kimi `Stop` as an assistant-turn completion rather than a closed session, and waits for `SessionEnd` before marking the session ended. Its built-in mascot is the original blue keyboard-orb GIF shown above.
 
-OpenClaw is supported through a managed internal hook directory under `~/.openclaw/hooks/` plus transcript-aware session refresh from `~/.openclaw/agents/main/sessions/`. That combination lets Ping Island surface OpenClaw's lightweight message hooks quickly, then backfill the full conversation from the local session log once the assistant reply lands.
+OpenClaw is supported through a managed internal hook directory under `~/.openclaw/hooks/` plus transcript-aware session refresh from `~/.openclaw/agents/main/sessions/`. That combination lets Auralink surface OpenClaw's lightweight message hooks quickly, then backfill the full conversation from the local session log once the assistant reply lands.
 
-SSH support is a core workflow, not a sidecar script. Ping Island can bootstrap a bridge onto a remote macOS or Linux host, rewrite remote Claude-compatible and Qwen Code hook configs to use that bridge, install supported OpenClaw internal hooks on the remote host, and keep a bidirectional forwarding path back into the local menu-bar UI. That means approvals, follow-up questions, notifications, and jump-back routing from remote SSH terminals still land in the same Island surface on your Mac.
+SSH support is a core workflow, not a sidecar script. Auralink can bootstrap a bridge onto a remote macOS or Linux host, rewrite remote Claude-compatible and Qwen Code hook configs to use that bridge, install supported OpenClaw internal hooks on the remote host, and keep a bidirectional forwarding path back into the local menu-bar UI. That means approvals, follow-up questions, notifications, and jump-back routing from remote SSH terminals still land in the same Island surface on your Mac.
 
 The mascot GIFs used throughout this README are generated from the live `MascotView` implementation via `./scripts/render-mascots.sh`.
 The OpenClaw feature poster in `docs/images/ping-island-openclaw-poster.png` is generated via `./scripts/render-openclaw-poster.sh`.
@@ -138,8 +138,8 @@ brew install --cask ping-island
 
 1. Visit the [official website](https://erha19.github.io/ping-island/) for the product overview and latest download link, or go straight to [Releases](https://github.com/erha19/ping-island/releases).
 2. Download the latest DMG.
-3. Move `Ping Island.app` into your Applications folder.
-4. Launch the app and start the clients you want Ping Island to monitor.
+3. Move `Auralink.app` into your Applications folder.
+4. Launch the app and start the clients you want Auralink to monitor.
 
 > On first launch, macOS may ask you to confirm the app or grant Accessibility / Apple Events permissions for focus features.
 
@@ -171,7 +171,7 @@ The DMG uses the repo-tracked installer artwork at `docs/images/ping-island-dmg-
 
 To create signed and notarized release packages in GitHub Actions, configure the release secrets described in [docs/sparkle-release.md](docs/sparkle-release.md) and run `.github/workflows/release-packages.yml` against a `v*` tag or the manual workflow dispatch input. Homebrew Cask publishing is documented in [docs/homebrew-cask-release.md](docs/homebrew-cask-release.md).
 
-The same workflow also publishes a Linux `PingIslandBridge` asset that Ping Island can download when bootstrapping Linux SSH hosts.
+The same workflow also publishes a Linux `PingIslandBridge` asset that Auralink can download when bootstrapping Linux SSH hosts.
 
 For the full notarized release flow and the GitHub Releases backed Sparkle appcast setup, see [docs/sparkle-release.md](docs/sparkle-release.md).
 
@@ -203,7 +203,7 @@ If `PingIslandUITests-Runner` stays suspended on macOS, run the UI tests from Xc
 
 ## Settings
 
-Ping Island currently ships a 4-category settings panel:
+Auralink currently ships a 4-category settings panel:
 
 - **General** - launch at login and baseline app behavior
 - **Display** - notch display target and placement behavior
@@ -212,7 +212,7 @@ Ping Island currently ships a 4-category settings panel:
 
 ## Custom Sounds
 
-Ping Island currently supports three sound modes under `Settings -> Sound`:
+Auralink currently supports three sound modes under `Settings -> Sound`:
 
 - **System sounds** - choose a macOS sound for each event.
 - **Built-in 8-bit** - use Island's bundled retro sound set, including the fixed client startup sound.
@@ -234,7 +234,7 @@ Ping Island currently supports three sound modes under `Settings -> Sound`:
 3. Choose a folder that contains `openpeon.json`.
 4. Pick the imported pack from the `Sound pack` dropdown.
 
-Ping Island also auto-discovers packs placed under `~/.openpeon/packs` and `~/.claude/hooks/peon-ping/packs`.
+Auralink also auto-discovers packs placed under `~/.openpeon/packs` and `~/.claude/hooks/peon-ping/packs`.
 
 ### Minimal sound pack layout
 
@@ -281,16 +281,16 @@ my-pack/
 - `Task error` checks `task.error`.
 - `Resource limit` checks `resource.limit`.
 
-Release builds can also publish a Linux `PingIslandBridge` artifact alongside the macOS app packages, which Ping Island uses when bootstrapping remote SSH hosts that are not running macOS.
+Release builds can also publish a Linux `PingIslandBridge` artifact alongside the macOS app packages, which Auralink uses when bootstrapping remote SSH hosts that are not running macOS.
 
-Sound packs can use `.wav`, `.mp3`, or `.ogg` files. If a selected pack does not provide a matching category for an event, Ping Island falls back to the macOS system sound selected for that event.
+Sound packs can use `.wav`, `.mp3`, or `.ogg` files. If a selected pack does not provide a matching category for an event, Auralink falls back to the macOS system sound selected for that event.
 
 ## How It Works
 
 ```text
 Claude / Codex / Gemini CLI / Hermes Agent / Qwen Code / Kimi CLI / OpenCode / Cursor / Qoder / CodeBuddy / WorkBuddy / Copilot / ...
   -> hook or app-server event
-    -> Ping Island monitor + normalization layer
+    -> Auralink monitor + normalization layer
       -> SessionStore
         -> SessionMonitor / NotchViewModel
           -> notch, list, hover preview, completion popup
@@ -302,26 +302,26 @@ Implementation details worth knowing:
 - Codex sessions can come from hook events or the live `codex app-server` websocket monitor.
 - Gemini CLI hooks are installed into `~/.gemini/settings.json`; tool matchers use Gemini's regex-based hook matcher syntax.
 - Qwen Code hooks are installed into `~/.qwen/settings.json`; the bridge follows the official event names and uses `Stop` / `SessionEnd` / `Notification` messages to surface popup-ready summaries in Island.
-- Kimi CLI hooks are installed into `~/.kimi/config.toml`; Ping Island preserves unrelated TOML content and maps Kimi `Stop` to turn completion while `SessionEnd` closes the session.
+- Kimi CLI hooks are installed into `~/.kimi/config.toml`; Auralink preserves unrelated TOML content and maps Kimi `Stop` to turn completion while `SessionEnd` closes the session.
 - OpenCode is wired through a generated plugin file under `~/.config/opencode/plugins/` and enabled from the documented global config at `~/.config/opencode/opencode.json`; legacy `config.json` entries are still recognized for cleanup.
-- Remote SSH hosts can bootstrap `PingIslandBridge`, rewrite remote Claude-compatible hooks to target that bridge, and forward remote events back into the local Ping Island UI.
+- Remote SSH hosts can bootstrap `PingIslandBridge`, rewrite remote Claude-compatible hooks to target that bridge, and forward remote events back into the local Auralink UI.
 - Focus routing spans iTerm2, Ghostty, Terminal.app, tmux, and VS Code-compatible IDE extensions.
 
 ## Requirements
 
 - macOS 14.0 or later
 - Best experience on MacBooks with a notch, but external displays are supported too
-- Install whichever CLI or desktop clients you want Ping Island to monitor
+- Install whichever CLI or desktop clients you want Auralink to monitor
 
 ## Contributors
 
-Thanks to everyone who has helped shape Ping Island through code, issues, ideas, testing, docs, design feedback, and release validation.
+Thanks to everyone who has helped shape Auralink through code, issues, ideas, testing, docs, design feedback, and release validation.
 
 See the full contributor history on the [GitHub contributors graph](https://github.com/erha19/ping-island/graphs/contributors).
 
 ## Acknowledgments
 
-Ping Island follows the lineage of notch-first agent monitors such as [claude-island](https://github.com/farouqaldori/claude-island), and adapts that idea into a broader multi-client session surface with hooks, app-server sync, and IDE routing.
+Auralink follows the lineage of notch-first agent monitors such as [claude-island](https://github.com/farouqaldori/claude-island), and adapts that idea into a broader multi-client session surface with hooks, app-server sync, and IDE routing.
 
 ## License
 

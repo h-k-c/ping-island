@@ -69,7 +69,7 @@
 		A10000000000000000000002 /* PingIslandUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PingIslandUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000000000000000000001E /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
 		A1000000000000000000001F /* LocalSecrets.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = LocalSecrets.example.xcconfig; sourceTree = "<group>"; };
-		A10000000000000000000022 /* Ping Island.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Ping Island.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000022 /* Auralink.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Auralink.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000000000000000000002C /* AppStore.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppStore.xcconfig; sourceTree = "<group>"; };
 		B3F69826FF508BC7A87889D8 /* ClaudeAPIService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClaudeAPIService.swift; sourceTree = "<group>"; };
 		B670336D1CF87A28B004622B /* PingIslandPlugin */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = PingIslandPlugin; sourceTree = "<group>"; };
@@ -79,7 +79,7 @@
 		CCA620871394B6DF03908D32 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		D1CECA490057A2439F1E2335 /* CodexUsageData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexUsageData.swift; sourceTree = "<group>"; };
 		E436CA0A9DB3721C052CC07B /* UsageMonitorPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UsageMonitorPlugin.swift; sourceTree = "<group>"; };
-		FD33FD5D2EDF32D7002A6548 /* Ping Island.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Ping Island.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		FD33FD5D2EDF32D7002A6548 /* Auralink.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Auralink.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -230,8 +230,8 @@
 		FD33FD5E2EDF32D7002A6548 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				FD33FD5D2EDF32D7002A6548 /* Ping Island.app */,
-				A10000000000000000000022 /* Ping Island.app */,
+				FD33FD5D2EDF32D7002A6548 /* Auralink.app */,
+				A10000000000000000000022 /* Auralink.app */,
 				A10000000000000000000001 /* PingIslandTests.xctest */,
 				A10000000000000000000002 /* PingIslandUITests.xctest */,
 				37DD0FBACB423D066514B0FD /* PingIslandPlugin */,
@@ -304,7 +304,7 @@
 			);
 			name = PingIslandAppStore;
 			productName = PingIsland;
-			productReference = A10000000000000000000022 /* Ping Island.app */;
+			productReference = A10000000000000000000022 /* Auralink.app */;
 			productType = "com.apple.product-type.application";
 		};
 		CCA628FE744E8D71FEB2769E /* PingIslandPlugin */ = {
@@ -347,7 +347,7 @@
 				A1000000000000000000001C /* Sparkle */,
 			);
 			productName = PingIsland;
-			productReference = FD33FD5D2EDF32D7002A6548 /* Ping Island.app */;
+			productReference = FD33FD5D2EDF32D7002A6548 /* Auralink.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -588,7 +588,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ping Island.app/Contents/MacOS/Ping Island";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Auralink.app/Contents/MacOS/Auralink";
 				TEST_TARGET_NAME = PingIsland;
 			};
 			name = Debug;
@@ -616,7 +616,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ping Island.app/Contents/MacOS/Ping Island";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Auralink.app/Contents/MacOS/Auralink";
 				TEST_TARGET_NAME = PingIsland;
 			};
 			name = Release;
@@ -699,7 +699,7 @@
 				);
 				MARKETING_VERSION = 0.15.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.wudanwu.PingIsland;
-				PRODUCT_NAME = "Ping Island";
+				PRODUCT_NAME = Auralink;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG APP_STORE $(inherited)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -737,7 +737,7 @@
 				);
 				MARKETING_VERSION = 0.15.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.wudanwu.PingIsland;
-				PRODUCT_NAME = "Ping Island";
+				PRODUCT_NAME = Auralink;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "APP_STORE $(inherited)";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -915,7 +915,7 @@
 				);
 				MARKETING_VERSION = 0.15.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.wudanwu.PingIsland;
-				PRODUCT_NAME = "Ping Island";
+				PRODUCT_NAME = Auralink;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -954,7 +954,7 @@
 				);
 				MARKETING_VERSION = 0.15.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.wudanwu.PingIsland;
-				PRODUCT_NAME = "Ping Island";
+				PRODUCT_NAME = Auralink;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

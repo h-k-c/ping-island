@@ -27,13 +27,13 @@ func readLine() -> [String: Any]? {
 let pluginId = ProcessInfo.processInfo.environment["PING_ISLAND_PLUGIN_ID"] ?? ""
 
 switch pluginId {
-case "com.wudanwu.pingisland.claude":
+case "com.auralink.claude", "com.wudanwu.pingisland.claude":
     ClaudeSessionPlugin.run()
-case "com.wudanwu.pingisland.codex":
+case "com.auralink.codex", "com.wudanwu.pingisland.codex":
     CodexSessionPlugin.run()
-case "com.wudanwu.pingisland.usage":
+case "com.auralink.usage", "com.wudanwu.pingisland.usage":
     UsageMonitorPlugin.run()
-case "com.wudanwu.pingisland.procmonitor":
+case "com.auralink.procmonitor", "com.wudanwu.pingisland.procmonitor":
     ProcMonitorPlugin.run()
 default:
     // Unknown plugin — respond to initialize and stay alive

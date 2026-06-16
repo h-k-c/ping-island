@@ -20,6 +20,11 @@ final class PluginSlotArbiter: ObservableObject {
     /// plugin ID assigned to right ear, or nil = none
     @Published var rightEarAssignment: String? {
         didSet {
+            let normalized = Self.normalizedPluginId(rightEarAssignment)
+            if normalized != rightEarAssignment {
+                rightEarAssignment = normalized
+                return
+            }
             defaults.set(rightEarAssignment, forKey: Keys.rightEar)
             recompute()
         }
@@ -28,6 +33,11 @@ final class PluginSlotArbiter: ObservableObject {
     /// plugin ID assigned to left ear, or nil = none
     @Published var leftEarAssignment: String? {
         didSet {
+            let normalized = Self.normalizedPluginId(leftEarAssignment)
+            if normalized != leftEarAssignment {
+                leftEarAssignment = normalized
+                return
+            }
             defaults.set(leftEarAssignment, forKey: Keys.leftEar)
             recompute()
         }
@@ -46,28 +56,46 @@ final class PluginSlotArbiter: ObservableObject {
         static let rightEar = "PluginSlotArbiter.rightEar.v1"
         static let leftEar  = "PluginSlotArbiter.leftEar.v1"
     }
+    private static let legacyPluginIdMap: [String: String] = [
+        "com.wudanwu.pingisland.claude": "com.auralink.claude",
+        "com.wudanwu.pingisland.codex": "com.auralink.codex",
+        "com.wudanwu.pingisland.usage": "com.auralink.usage",
+        "com.wudanwu.pingisland.procmonitor": "com.auralink.procmonitor",
+    ]
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        rightEarAssignment = defaults.string(forKey: Keys.rightEar)
-        leftEarAssignment  = defaults.string(forKey: Keys.leftEar)
+        let rawRight = defaults.string(forKey: Keys.rightEar)
+        let rawLeft = defaults.string(forKey: Keys.leftEar)
+        let normalizedRight = Self.normalizedPluginId(rawRight)
+        let normalizedLeft = Self.normalizedPluginId(rawLeft)
+        rightEarAssignment = normalizedRight
+        leftEarAssignment  = normalizedLeft
+        if rawRight != normalizedRight {
+            defaults.set(normalizedRight, forKey: Keys.rightEar)
+        }
+        if rawLeft != normalizedLeft {
+            defaults.set(normalizedLeft, forKey: Keys.leftEar)
+        }
     }
 
     // MARK: - Public API
 
     func handleCompact(_ update: PluginCompactUpdate) {
+        let pluginId = Self.normalizedPluginId(update.pluginId) ?? update.pluginId
         if let content = update.content {
-            latestCompact[update.pluginId] = sanitize(content)
+            latestCompact[pluginId] = sanitize(content)
         } else {
-            latestCompact.removeValue(forKey: update.pluginId)
+            latestCompact.removeValue(forKey: pluginId)
         }
         recompute()
     }
 
     func handleNotify(_ update: PluginNotifyUpdate) {
+        let pluginId = Self.normalizedPluginId(update.pluginId) ?? update.pluginId
         let clamped = update.content.duration.map { min(max($0, 0.5), 10.0) }
         let sanitized = PluginNotifyUpdate(
-            pluginId: update.pluginId,
+            pluginId: pluginId,
             content: PluginNotifyContent(
                 icon: update.content.icon,
                 title: update.content.title,
@@ -86,20 +114,22 @@ final class PluginSlotArbiter: ObservableObject {
     }
 
     func handleExpanded(_ update: PluginExpandedUpdate) {
+        let pluginId = Self.normalizedPluginId(update.pluginId) ?? update.pluginId
         if update.sections.isEmpty {
-            expandedContent.removeValue(forKey: update.pluginId)
+            expandedContent.removeValue(forKey: pluginId)
         } else {
-            expandedContent[update.pluginId] = update.sections
+            expandedContent[pluginId] = update.sections
         }
     }
 
     func removePlugin(_ pluginId: String) {
-        latestCompact.removeValue(forKey: pluginId)
-        expandedContent.removeValue(forKey: pluginId)
-        pendingNotifications.removeAll { $0.pluginId == pluginId }
+        let normalizedPluginId = Self.normalizedPluginId(pluginId) ?? pluginId
+        latestCompact.removeValue(forKey: normalizedPluginId)
+        expandedContent.removeValue(forKey: normalizedPluginId)
+        pendingNotifications.removeAll { $0.pluginId == normalizedPluginId }
         // If the removed plugin was assigned, clear the assignment
-        if rightEarAssignment == pluginId { rightEarAssignment = nil }
-        if leftEarAssignment  == pluginId { leftEarAssignment  = nil }
+        if rightEarAssignment == normalizedPluginId { rightEarAssignment = nil }
+        if leftEarAssignment  == normalizedPluginId { leftEarAssignment  = nil }
         recompute()
     }
 
@@ -130,5 +160,10 @@ final class PluginSlotArbiter: ObservableObject {
         let label = content.label.map { String($0.prefix(labelLimit)) }
         let badge = content.badge.map { max(0, $0) }
         return PluginCompactContent(icon: content.icon, label: label, badge: badge, tint: content.tint)
+    }
+
+    private static func normalizedPluginId(_ pluginId: String?) -> String? {
+        guard let pluginId else { return nil }
+        return legacyPluginIdMap[pluginId] ?? pluginId
     }
 }

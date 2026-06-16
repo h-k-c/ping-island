@@ -1,5 +1,5 @@
 #!/bin/bash
-# Update the Ping Island Homebrew Cask in an external tap.
+# Update the Auralink Homebrew Cask in an external tap.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -118,7 +118,7 @@ cask "$CASK_NAME" do
 
   url "https://github.com/erha19/ping-island/releases/download/v#{version}/$APP_NAME-#{version}.dmg",
       verified: "github.com/erha19/ping-island/"
-  name "Ping Island"
+  name "Auralink"
   desc "Menu bar status for coding agent sessions"
   homepage "https://erha19.github.io/ping-island/"
 
@@ -129,9 +129,10 @@ cask "$CASK_NAME" do
 
   depends_on macos: ">= :sonoma"
 
-  app "Ping Island.app"
+  app "Auralink.app"
 
   zap trash: [
+    "~/Library/Application Support/Auralink",
     "~/Library/Application Support/PingIsland",
     "~/Library/Caches/com.wudanwu.PingIsland",
     "~/Library/HTTPStorages/com.wudanwu.PingIsland",
@@ -198,7 +199,7 @@ if [ "$COMMIT" = "1" ]; then
             git -C "$TAP_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         fi
 
-        git -C "$TAP_DIR" commit -m "Publish Ping Island $VERSION to Homebrew Cask
+        git -C "$TAP_DIR" commit -m "Publish Auralink $VERSION to Homebrew Cask
 
 Update the cask to point at the notarized GitHub Release DMG.
 

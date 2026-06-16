@@ -292,7 +292,7 @@ struct IDEExtensionInstaller {
         return """
         {
           "name": "\(extensionName)",
-          "displayName": "Ping Island",
+          "displayName": "Auralink",
           "description": "\(description)",
           "version": "\(extensionVersion)",
           "publisher": "\(extensionPublisher)",
@@ -717,7 +717,7 @@ struct IDEExtensionInstaller {
                 }));
             }
 
-            await vscode.window.showInformationMessage('Ping Island is ready in \(profile.title).');
+            await vscode.window.showInformationMessage('Auralink is ready in \(profile.title).');
         }
 
         function activate(context) {
@@ -755,16 +755,16 @@ struct IDEExtensionInstaller {
     private static func extensionReadme(for profile: ManagedIDEExtensionProfile) -> String {
         let capabilityLine = profile.supportsSessionFocus
             ? "It can reopen the matching chat session when the host IDE supports it, and otherwise falls back to the matching terminal tab."
-            : "It reopens the matching terminal tab from Ping Island's session context."
+            : "It reopens the matching terminal tab from Auralink's session context."
 
         return """
-        # Ping Island
+        # Auralink
 
-        Ping Island installs this VS Code-compatible extension so the app can jump back into the right IDE window for your active coding session.
+        Auralink installs this VS Code-compatible extension so the app can jump back into the right IDE window for your active coding session.
 
         \(capabilityLine)
 
-        Manage installs, reinstalls, and authorization from Ping Island's **Settings -> Plugins** panel.
+        Manage installs, reinstalls, and authorization from Auralink's **Settings -> Plugins** panel.
 
         Repository:
         \(projectHomepage)
@@ -802,8 +802,8 @@ struct IDEExtensionInstaller {
 
     private static func extensionDescription(for profile: ManagedIDEExtensionProfile) -> String {
         profile.supportsSessionFocus
-            ? "Lets Ping Island focus the matching chat session or terminal tab"
-            : "Lets Ping Island focus the matching terminal tab"
+            ? "Lets Auralink focus the matching chat session or terminal tab"
+            : "Lets Auralink focus the matching terminal tab"
     }
 
     nonisolated private static func applicationVersion() -> String {
@@ -814,15 +814,15 @@ struct IDEExtensionInstaller {
 
     private static func vsixManifest(for profile: ManagedIDEExtensionProfile) -> String {
         let description = profile.supportsSessionFocus
-            ? "Lets Ping Island focus the matching chat session or terminal tab in VS Code compatible IDEs."
-            : "Lets Ping Island focus the matching terminal tab in VS Code compatible IDEs."
+            ? "Lets Auralink focus the matching chat session or terminal tab in VS Code compatible IDEs."
+            : "Lets Auralink focus the matching terminal tab in VS Code compatible IDEs."
 
         return """
         <?xml version="1.0" encoding="utf-8"?>
         <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
           <Metadata>
             <Identity Language="en-US" Id="\(extensionName)" Version="\(extensionVersion)" Publisher="\(extensionPublisher)"/>
-            <DisplayName>Ping Island</DisplayName>
+            <DisplayName>Auralink</DisplayName>
             <Description xml:space="preserve">\(description)</Description>
           </Metadata>
           <Installation>

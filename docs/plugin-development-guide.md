@@ -64,10 +64,10 @@ for line in sys.stdin:
 ### 4. 安装
 
 ```bash
-cp -r MyPlugin.pingplugin "$HOME/Library/Application Support/PingIsland/Plugins/"
+cp -r MyPlugin.pingplugin "$HOME/Library/Application Support/Auralink/Plugins/"
 ```
 
-打开 PingIsland → 设置 → 插件 → 点「刷新」即可看到插件。
+打开 Auralink → 设置 → 插件 → 点「刷新」即可看到插件。
 
 ---
 

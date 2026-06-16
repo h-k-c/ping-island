@@ -5,7 +5,7 @@ Minimal Codex hook debugger.
 This script captures the raw stdin payload, argv, and a focused subset of
 environment variables so we can inspect what Codex hooks actually provide.
 When PingIslandBridge is available, it also forwards the hook payload so the
-normal Ping Island session flow keeps working during debugging.
+normal Auralink session flow keeps working during debugging.
 
 It is intentionally side-effect light:
 - writes newline-delimited JSON records to disk

@@ -122,6 +122,7 @@ struct NotchView: View {
             && !hasHumanIntervention
             && !hasCompletedReadyState
             && activeCompletionNotification == nil
+            && activePluginNotification == nil
     }
 
     /// Most recently active live session that has a hook message we can surface in the compact notch.
@@ -1187,6 +1188,7 @@ struct NotchView: View {
         pluginNotificationDismissWork?.cancel()
         pluginNotificationDismissWork = nil
         activePluginNotification = update
+        viewModel.contentType = .instances
         viewModel.notchOpen(reason: .notification)
     }
 
@@ -1207,6 +1209,12 @@ struct NotchView: View {
             viewModel.contentType = .instances
             viewModel.notchClose()
         }
+
+        if activePluginNotification == nil, !pluginArbiter.pendingNotifications.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                dequeuePluginNotification()
+            }
+        }
     }
 
     private func handleCompletionNotificationChange(_ instances: [SessionState]) {
@@ -1226,15 +1234,6 @@ struct NotchView: View {
         let currentPhases = Dictionary(
             uniqueKeysWithValues: instances.map { ($0.stableId, $0.phase) }
         )
-
-        // Ambient popups are one-shot notifications. If the notch is already expanded for
-        // some other reason, drop new ones instead of queueing them to appear later on
-        // top of the normal expanded UI.
-        if viewModel.status == .opened && activeCompletionNotification == nil {
-            previousCompletionNotificationPhases = currentPhases
-            completionNotificationQueue.removeAll()
-            return
-        }
 
         let newNotifications = instances
             .compactMap { session -> SessionCompletionNotification? in
@@ -1341,15 +1340,11 @@ struct NotchView: View {
         guard !completionNotificationQueue.isEmpty else { return }
         guard !viewModel.shouldSuppressAutomaticPresentation else { return }
         guard !hasPendingPermission && !hasHumanIntervention else { return }
-        guard case .instances = viewModel.contentType else { return }
-
-        if viewModel.status == .opened && viewModel.openReason != .notification {
-            return
-        }
 
         let nextNotification = completionNotificationQueue.removeFirst()
         activeCompletionNotification = nextNotification
         shouldDismissCompletionNotificationOnHoverExit = false
+        viewModel.contentType = .instances
 
         if viewModel.status != .opened || viewModel.openReason != .notification {
             viewModel.notchOpen(reason: .notification)

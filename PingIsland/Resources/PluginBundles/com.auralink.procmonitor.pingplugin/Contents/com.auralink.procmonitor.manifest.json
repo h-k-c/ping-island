@@ -1,9 +1,9 @@
 {
-  "id": "com.wudanwu.pingisland.procmonitor",
+  "id": "com.auralink.procmonitor",
   "name": "Proc Monitor",
   "version": "1.0.0",
   "protocolVersion": "2.0",
-  "author": "PingIsland",
+  "author": "Auralink",
   "category": "system",
   "executable": "PingIslandPlugin",
   "slots": ["compact", "expanded"],
