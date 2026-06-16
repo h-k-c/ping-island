@@ -208,7 +208,7 @@ struct NotchView: View {
         return sessionMonitor.instances.first {
             $0.stableId == activeRealtimeNotificationSessionId
                 && $0.phase != .ended
-                && $0.compactHookMessage != nil
+                && realtimeNotificationText(for: $0) != nil
         }
     }
 
@@ -650,15 +650,10 @@ struct NotchView: View {
                             if showsClosedNotificationSource {
                                 notificationSourceIcon(size: petIconSize, status: closedMascotStatus)
                             } else if let pluginContent = pluginArbiter.activeLeft {
-                                IslandPluginRenderer.compactView(
-                                    content: pluginContent,
-                                    pluginId: pluginArbiter.activeLeftPluginId
-                                )
+                                IslandPluginRenderer.compactView(content: pluginContent)
                             }
                         }
                         .frame(width: sideWidth)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                        .padding(.bottom, 3)
                         .contentShape(Rectangle())
                         .highPriorityGesture(
                             TapGesture().onEnded {
@@ -682,15 +677,10 @@ struct NotchView: View {
                             if isInNotificationMoment {
                                 notificationIndicatorIcon(size: 12)
                             } else if let pluginContent = pluginArbiter.activeRight {
-                                IslandPluginRenderer.compactView(
-                                    content: pluginContent,
-                                    pluginId: pluginArbiter.activeRightPluginId
-                                )
+                                IslandPluginRenderer.compactView(content: pluginContent)
                             }
                         }
                         .frame(width: closedTrailingWidth, alignment: .trailing)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                        .padding(.bottom, 3)
                         .contentShape(Rectangle())
                         .highPriorityGesture(
                             TapGesture().onEnded {
@@ -705,7 +695,7 @@ struct NotchView: View {
     }
 
     private var sideWidth: CGFloat {
-        max(36, closedNotchSize.height + 4)
+        max(0, closedNotchSize.height - 12) + 10
     }
 
     private var closedLeadingWidth: CGFloat {
@@ -1102,7 +1092,7 @@ struct NotchView: View {
                 .filter { $0.phase == .waitingForInput }
                 .map(\.stableId)
         )
-        previousRealtimeHookMessages = realtimeHookMessages(from: instances)
+        previousRealtimeHookMessages = realtimeNotificationMessages(from: instances)
         _ = manualAttentionTracker.consumeNewAttentionSession(from: instances)
         primeCompletionNotificationTracking(instances)
     }
@@ -1166,7 +1156,7 @@ struct NotchView: View {
     }
 
     private func handleRealtimeHookNotificationChange(_ instances: [SessionState]) {
-        let currentMessages = realtimeHookMessages(from: instances)
+        let currentMessages = realtimeNotificationMessages(from: instances)
         defer { previousRealtimeHookMessages = currentMessages }
 
         if activeRealtimeNotificationSession == nil {
@@ -1178,7 +1168,7 @@ struct NotchView: View {
         guard !hasPendingPermission, !hasHumanIntervention else { return }
 
         let changedSessions = instances.filter { session in
-            guard let message = session.compactHookMessage, session.phase != .ended else { return false }
+            guard let message = realtimeNotificationText(for: session), session.phase != .ended else { return false }
             return previousRealtimeHookMessages[session.stableId] != message
         }
 
@@ -1190,15 +1180,25 @@ struct NotchView: View {
         viewModel.presentNotificationChat(for: target)
     }
 
-    private func realtimeHookMessages(from instances: [SessionState]) -> [String: String] {
+    private func realtimeNotificationMessages(from instances: [SessionState]) -> [String: String] {
         Dictionary(
             uniqueKeysWithValues: instances.compactMap { session in
-                guard let message = session.compactHookMessage, session.phase != .ended else {
+                guard let message = realtimeNotificationText(for: session), session.phase != .ended else {
                     return nil
                 }
                 return (session.stableId, message)
             }
         )
+    }
+
+    private func realtimeNotificationText(for session: SessionState) -> String? {
+        let text = session.compactHookMessage
+            ?? (session.provider == .codex ? session.lastMessage : nil)
+        guard let text else { return nil }
+        let normalized = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? nil : normalized
     }
 
     private func handleWaitingForInputChange(_ instances: [SessionState]) {
