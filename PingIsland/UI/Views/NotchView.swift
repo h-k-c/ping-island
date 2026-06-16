@@ -1362,6 +1362,14 @@ struct NotchView: View {
     private func handleCompletionNotificationChange(_ instances: [SessionState]) {
         synchronizeCompletionNotifications(with: instances)
 
+        if activeRealtimeNotificationSession != nil {
+            clearCompletionNotifications(keepPanelOpen: true)
+            previousCompletionNotificationPhases = Dictionary(
+                uniqueKeysWithValues: instances.map { ($0.stableId, $0.phase) }
+            )
+            return
+        }
+
         if areReminderNotificationsSuppressed {
             if activeCompletionNotification != nil || !completionNotificationQueue.isEmpty {
                 clearCompletionNotifications(keepPanelOpen: true)
@@ -1479,6 +1487,7 @@ struct NotchView: View {
     private func maybePresentNextCompletionNotification() {
         guard !areReminderNotificationsSuppressed else { return }
         guard activeCompletionNotification == nil else { return }
+        guard activeRealtimeNotificationSession == nil else { return }
         guard !completionNotificationQueue.isEmpty else { return }
         guard !viewModel.shouldSuppressAutomaticPresentation else { return }
         guard !hasPendingPermission && !hasHumanIntervention else { return }
