@@ -15,10 +15,11 @@ enum IslandPluginRenderer {
 
             if let label = content.label {
                 Text(label)
-                    .font(.system(size: content.icon == nil ? 9.2 : 10, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .font(compactLabelFont(hasIcon: content.icon != nil))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.78))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                    .minimumScaleFactor(0.7)
             }
 
             if let badge = content.badge, badge > 0 {
@@ -30,6 +31,10 @@ enum IslandPluginRenderer {
                     .background(Color.red, in: Capsule())
             }
         }
+    }
+
+    private static func compactLabelFont(hasIcon: Bool) -> Font {
+        .system(size: hasIcon ? 9.8 : 9.6, weight: .medium, design: .default)
     }
 
     // MARK: - Expanded sections

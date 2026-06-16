@@ -194,16 +194,16 @@ private struct NetworkSpeedSnapshot {
 
     var compactLabel: String {
         let activeBytesPerSecond = max(0, max(receivedBytesPerSecond, sentBytesPerSecond))
-        guard activeBytesPerSecond >= 16 * 1024 else { return "0K" }
+        guard activeBytesPerSecond >= 16 * 1024 else { return "0K/s" }
 
         let kbPerSecond = activeBytesPerSecond / 1024
         switch kbPerSecond {
         case ..<1000.0:
-            return String(format: "%.0fK", kbPerSecond)
+            return String(format: "%.0fK/s", kbPerSecond)
         case ..<10_240.0:
-            return String(format: "%.1fM", kbPerSecond / 1024)
+            return String(format: "%.1fM/s", kbPerSecond / 1024)
         default:
-            return String(format: "%.0fM", kbPerSecond / 1024)
+            return String(format: "%.0fM/s", kbPerSecond / 1024)
         }
     }
 
