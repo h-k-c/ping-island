@@ -52,6 +52,8 @@ struct NotchView: View {
     @State private var previousCompletionSoundIds: Set<String> = []
     @State private var previousTaskErrorIds: Set<String> = []
     @State private var previousResourceLimitIds: Set<String> = []
+    @State private var previousRealtimeHookMessages: [String: String] = [:]
+    @State private var activeRealtimeNotificationSessionId: String?
     @State private var previousCompletionNotificationPhases: [String: SessionPhase] = [:]
     @State private var completionNotificationQueue: [SessionCompletionNotification] = []
     @State private var activeCompletionNotification: SessionCompletionNotification?
@@ -122,6 +124,7 @@ struct NotchView: View {
             && !hasHumanIntervention
             && !hasCompletedReadyState
             && activeCompletionNotification == nil
+            && activeRealtimeNotificationSession == nil
             && activePluginNotification == nil
     }
 
@@ -195,7 +198,18 @@ struct NotchView: View {
     }
 
     private var notificationSourceSession: SessionState? {
-        activeCompletionNotification?.session ?? representativeClosedSession
+        activeCompletionNotification?.session
+            ?? activeRealtimeNotificationSession
+            ?? representativeClosedSession
+    }
+
+    private var activeRealtimeNotificationSession: SessionState? {
+        guard let activeRealtimeNotificationSessionId else { return nil }
+        return sessionMonitor.instances.first {
+            $0.stableId == activeRealtimeNotificationSessionId
+                && $0.phase != .ended
+                && $0.compactHookMessage != nil
+        }
     }
 
     private var areReminderNotificationsSuppressed: Bool {
@@ -377,6 +391,7 @@ struct NotchView: View {
                 handleProcessingChange()
                 handleSessionSoundTransitions(instances)
                 handleManualAttentionChange(instances)
+                handleRealtimeHookNotificationChange(instances)
                 handleWaitingForInputChange(instances)
                 handleCompletionNotificationChange(instances)
             }
@@ -549,7 +564,7 @@ struct NotchView: View {
             }
             .onTapGesture {
                 if !isOpened {
-                    viewModel.notchOpen(reason: .click)
+                    viewModel.notchOpen(reason: isInNotificationMoment ? .notification : .click)
                 }
             }
     }
@@ -570,7 +585,9 @@ struct NotchView: View {
     /// Idle states keep both ears assigned to plugins.
     private var isInNotificationMoment: Bool {
         hasPendingPermission || hasHumanIntervention || hasCompletedReadyState
-            || activeCompletionNotification != nil || activePluginNotification != nil
+            || activeCompletionNotification != nil
+            || activeRealtimeNotificationSession != nil
+            || activePluginNotification != nil
     }
 
     /// In the closed state the leading ear shows the notification source only
@@ -726,7 +743,7 @@ struct NotchView: View {
     @ViewBuilder
     private var openedHeaderContent: some View {
         HStack(spacing: 8) {
-            if viewModel.openReason == .notification, isInNotificationMoment {
+            if isInNotificationMoment {
                 notificationSourceIcon(size: petIconSize, status: .idle)
                 .padding(.leading, 14)
             }
@@ -993,6 +1010,9 @@ struct NotchView: View {
         if activeCompletionNotification != nil {
             return "completion_notification"
         }
+        if activeRealtimeNotificationSession != nil {
+            return "realtime_notification"
+        }
         if activePluginNotification != nil {
             return "plugin_notification"
         }
@@ -1067,6 +1087,7 @@ struct NotchView: View {
                 .filter { $0.phase == .waitingForInput }
                 .map(\.stableId)
         )
+        previousRealtimeHookMessages = realtimeHookMessages(from: instances)
         _ = manualAttentionTracker.consumeNewAttentionSession(from: instances)
         primeCompletionNotificationTracking(instances)
     }
@@ -1127,6 +1148,42 @@ struct NotchView: View {
         }
 
         viewModel.presentNotificationChat(for: targetSession)
+    }
+
+    private func handleRealtimeHookNotificationChange(_ instances: [SessionState]) {
+        let currentMessages = realtimeHookMessages(from: instances)
+        defer { previousRealtimeHookMessages = currentMessages }
+
+        if activeRealtimeNotificationSession == nil {
+            activeRealtimeNotificationSessionId = nil
+        }
+
+        guard !areReminderNotificationsSuppressed else { return }
+        guard activeCompletionNotification == nil, activePluginNotification == nil else { return }
+        guard !hasPendingPermission, !hasHumanIntervention else { return }
+
+        let changedSessions = instances.filter { session in
+            guard let message = session.compactHookMessage, session.phase != .ended else { return false }
+            return previousRealtimeHookMessages[session.stableId] != message
+        }
+
+        guard let target = changedSessions.sorted(by: { $0.lastActivity > $1.lastActivity }).first else {
+            return
+        }
+
+        activeRealtimeNotificationSessionId = target.stableId
+        viewModel.presentNotificationChat(for: target)
+    }
+
+    private func realtimeHookMessages(from instances: [SessionState]) -> [String: String] {
+        Dictionary(
+            uniqueKeysWithValues: instances.compactMap { session in
+                guard let message = session.compactHookMessage, session.phase != .ended else {
+                    return nil
+                }
+                return (session.stableId, message)
+            }
+        )
     }
 
     private func handleWaitingForInputChange(_ instances: [SessionState]) {
