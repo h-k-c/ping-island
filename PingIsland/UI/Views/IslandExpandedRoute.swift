@@ -896,7 +896,7 @@ private struct ProcMonitorIslandPanelView: View {
     }
 
     private var footer: some View {
-        HStack {
+        HStack(spacing: 10) {
             HStack(spacing: 4) {
                 Image(systemName: showSystem ? "lock.fill" : "person.fill")
                     .font(.system(size: 10, weight: .medium))
@@ -904,6 +904,10 @@ private struct ProcMonitorIslandPanelView: View {
                     .font(.system(size: 11, weight: .medium))
             }
             .foregroundStyle(ProcMonitorIslandStyle.text.opacity(0.48))
+
+            Spacer()
+
+            hardwareMetricStrip
 
             Spacer()
 
@@ -930,6 +934,46 @@ private struct ProcMonitorIslandPanelView: View {
         .padding(.horizontal, 11)
         .padding(.vertical, 7)
         .background(ProcMonitorIslandStyle.band.opacity(0.28))
+    }
+
+    private var hardwareMetricStrip: some View {
+        HStack(spacing: 5) {
+            hardwareMetricBadge(
+                icon: "thermometer.medium",
+                value: monitor.hardwareMetrics.enclosureTemperatureText,
+                tint: ProcMonitorIslandStyle.cyan
+            )
+            hardwareMetricBadge(
+                icon: "cpu.fill",
+                value: monitor.hardwareMetrics.cpuTemperatureText,
+                tint: ProcMonitorIslandStyle.amber
+            )
+            hardwareMetricBadge(
+                icon: "fan.fill",
+                value: monitor.hardwareMetrics.fanSpeedText,
+                tint: ProcMonitorIslandStyle.green
+            )
+        }
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func hardwareMetricBadge(icon: String, value: String, tint: Color) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8.5, weight: .semibold))
+                .foregroundStyle(tint.opacity(0.84))
+            Text(value)
+                .font(.system(size: 9.3, weight: .semibold, design: .rounded).monospacedDigit())
+                .foregroundStyle(ProcMonitorIslandStyle.text.opacity(0.66))
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
+        .background(
+            Capsule()
+                .fill(tint.opacity(0.10))
+                .overlay(Capsule().strokeBorder(tint.opacity(0.17), lineWidth: 0.5))
+        )
     }
 
     private func metricButton(
@@ -1148,6 +1192,7 @@ private final class ProcMonitorIslandModel: ObservableObject {
     @Published var memoryUsedGB: Double = 0
     @Published var memoryTotalGB: Double = 1
     @Published var memoryPercent: Double = 0
+    @Published var hardwareMetrics = ProcMonitorHardwareMetrics()
 
     private var timer: Timer?
 
@@ -1214,11 +1259,13 @@ private final class ProcMonitorIslandModel: ObservableObject {
         DispatchQueue.global(qos: .utility).async {
             let processes = Self.fetchProcesses(icons: icons)
             let memory = Self.fetchMemory()
+            let hardwareMetrics = Self.fetchHardwareMetrics()
             DispatchQueue.main.async {
                 self.processes = processes
                 self.memoryUsedGB = memory.used
                 self.memoryTotalGB = memory.total
                 self.memoryPercent = memory.percent
+                self.hardwareMetrics = hardwareMetrics
             }
         }
     }
@@ -1350,6 +1397,145 @@ private final class ProcMonitorIslandModel: ObservableObject {
         let used = Double(max(usedBytes, 0)) / gb
         return (used, total, min(100, max(0, Double(usedBytes) / Double(max(totalBytes, 1)) * 100)))
     }
+
+    private static func fetchHardwareMetrics() -> ProcMonitorHardwareMetrics {
+        ProcMonitorHardwareMetrics(
+            enclosureTemperatureCelsius: fetchBatteryTemperature(),
+            cpuTemperatureCelsius: fetchExternalCPUTemperature(),
+            fanRPM: fetchExternalFanRPM()
+        )
+    }
+
+    private static func fetchBatteryTemperature() -> Double? {
+        guard let output = runCommand(
+            executable: "/usr/sbin/ioreg",
+            arguments: ["-r", "-n", "AppleSmartBattery", "-w0"]
+        ) else { return nil }
+
+        let pattern = #""Temperature"\s*=\s*(\d+)"#
+        guard
+            let regex = try? NSRegularExpression(pattern: pattern),
+            let match = regex.firstMatch(
+                in: output,
+                range: NSRange(output.startIndex..<output.endIndex, in: output)
+            ),
+            let range = Range(match.range(at: 1), in: output),
+            let rawValue = Double(output[range])
+        else { return nil }
+
+        let celsius = rawValue > 200 ? rawValue / 100 : rawValue
+        guard celsius > -20, celsius < 120 else { return nil }
+        return celsius
+    }
+
+    private static func fetchExternalCPUTemperature() -> Double? {
+        for executable in [
+            "/opt/homebrew/bin/osx-cpu-temp",
+            "/usr/local/bin/osx-cpu-temp"
+        ] {
+            guard FileManager.default.isExecutableFile(atPath: executable),
+                  let output = runCommand(executable: executable, arguments: [])
+            else { continue }
+
+            if let value = firstDouble(in: output), value > -20, value < 130 {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func fetchExternalFanRPM() -> Int? {
+        for executable in [
+            "/opt/homebrew/bin/istats",
+            "/usr/local/bin/istats"
+        ] {
+            guard FileManager.default.isExecutableFile(atPath: executable),
+                  let output = runCommand(executable: executable, arguments: ["fan"])
+            else { continue }
+
+            let pattern = #"(\d+(?:\.\d+)?)\s*RPM"#
+            guard
+                let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+                let match = regex.firstMatch(
+                    in: output,
+                    range: NSRange(output.startIndex..<output.endIndex, in: output)
+                ),
+                let range = Range(match.range(at: 1), in: output),
+                let rpm = Double(output[range])
+            else { continue }
+            return Int(rpm.rounded())
+        }
+        return nil
+    }
+
+    private static func firstDouble(in text: String) -> Double? {
+        let pattern = #"(-?\d+(?:\.\d+)?)"#
+        guard
+            let regex = try? NSRegularExpression(pattern: pattern),
+            let match = regex.firstMatch(
+                in: text,
+                range: NSRange(text.startIndex..<text.endIndex, in: text)
+            ),
+            let range = Range(match.range(at: 1), in: text)
+        else { return nil }
+        return Double(text[range])
+    }
+
+    private static func runCommand(executable: String, arguments: [String]) -> String? {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: executable)
+        task.arguments = arguments
+
+        let output = Pipe()
+        task.standardOutput = output
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+        } catch {
+            return nil
+        }
+
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+
+        guard task.terminationStatus == 0 else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+}
+
+private struct ProcMonitorHardwareMetrics {
+    let enclosureTemperatureCelsius: Double?
+    let cpuTemperatureCelsius: Double?
+    let fanRPM: Int?
+
+    init(
+        enclosureTemperatureCelsius: Double? = nil,
+        cpuTemperatureCelsius: Double? = nil,
+        fanRPM: Int? = nil
+    ) {
+        self.enclosureTemperatureCelsius = enclosureTemperatureCelsius
+        self.cpuTemperatureCelsius = cpuTemperatureCelsius
+        self.fanRPM = fanRPM
+    }
+
+    var enclosureTemperatureText: String {
+        temperatureText(enclosureTemperatureCelsius)
+    }
+
+    var cpuTemperatureText: String {
+        temperatureText(cpuTemperatureCelsius)
+    }
+
+    var fanSpeedText: String {
+        guard let fanRPM else { return "--" }
+        return "\(fanRPM)"
+    }
+
+    private func temperatureText(_ value: Double?) -> String {
+        guard let value else { return "--" }
+        return "\(Int(value.rounded()))°"
+    }
 }
 
 private struct ProcMonitorIslandProcess: Identifiable {
@@ -1411,6 +1597,7 @@ private enum ProcMonitorIslandStyle {
     static let tagBackground = Color.white.opacity(0.11)
     static let green = Color(red: 0.23, green: 0.86, blue: 0.48)
     static let amber = Color(red: 1.00, green: 0.66, blue: 0.17)
+    static let cyan = Color(red: 0.25, green: 0.78, blue: 0.95)
     static let red = Color(red: 1.00, green: 0.31, blue: 0.25)
     static let edge = Color.white.opacity(0.18)
     static let hairline = Color.white.opacity(0.13)

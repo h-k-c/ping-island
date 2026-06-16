@@ -133,11 +133,18 @@ final class PluginRegistry: ObservableObject {
             guard hasSharedExecutable else { continue }
             let destinationExecutableURL = bundleURL.appendingPathComponent(manifest.executable)
             try? FileManager.default.removeItem(at: destinationExecutableURL)
-            try? FileManager.default.copyItem(at: executableURL, to: destinationExecutableURL)
-            try? FileManager.default.setAttributes(
-                [.posixPermissions: 0o755],
-                ofItemAtPath: destinationExecutableURL.path
-            )
+            do {
+                try FileManager.default.createSymbolicLink(
+                    at: destinationExecutableURL,
+                    withDestinationURL: executableURL
+                )
+            } catch {
+                try? FileManager.default.copyItem(at: executableURL, to: destinationExecutableURL)
+                try? FileManager.default.setAttributes(
+                    [.posixPermissions: 0o755],
+                    ofItemAtPath: destinationExecutableURL.path
+                )
+            }
         }
     }
 
