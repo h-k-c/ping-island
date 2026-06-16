@@ -9,6 +9,11 @@
 /* Begin PBXBuildFile section */
 		3204F7B0D81C67F62862FD29 /* PingIslandPlugin in Embed PingIslandPlugin */ = {isa = PBXBuildFile; fileRef = 2865B058CB7162F2E19C53D2 /* PingIslandPlugin */; };
 		41842858E0A8BDC3D34759DB /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F0C9474542E5F77EE7ACB7 /* main.swift */; };
+		4A1000000000000000000001 /* ClipboardShelfPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A1000000000000000000002 /* ClipboardShelfPlugin.swift */; };
+		4A1000000000000000000003 /* FocusTimerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A1000000000000000000004 /* FocusTimerPlugin.swift */; };
+		4A1000000000000000000005 /* LocalServicesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A1000000000000000000006 /* LocalServicesPlugin.swift */; };
+		4A1000000000000000000007 /* TaskBoardPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A1000000000000000000008 /* TaskBoardPlugin.swift */; };
+		4A1000000000000000000009 /* QuickLauncherPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A100000000000000000000A /* QuickLauncherPlugin.swift */; };
 		489697592D7927C5A17158AF /* CodexAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA576C1ACB335DB9F4B7687E /* CodexAPIService.swift */; };
 		8058B1E4956C5019C4C6D978 /* UsageData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 824CA02CD231CB5BBEB45D50 /* UsageData.swift */; };
 		891327B1EC410EAFA3E36043 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7714FB8939B10AA8FB6E3CA /* KeychainHelper.swift */; };
@@ -62,6 +67,11 @@
 /* Begin PBXFileReference section */
 		2865B058CB7162F2E19C53D2 /* PingIslandPlugin */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = text; path = PingIslandPlugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		37DD0FBACB423D066514B0FD /* PingIslandPlugin */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = text; path = PingIslandPlugin; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A1000000000000000000002 /* ClipboardShelfPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClipboardShelfPlugin.swift; sourceTree = "<group>"; };
+		4A1000000000000000000004 /* FocusTimerPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FocusTimerPlugin.swift; sourceTree = "<group>"; };
+		4A1000000000000000000006 /* LocalServicesPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalServicesPlugin.swift; sourceTree = "<group>"; };
+		4A1000000000000000000008 /* TaskBoardPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskBoardPlugin.swift; sourceTree = "<group>"; };
+		4A100000000000000000000A /* QuickLauncherPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickLauncherPlugin.swift; sourceTree = "<group>"; };
 		824CA02CD231CB5BBEB45D50 /* UsageData.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UsageData.swift; sourceTree = "<group>"; };
 		94FE6ADABB2E23CDFC5F6835 /* CodexCredentialLoader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CodexCredentialLoader.swift; sourceTree = "<group>"; };
 		A7C0DE000000000000000002 /* ProcMonitorPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProcMonitorPlugin.swift; sourceTree = "<group>"; };
@@ -171,6 +181,11 @@
 				8649E8313439F264ED1AAA51 /* Usage */,
 				E436CA0A9DB3721C052CC07B /* UsageMonitorPlugin.swift */,
 				A7C0DE000000000000000002 /* ProcMonitorPlugin.swift */,
+				4A1000000000000000000002 /* ClipboardShelfPlugin.swift */,
+				4A1000000000000000000004 /* FocusTimerPlugin.swift */,
+				4A1000000000000000000006 /* LocalServicesPlugin.swift */,
+				4A1000000000000000000008 /* TaskBoardPlugin.swift */,
+				4A100000000000000000000A /* QuickLauncherPlugin.swift */,
 			);
 			path = PingIslandPlugin;
 			sourceTree = "<group>";
@@ -496,6 +511,11 @@
 				D3C833ECE1588C2F0B68182D /* CodexUsageData.swift in Sources */,
 				CBDB9972CBCC8574E49D7966 /* UsageMonitorPlugin.swift in Sources */,
 				A7C0DE000000000000000001 /* ProcMonitorPlugin.swift in Sources */,
+				4A1000000000000000000001 /* ClipboardShelfPlugin.swift in Sources */,
+				4A1000000000000000000003 /* FocusTimerPlugin.swift in Sources */,
+				4A1000000000000000000005 /* LocalServicesPlugin.swift in Sources */,
+				4A1000000000000000000007 /* TaskBoardPlugin.swift in Sources */,
+				4A1000000000000000000009 /* QuickLauncherPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

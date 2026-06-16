@@ -35,6 +35,16 @@ case "com.auralink.usage", "com.wudanwu.pingisland.usage":
     UsageMonitorPlugin.run()
 case "com.auralink.procmonitor", "com.wudanwu.pingisland.procmonitor":
     ProcMonitorPlugin.run()
+case "com.auralink.clipboard":
+    ClipboardShelfPlugin.run()
+case "com.auralink.focusTimer":
+    FocusTimerPlugin.run()
+case "com.auralink.localServices":
+    LocalServicesPlugin.run()
+case "com.auralink.taskBoard":
+    TaskBoardPlugin.run()
+case "com.auralink.quickLauncher":
+    QuickLauncherPlugin.run()
 default:
     // Unknown plugin — respond to initialize and stay alive
     for msg in AnySequence({ AnyIterator { readLine() } }) {

@@ -1,0 +1,14 @@
+{
+  "id": "com.auralink.clipboard",
+  "name": "剪贴板暂存",
+  "version": "1.0.0",
+  "protocolVersion": "2.0",
+  "author": "Auralink",
+  "category": "tools",
+  "executable": "PingIslandPlugin",
+  "slots": ["compact", "expanded"],
+  "builtIn": true,
+  "permissions": ["clipboard"],
+  "description": "进程内暂存最近剪贴板内容预览，不写入磁盘",
+  "icon": { "sfSymbol": "doc.on.clipboard", "color": "#5AC8FA" }
+}

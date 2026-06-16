@@ -1,0 +1,14 @@
+{
+  "id": "com.auralink.localServices",
+  "name": "本地服务",
+  "version": "1.0.0",
+  "protocolVersion": "2.0",
+  "author": "Auralink",
+  "category": "tools",
+  "executable": "PingIslandPlugin",
+  "slots": ["compact", "expanded"],
+  "builtIn": true,
+  "permissions": ["localNetwork"],
+  "description": "只读检测常见本地开发服务端口状态",
+  "icon": { "sfSymbol": "network", "color": "#30D158" }
+}

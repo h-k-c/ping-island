@@ -17,6 +17,7 @@ This file is a routing layer for coding agents working in this repo. Keep it sho
 
 - Product overview: `README.md`
 - App entry: `PingIsland/App/PingIslandApp.swift`, `PingIsland/App/AppDelegate.swift`
+- Built-in island tool plugins: `PingIslandPlugin/`, `PingIsland/Resources/PluginBundles/`
 - Docked/detached presentation orchestration: `PingIsland/App/IslandPresentationCoordinator.swift`, `PingIsland/App/WindowManager.swift`
 - First-run surface-mode onboarding and mode-switch UI: `PingIsland/App/AppDelegate.swift`, `PingIsland/UI/Window/SettingsWindowController.swift`, `PingIsland/UI/Views/SettingsWindowView.swift`
 - Main state hub: `PingIsland/Services/State/SessionStore.swift`

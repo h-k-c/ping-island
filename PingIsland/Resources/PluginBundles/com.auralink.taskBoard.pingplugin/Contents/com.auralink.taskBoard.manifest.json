@@ -1,0 +1,13 @@
+{
+  "id": "com.auralink.taskBoard",
+  "name": "任务进度",
+  "version": "1.0.0",
+  "protocolVersion": "2.0",
+  "author": "Auralink",
+  "category": "productivity",
+  "executable": "PingIslandPlugin",
+  "slots": ["compact", "expanded"],
+  "builtIn": true,
+  "description": "轻量手动任务进度板，适合临时追踪当前任务",
+  "icon": { "sfSymbol": "progress.indicator", "color": "#64D2FF" }
+}

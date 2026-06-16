@@ -1,0 +1,13 @@
+{
+  "id": "com.auralink.focusTimer",
+  "name": "专注计时",
+  "version": "1.0.0",
+  "protocolVersion": "2.0",
+  "author": "Auralink",
+  "category": "productivity",
+  "executable": "PingIslandPlugin",
+  "slots": ["compact", "expanded"],
+  "builtIn": true,
+  "description": "25/5 专注计时器，点击展开后可开始、暂停、重置和切换模式",
+  "icon": { "sfSymbol": "timer", "color": "#FF9F0A" }
+}
