@@ -46,6 +46,7 @@ actor CodexAppServerMonitor {
     private var websocket: URLSessionWebSocketTask?
     private var receiveTask: Task<Void, Never>?
     private var threadListRefreshTask: Task<Void, Never>?
+    private var pendingThreadReadRefreshTasks: [String: Task<Void, Never>] = [:]
     private var requestSequence = 0
     private var pendingResponses: [String: CheckedContinuation<[String: Any], Error>] = [:]
     private var pendingRequestsByThread: [String: PendingRequest] = [:]
@@ -101,6 +102,8 @@ actor CodexAppServerMonitor {
     func stop() {
         threadListRefreshTask?.cancel()
         threadListRefreshTask = nil
+        pendingThreadReadRefreshTasks.values.forEach { $0.cancel() }
+        pendingThreadReadRefreshTasks.removeAll()
         receiveTask?.cancel()
         receiveTask = nil
         websocket?.cancel(with: .goingAway, reason: nil)
@@ -570,6 +573,7 @@ actor CodexAppServerMonitor {
                 phase: phase,
                 message: statusType
             )
+            scheduleThreadReadRefresh(threadId: threadId, reason: "status-\(statusType)")
 
         case "item/autoApprovalReview/started":
             guard let threadId = params["threadId"] as? String,
@@ -635,7 +639,41 @@ actor CodexAppServerMonitor {
             )
 
         default:
+            if let threadId = Self.notificationThreadId(from: params) {
+                scheduleThreadReadRefresh(threadId: threadId, reason: method)
+            }
             break
+        }
+    }
+
+    private func scheduleThreadReadRefresh(
+        threadId: String,
+        reason: String,
+        delay: Duration = .milliseconds(350)
+    ) {
+        guard !threadId.isEmpty else { return }
+
+        pendingThreadReadRefreshTasks[threadId]?.cancel()
+        pendingThreadReadRefreshTasks[threadId] = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            await self?.refreshThreadFromNotification(threadId: threadId, reason: reason)
+        }
+    }
+
+    private func refreshThreadFromNotification(threadId: String, reason: String) async {
+        pendingThreadReadRefreshTasks[threadId] = nil
+        guard websocket != nil else { return }
+
+        do {
+            _ = try await readThread(threadId: threadId, includeTurns: true)
+            logger.debug(
+                "Codex thread/read notification refresh succeeded thread=\(threadId, privacy: .public) reason=\(reason, privacy: .public)"
+            )
+        } catch {
+            logger.debug(
+                "Codex thread/read notification refresh failed thread=\(threadId, privacy: .public) reason=\(reason, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 
@@ -900,6 +938,29 @@ actor CodexAppServerMonitor {
         for thread in data {
             await ingestThread(thread)
         }
+    }
+
+    private static func notificationThreadId(from params: [String: Any]) -> String? {
+        let candidates: [Any?] = [
+            params["threadId"],
+            params["thread_id"],
+            params["conversationId"],
+            params["conversation_id"],
+            (params["thread"] as? [String: Any])?["id"],
+            (params["turn"] as? [String: Any])?["threadId"],
+            (params["item"] as? [String: Any])?["threadId"]
+        ]
+
+        for candidate in candidates {
+            if let string = candidate as? String {
+                let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    return trimmed
+                }
+            }
+        }
+
+        return nil
     }
 
     private static func threadListRequestParams(limit: Int = 30) -> [String: Any] {
