@@ -161,7 +161,35 @@ struct NotchView: View {
         if hasPendingPermission {
             return .warning
         }
+        if let session = activeRealtimeNotificationSession {
+            return indicatorTone(for: session)
+        }
+        if let session = activeCompletionNotification?.session {
+            return indicatorTone(for: session)
+        }
         return .normal
+    }
+
+    private func indicatorTone(for session: SessionState) -> NotchIndicatorTone {
+        switch session.clientInfo.brand {
+        case .claude:
+            return .claude
+        case .codebuddy:
+            return .codebuddy
+        case .codex:
+            return .codex
+        case .qoder:
+            return .qoder
+        case .gemini, .hermes, .qwen, .opencode, .copilot, .neutral, .kimi:
+            switch session.provider {
+            case .claude:
+                return .claude
+            case .codex:
+                return .codex
+            case .copilot, .kimi, .gemini:
+                return .normal
+            }
+        }
     }
 
     private var representativeClosedSession: SessionState? {
@@ -1196,7 +1224,13 @@ struct NotchView: View {
         }
 
         activeRealtimeNotificationSessionId = target.stableId
-        viewModel.presentNotificationChat(for: target)
+        if viewModel.status == .opened {
+            viewModel.showChat(for: target)
+        } else {
+            viewModel.hoverExpansionAllowed = true
+            isVisible = true
+        }
+        playEventSoundIfNeeded(.taskCompleted, sessions: [target])
     }
 
     private func acknowledgeRealtimeNotification(for session: SessionState) {
