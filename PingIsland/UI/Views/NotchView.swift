@@ -18,6 +18,8 @@ private let cornerRadiusInsets = (
 /// Keeps the compact center message slightly narrower than the full center slot
 /// so the closed notch matches the tighter visual balance used elsewhere.
 private let compactCenterContentInset: CGFloat = 14
+private let compactLeftEarContentInset: CGFloat = 1
+private let compactEarOutset: CGFloat = 2
 
 struct OpenedPanelContentHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
@@ -686,8 +688,10 @@ struct NotchView: View {
                                 notificationSourceIcon(size: petIconSize, status: closedMascotStatus)
                             } else if let pluginContent = pluginArbiter.activeLeft {
                                 IslandPluginRenderer.compactView(content: pluginContent)
+                                    .padding(.leading, compactLeftEarContentInset)
                             }
                         }
+                        .offset(x: -compactEarOutset)
                         .frame(width: closedLeadingWidth, alignment: .leading)
                         .contentShape(Rectangle())
                         .highPriorityGesture(
@@ -715,6 +719,7 @@ struct NotchView: View {
                                 IslandPluginRenderer.compactView(content: pluginContent)
                             }
                         }
+                        .offset(x: compactEarOutset)
                         .frame(width: closedTrailingWidth, alignment: .trailing)
                         .contentShape(Rectangle())
                         .highPriorityGesture(
@@ -734,7 +739,7 @@ struct NotchView: View {
     }
 
     private var closedLeadingWidth: CGFloat {
-        compactSlotWidth(for: pluginArbiter.activeLeft)
+        compactSlotWidth(for: pluginArbiter.activeLeft) + compactLeftEarContentInset + compactEarOutset
     }
 
     private func presentAssignedPlugin(_ pluginId: String?) {
@@ -743,7 +748,7 @@ struct NotchView: View {
     }
 
     private var closedTrailingWidth: CGFloat {
-        compactSlotWidth(for: pluginArbiter.activeRight)
+        compactSlotWidth(for: pluginArbiter.activeRight) + compactEarOutset
     }
 
     private func compactSlotWidth(for content: PluginCompactContent?) -> CGFloat {
@@ -754,7 +759,7 @@ struct NotchView: View {
         let iconWidth: CGFloat = content.icon == nil ? 0 : 11.5
         let badgeWidth: CGFloat = (content.badge ?? 0) > 0 ? 16 : 0
         let estimatedWidth = labelWidth + iconWidth + badgeWidth + 6
-        return max(sideWidth, min(64, estimatedWidth))
+        return max(sideWidth, min(70, estimatedWidth))
     }
 
     private var closedCenterWidth: CGFloat {

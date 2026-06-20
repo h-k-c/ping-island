@@ -77,7 +77,7 @@ enum UsageMonitorPlugin {
             if let params = msg["params"] as? [String: Any],
                let key = params["key"] as? String {
                 applyConfig([key: params["value"] as Any])
-                if key == "refreshInterval" {
+                if key == "refreshInterval" || key == "claudeSessionKey" {
                     scheduleRefresh(immediate: true)
                 }
             }
@@ -91,8 +91,13 @@ enum UsageMonitorPlugin {
             refreshInterval = min(max(interval, 60), 3600)
         }
 
-        if let sessionKey = config["claudeSessionKey"] as? String, !sessionKey.isEmpty {
-            try? KeychainHelper.save(key: "claudeSessionKey", value: sessionKey)
+        if config.keys.contains("claudeSessionKey") {
+            let sessionKey = (config["claudeSessionKey"] as? String) ?? ""
+            if sessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                try? KeychainHelper.delete(key: "claudeSessionKey")
+            } else {
+                try? KeychainHelper.save(key: "claudeSessionKey", value: sessionKey)
+            }
         }
     }
 
@@ -335,7 +340,7 @@ enum UsageMonitorPlugin {
         } else if result.needsLogin {
             sections.append([
                 "type": "text",
-                "content": "Claude 未登录：请在插件设置中填写 Claude Session Key",
+                "content": "Claude 未登录：请输入 Claude Session Key",
                 "style": "caption"
             ])
         }

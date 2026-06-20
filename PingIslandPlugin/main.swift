@@ -124,11 +124,11 @@ enum ClaudeSessionPlugin {
 
     private static func sendCompact() {
         let count = activeSessions.count
-        let content: Any = count > 0 ? [
-            "icon": ["type": "sf", "name": count == 1 ? "brain.head.profile" : "cpu"],
+        let content: [String: Any] = [
+            "icon": ["type": "sf", "name": count == 1 ? "brain.head.profile" : "brain"],
             "label": "\(count)",
-            "tint": "default"
-        ] as [String: Any] : NSNull()
+            "tint": count > 0 ? "default" : "default"
+        ]
 
         sendJSON([
             "jsonrpc": "2.0", "method": "island/compact",
@@ -229,11 +229,11 @@ enum CodexSessionPlugin {
 
     private static func sendCompact() {
         let count = activeSessions.count
-        let content: Any = count > 0 ? [
+        let content: [String: Any] = [
             "icon": ["type": "sf", "name": count == 1 ? "terminal" : "terminal.fill"],
             "label": "\(count)",
-            "tint": "green"
-        ] as [String: Any] : NSNull()
+            "tint": count > 0 ? "green" : "default"
+        ]
 
         sendJSON([
             "jsonrpc": "2.0", "method": "island/compact",

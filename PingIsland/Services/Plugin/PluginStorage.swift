@@ -65,6 +65,7 @@ final class PluginStorage {
                                              kSecValueData: value.data(using: .utf8)!,
                                              kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
             SecItemAdd(bareAdd as CFDictionary, nil)
+            setLegacyServiceSecret(key: key, value: value)
         }
 
         let add: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
@@ -79,6 +80,13 @@ final class PluginStorage {
         let query: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
                                        kSecAttrAccount: accountKey as CFString]
         SecItemDelete(query as CFDictionary)
+
+        if key != accountKey {
+            let bareQuery: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
+                                               kSecAttrAccount: key as CFString]
+            SecItemDelete(bareQuery as CFDictionary)
+            deleteLegacyServiceSecret(key: key)
+        }
     }
 
     // MARK: - Bulk read for initialize injection
@@ -124,5 +132,32 @@ final class PluginStorage {
 
     private func namespacedKey(pluginId: String, key: String) -> String {
         "\(pluginId).\(key)"
+    }
+
+    private func setLegacyServiceSecret(key: String, value: String) {
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: "com.claude-monitor.app" as CFString,
+            kSecAttrAccount: key as CFString
+        ]
+        SecItemDelete(query as CFDictionary)
+
+        let add: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: "com.claude-monitor.app" as CFString,
+            kSecAttrAccount: key as CFString,
+            kSecValueData: value.data(using: .utf8)!,
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        SecItemAdd(add as CFDictionary, nil)
+    }
+
+    private func deleteLegacyServiceSecret(key: String) {
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: "com.claude-monitor.app" as CFString,
+            kSecAttrAccount: key as CFString
+        ]
+        SecItemDelete(query as CFDictionary)
     }
 }
