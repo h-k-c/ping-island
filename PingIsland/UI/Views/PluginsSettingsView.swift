@@ -405,9 +405,6 @@ private struct RealtimeSourceMascotIcon: View {
         case .kimi:
             return .kimi
         case .neutral:
-            if profile.id.contains("openclaw") {
-                return .openclaw
-            }
             return .claude
         }
     }
