@@ -16,7 +16,7 @@ final class EnergyGovernorTests: XCTestCase {
         let policy = EnergyPolicy.policy(for: mode)
 
         XCTAssertEqual(mode, .active)
-        XCTAssertEqual(policy.codexThreadListRefreshInterval, .seconds(15))
+        XCTAssertEqual(policy.codexThreadListRefreshInterval, .seconds(5))
         XCTAssertEqual(policy.sessionMaintenanceInterval, .seconds(60))
         XCTAssertEqual(policy.eventMonitoringLevel, .full)
         XCTAssertEqual(policy.animationLevel, .full)
@@ -37,7 +37,7 @@ final class EnergyGovernorTests: XCTestCase {
         let policy = EnergyPolicy.policy(for: mode)
 
         XCTAssertEqual(mode, .quietBackground)
-        XCTAssertEqual(policy.codexThreadListRefreshInterval, .seconds(5 * 60))
+        XCTAssertEqual(policy.codexThreadListRefreshInterval, .seconds(60))
         XCTAssertEqual(policy.sessionMaintenanceInterval, .seconds(10 * 60))
         XCTAssertEqual(policy.eventMonitoringLevel, .interactionOnly)
         XCTAssertEqual(policy.animationLevel, .staticFrames)
