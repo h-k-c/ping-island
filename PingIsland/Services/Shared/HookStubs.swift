@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 
 enum BridgeRuntimeConfigWriter {
@@ -49,55 +48,8 @@ enum HookInstaller {
     #endif
 }
 
-@MainActor
-class HookWalkthroughDemoRunner {
-    static let shared = HookWalkthroughDemoRunner()
-    func start() {}
-}
-
 enum IDEExtensionInstaller {
     static func cleanupLegacyTraeExtension() {}
-}
-
-struct HookEvent: Codable, Sendable {
-    let type: String
-    let payload: [String: AnyCodable]?
-    var sessionId: String { "" }
-    var event: String { type }
-    var status: String { "" }
-    var provider: SessionProvider { .unknown }
-    var cwd: String { "" }
-    var message: String? { nil }
-}
-
-@MainActor
-class SessionStore {
-    static let shared = SessionStore()
-    var sessionsPublisher: AnyPublisher<[SessionState], Never> {
-        Just([]).eraseToAnyPublisher()
-    }
-    func diagnosticsSnapshot() -> [String: Any] { [:] }
-}
-
-@MainActor
-class SessionAssociationStore {
-    static let shared = SessionAssociationStore()
-    static var diagnosticsFileURL: URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("session-associations-stub.json")
-    }
-    func export() -> [String: Any] { [:] }
-}
-
-class CodexAppServerMonitor {
-    static let shared = CodexAppServerMonitor()
-    var isActive: Bool { false }
-    func diagnosticsSnapshot() -> [String: Any] { [:] }
-}
-
-@MainActor
-class RemoteConnectorManager {
-    static let shared = RemoteConnectorManager()
-    func diagnosticsSnapshot() -> [String: Any] { [:] }
 }
 
 extension NSNotification.Name {

@@ -311,32 +311,6 @@ actor TelemetryService {
         await uploadPendingDailyUsageSnapshots()
     }
 
-    func recordAttentionRequested(_ session: SessionState) async {
-        await uploadPendingDailyUsageSnapshots()
-    }
-
-    func recordAttentionResolved(_ session: SessionState, resolution: String) async {
-        await uploadPendingDailyUsageSnapshots()
-    }
-
-    func recordSessionDetected(_ session: SessionState) async {
-        guard recordUniqueSession(session.sessionId) else { return }
-        trimRecordedSessionIDsIfNeeded()
-        mutateAggregateForToday { aggregate in
-            aggregate.sessionCount += 1
-            aggregate.clientSessionCounts[safeClientID(for: session), default: 0] += 1
-            aggregate.providerSessionCounts[session.provider.rawValue, default: 0] += 1
-            aggregate.surfaceMode = currentSurfaceMode()
-        }
-        recordTmuxSessionIfNeeded(session)
-        await uploadPendingDailyUsageSnapshots()
-    }
-
-    func recordSessionCompleted(_ session: SessionState) async {
-        recordTmuxSessionIfNeeded(session)
-        await uploadPendingDailyUsageSnapshots()
-    }
-
     func flush() async {
         guard isTelemetryActive, !queue.isEmpty else { return }
         let batch = Array(queue.prefix(maxBatchSize))
@@ -457,13 +431,6 @@ actor TelemetryService {
         return String(scalars).prefix(160).description
     }
 
-    private func safeClientID(for session: SessionState) -> String {
-        if let profileID = session.clientInfo.profileID {
-            return sanitizedClientID(profileID)
-        }
-        return session.clientInfo.kind.rawValue
-    }
-
     private func sanitizedClientID(_ value: String) -> String {
         Self.sanitizedValue(value.lowercased())
     }
@@ -490,25 +457,6 @@ actor TelemetryService {
             aggregate.appLaunchCount += 1
             aggregate.surfaceMode = currentSurfaceMode()
         }
-    }
-
-    private func recordTmuxSessionIfNeeded(_ session: SessionState) {
-        guard hasTmuxEvidence(session) else { return }
-        guard recordUniqueTmuxSession(session.sessionId) else { return }
-        mutateAggregateForToday { aggregate in
-            aggregate.tmuxSessionCount += 1
-            aggregate.surfaceMode = currentSurfaceMode()
-        }
-    }
-
-    private func hasTmuxEvidence(_ session: SessionState) -> Bool {
-        session.isInTmux
-            || hasContent(session.clientInfo.tmuxPaneIdentifier)
-            || hasContent(session.clientInfo.tmuxSessionIdentifier)
-    }
-
-    private func hasContent(_ value: String?) -> Bool {
-        value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     }
 
     private func shouldAcceptEvent(

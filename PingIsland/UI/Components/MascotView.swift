@@ -129,115 +129,6 @@ enum MascotClient: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    nonisolated init(provider: SessionProvider) {
-        switch provider {
-        case .codex:
-            self = .codex
-        case .claude:
-            self = .claude
-        case .copilot:
-            self = .copilot
-        case .kimi:
-            self = .kimi
-        case .gemini:
-            self = .gemini
-        case .unknown:
-            self = .claude
-        }
-    }
-
-    nonisolated init(clientInfo: SessionClientInfo, provider: SessionProvider) {
-        if let profileID = clientInfo.resolvedProfile(for: provider)?.id {
-            let resolvedClient: MascotClient? = switch profileID {
-            case "cursor":
-                .cursor
-            case "hermes":
-                .hermes
-            case "qwen-code":
-                .qwen
-            case "opencode":
-                .opencode
-            case "qoder", "qoderwork", "qoder-cli", "jb-plugin":
-                .qoder
-            case "codebuddy", "codebuddy-cli":
-                .codebuddy
-            case "gemini":
-                .gemini
-            case "trae":
-                .trae
-            case "codex-app", "codex-cli":
-                .codex
-            case "kimi":
-                .kimi
-            default:
-                nil
-            }
-
-            if let resolvedClient {
-                self = resolvedClient
-                return
-            }
-        }
-
-        switch clientInfo.brand {
-        case .codebuddy:
-            self = .codebuddy
-        case .codex:
-            self = .codex
-        case .gemini:
-            self = .gemini
-        case .hermes:
-            self = .hermes
-        case .qwen:
-            self = .qwen
-        case .neutral:
-            if clientInfo.resolvedProfile(for: provider)?.id == "hermes" {
-                self = .hermes
-                return
-            }
-            if clientInfo.resolvedProfile(for: provider)?.id == "qwen-code" {
-                self = .qwen
-                return
-            }
-            switch provider {
-            case .codex:
-                self = .codex
-            case .copilot:
-                self = .copilot
-            case .claude:
-                self = .claude
-            case .kimi:
-                self = .kimi
-            case .gemini:
-                self = .gemini
-            case .unknown:
-                self = .claude
-            }
-        case .opencode:
-            self = .opencode
-        case .qoder:
-            self = .qoder
-        case .copilot:
-            self = .copilot
-        case .kimi:
-            self = .kimi
-        case .claude:
-            switch provider {
-            case .codex:
-                self = .codex
-            case .copilot:
-                self = .copilot
-            case .claude:
-                self = .claude
-            case .kimi:
-                self = .kimi
-            case .gemini:
-                self = .gemini
-            case .unknown:
-                self = .claude
-            }
-        }
-    }
 }
 
 enum MascotKind: String, CaseIterable, Identifiable, Sendable {
@@ -339,36 +230,6 @@ enum MascotKind: String, CaseIterable, Identifiable, Sendable {
     nonisolated init(client: MascotClient) {
         self = client.defaultMascotKind
     }
-
-    nonisolated init(provider: SessionProvider) {
-        self = MascotKind(client: MascotClient(provider: provider))
-    }
-
-    nonisolated init(clientInfo: SessionClientInfo, provider: SessionProvider) {
-        self = MascotKind(client: MascotClient(clientInfo: clientInfo, provider: provider))
-    }
-}
-
-extension SessionState {
-    nonisolated var mascotClient: MascotClient {
-        MascotClient(clientInfo: clientInfo, provider: provider)
-    }
-
-    nonisolated var defaultMascotKind: MascotKind {
-        MascotKind(client: mascotClient)
-    }
-}
-
-extension MascotStatus {
-    init(session: SessionState) {
-        if session.needsManualAttention {
-            self = .warning
-        } else if session.phase.isActive {
-            self = .working
-        } else {
-            self = .idle
-        }
-    }
 }
 
 struct MascotView: View {
@@ -394,22 +255,6 @@ struct MascotView: View {
         self.size = size
         self.animationTime = animationTime
         self.isDragging = isDragging
-    }
-
-    init(
-        provider: SessionProvider,
-        status: MascotStatus,
-        size: CGFloat = 40,
-        animationTime: TimeInterval? = nil,
-        isDragging: Bool = false
-    ) {
-        self.init(
-            kind: MascotKind(provider: provider),
-            status: status,
-            size: size,
-            animationTime: animationTime,
-            isDragging: isDragging
-        )
     }
 
     var body: some View {
