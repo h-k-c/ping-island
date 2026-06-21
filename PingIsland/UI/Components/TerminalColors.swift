@@ -28,32 +28,3 @@ struct TerminalColors {
     static let backgroundHover = Color.white.opacity(0.1)
 }
 
-extension SessionClientBrand {
-    var tintColor: Color {
-        switch self {
-        case .claude:
-            return TerminalColors.claude
-        case .codebuddy:
-            return TerminalColors.codebuddy
-        case .codex:
-            return TerminalColors.blue
-        case .gemini:
-            return TerminalColors.gemini
-        case .hermes:
-            return TerminalColors.hermes
-        case .qwen:
-            return TerminalColors.qwen
-        case .opencode:
-            return TerminalColors.cyan
-        case .qoder:
-            return TerminalColors.qoder
-        case .neutral:
-            return Color.white.opacity(0.72)
-        case .copilot:
-            return TerminalColors.green
-        case .kimi:
-            return TerminalColors.kimi
-        }
-    }
-}
-

@@ -276,10 +276,7 @@ final class DetachedIslandWindowController: NSWindowController, NSWindowDelegate
             activatesApplication: activatesApplication
         )
         if presentsAutomaticContent {
-            presentExistingAttentionIfNeeded()
             presentFloatingSettingsHintIfNeeded()
-        } else {
-            primeExistingAttentionTracking()
         }
     }
 
@@ -312,10 +309,7 @@ final class DetachedIslandWindowController: NSWindowController, NSWindowDelegate
             activatesApplication: activatesApplication
         )
         if presentsAutomaticContent {
-            presentExistingAttentionIfNeeded()
             presentFloatingSettingsHintIfNeeded()
-        } else {
-            primeExistingAttentionTracking()
         }
     }
 
@@ -330,9 +324,6 @@ final class DetachedIslandWindowController: NSWindowController, NSWindowDelegate
         } else {
             window.orderFront(nil)
         }
-    }
-
-    private func primeExistingAttentionTracking() {
     }
 
     var currentPetAnchor: CGPoint? {
@@ -532,7 +523,6 @@ final class DetachedIslandWindowController: NSWindowController, NSWindowDelegate
             .sink { [weak self] bubbleState in
                 self?.syncBubblePresentation(to: bubbleState)
                 self?.syncOutsideClickMonitor()
-                self?.reconcileHighlightedSessionState()
             }
             .store(in: &cancellables)
 
@@ -550,7 +540,6 @@ final class DetachedIslandWindowController: NSWindowController, NSWindowDelegate
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.reconcileHighlightedSessionState()
                 self?.reconcileBubbleStateWithAvailableContent()
                 self?.scheduleWindowSizeUpdate()
             }
@@ -975,7 +964,6 @@ final class DetachedIslandWindowController: NSWindowController, NSWindowDelegate
         change()
         syncBubblePresentation(to: interactionModel.bubbleState)
         syncOutsideClickMonitor()
-        reconcileHighlightedSessionState()
         recordBubbleTelemetryTransition(from: previousState, to: interactionModel.bubbleState)
     }
 
@@ -1045,10 +1033,6 @@ final class DetachedIslandWindowController: NSWindowController, NSWindowDelegate
             to: interactionModel.bubbleState
         )
     }
-
-    private func presentExistingAttentionIfNeeded() {}
-
-    private func reconcileHighlightedSessionState() {}
 
     private func reconcileBubbleStateWithAvailableContent() {
         switch interactionModel.bubbleState {

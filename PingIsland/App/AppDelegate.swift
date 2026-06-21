@@ -56,7 +56,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if launchConfiguration.shouldInstallIntegrations {
-            IDEExtensionInstaller.cleanupLegacyTraeExtension()
             NotchDetachmentHintExperience.prepareForLaunch(
                 previousVersion: nil,
                 markHintsPending: {

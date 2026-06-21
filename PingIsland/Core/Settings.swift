@@ -346,7 +346,6 @@ final class AppSettingsStore: ObservableObject {
     static let shared = AppSettingsStore()
 
     private let defaults: UserDefaults
-    private let bridgeRuntimeConfigWriter: (Bool) -> Void
     private var isBootstrapping = true
     private var subagentVisibilityModeStorage: SubagentVisibilityMode
 
@@ -1189,13 +1188,9 @@ final class AppSettingsStore: ObservableObject {
     }
 
     init(
-        defaults: UserDefaults = .standard,
-        bridgeRuntimeConfigWriter: @escaping (Bool) -> Void = {
-            BridgeRuntimeConfigWriter.write(routePromptsToTerminal: $0)
-        }
+        defaults: UserDefaults = .standard
     ) {
         self.defaults = defaults
-        self.bridgeRuntimeConfigWriter = bridgeRuntimeConfigWriter
         self.subagentVisibilityModeStorage = .visible
         let persistedKeys = Set(defaults.dictionaryRepresentation().keys)
         let appLanguageRaw = defaults.string(forKey: Keys.appLanguage)
@@ -1498,15 +1493,7 @@ final class AppSettingsStore: ObservableObject {
         writeEffectiveBridgeRuntimeConfig()
     }
 
-    private func writeEffectiveBridgeRuntimeConfig() {
-        let effective = effectiveRoutePromptsToTerminal
-        bridgeRuntimeConfigWriter(effective)
-        NotificationCenter.default.post(
-            name: .bridgeRuntimeConfigDidChange,
-            object: self,
-            userInfo: ["routePromptsToTerminal": effective]
-        )
-    }
+    private func writeEffectiveBridgeRuntimeConfig() {}
 
     private func recordTelemetrySettingChange(key: String, value: String) {
         Task {
