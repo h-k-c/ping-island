@@ -193,7 +193,7 @@ struct PluginsSettingsView: View {
 
     /// Plugins shown as configurable cards.
     private var visiblePlugins: [InstalledPlugin] {
-        registry.installedPlugins.filter { !$0.manifest.isCoreSessionMonitor }
+        registry.installedPlugins
     }
 
     /// Plugins that can render a compact ear, regardless of the specific side
@@ -275,138 +275,6 @@ struct PluginsSettingsView: View {
                         .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5))
             )
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
-private extension PluginManifest {
-    var isCoreSessionMonitor: Bool {
-        isBuiltIn && subscribesTo.contains("hookEvent")
-    }
-}
-
-struct RealtimeNotificationsSettingsView: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            if realtimeNotificationSources.isEmpty {
-                emptyCard
-            } else {
-                sourceCard
-            }
-        }
-    }
-
-    private var sourceCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("实时通知源")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.primary)
-                .padding(.bottom, 8)
-
-            card {
-                ForEach(Array(realtimeNotificationSources.enumerated()), id: \.element.id) { index, source in
-                    if index > 0 { rowDivider() }
-                    realtimeNotificationRow(source)
-                }
-            }
-        }
-    }
-
-    private var emptyCard: some View {
-        card {
-            VStack(spacing: 10) {
-                Image(systemName: "bell.badge")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(.secondary)
-                Text("没有实时通知源")
-                    .font(.system(size: 12, weight: .medium))
-                Text("安装默认 Hooks 后，Claude、Codex 等会话源会显示在这里")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 28)
-        }
-    }
-
-    private func realtimeNotificationRow(_ source: ManagedHookClientProfile) -> some View {
-        HStack(spacing: 10) {
-            RealtimeSourceMascotIcon(profile: source)
-                .frame(width: 30, height: 30)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(source.title)
-                    .font(.system(size: 10.8, weight: .semibold))
-                    .foregroundStyle(.primary)
-                Text("默认来源宠物")
-                    .font(.system(size: 9.4))
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-    }
-
-    private var realtimeNotificationSources: [ManagedHookClientProfile] {
-        ClientProfileRegistry.managedHookProfiles.filter(\.alwaysVisibleInSettings)
-    }
-
-    private func rowDivider() -> some View {
-        Divider().background(Color.white.opacity(0.05)).padding(.leading, 14)
-    }
-
-    @ViewBuilder
-    private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(spacing: 0) { content() }
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.045))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5))
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-}
-
-private struct RealtimeSourceMascotIcon: View {
-    @ObservedObject private var settings = AppSettings.shared
-    let profile: ManagedHookClientProfile
-
-    var body: some View {
-        MascotView(
-            kind: settings.mascotKind(for: mascotClient),
-            status: .idle,
-            size: 25
-        )
-    }
-
-    private var mascotClient: MascotClient {
-        switch profile.brand {
-        case .claude:
-            return .claude
-        case .codebuddy:
-            return .codebuddy
-        case .codex:
-            return .codex
-        case .gemini:
-            return .gemini
-        case .hermes:
-            return .hermes
-        case .qwen:
-            return .qwen
-        case .opencode:
-            return .opencode
-        case .qoder:
-            return .qoder
-        case .copilot:
-            return .copilot
-        case .kimi:
-            return .kimi
-        case .neutral:
-            return .claude
-        }
     }
 }
 

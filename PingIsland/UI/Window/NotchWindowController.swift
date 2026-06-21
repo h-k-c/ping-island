@@ -17,7 +17,6 @@ class NotchWindowController: NSWindowController {
     init(
         screen: NSScreen,
         viewModel: NotchViewModel,
-        sessionMonitor: SessionMonitor,
         performBootAnimation: Bool
     ) {
         self.viewModel = viewModel
@@ -46,8 +45,7 @@ class NotchWindowController: NSWindowController {
 
         // Create the SwiftUI view with pass-through hosting
         let hostingController = NotchViewController(
-            viewModel: viewModel,
-            sessionMonitor: sessionMonitor
+            viewModel: viewModel
         )
         notchWindow.contentViewController = hostingController
 

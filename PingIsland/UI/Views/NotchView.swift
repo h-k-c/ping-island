@@ -30,38 +30,18 @@ struct OpenedPanelContentHeightPreferenceKey: PreferenceKey {
 }
 
 struct NotchView: View {
-    private static let temporaryReminderMuteDuration: TimeInterval = 10 * 60
     private static let startupDetachmentHintDelay: TimeInterval = 1.8
     private static let detachmentHintRetryDelay: TimeInterval = 0.75
 
     @ObservedObject var viewModel: NotchViewModel
-    @ObservedObject var sessionMonitor: SessionMonitor
     @StateObject private var activityCoordinator = NotchActivityCoordinator.shared
     @ObservedObject private var updateManager = UpdateManager.shared
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var screenSelector = ScreenSelector.shared
     @ObservedObject private var pluginArbiter = PluginSlotArbiter.shared
-    @State private var previousPendingIds: Set<String> = []
-    @State private var manualAttentionTracker = SessionManualAttentionTracker()
-    @State private var previousWaitingForInputIds: Set<String> = []
-    @State private var waitingForInputTimestamps: [String: Date] = [:]  // sessionId -> when it entered waitingForInput
     @State private var isVisible: Bool = false
     @State private var isHovering: Bool = false
     @State private var isBouncing: Bool = false
-    @State private var hasPrimedSoundTransitions: Bool = false
-    @State private var previousProcessingIds: Set<String> = []
-    @State private var previousAttentionSoundIds: Set<String> = []
-    @State private var previousCompletionSoundIds: Set<String> = []
-    @State private var previousTaskErrorIds: Set<String> = []
-    @State private var previousResourceLimitIds: Set<String> = []
-    @State private var previousRealtimeHookMessages: [String: String] = [:]
-    @State private var activeRealtimeNotificationSessionId: String?
-    @State private var acknowledgedRealtimeNotificationKeys: Set<String> = []
-    @State private var previousCompletionNotificationPhases: [String: SessionPhase] = [:]
-    @State private var completionNotificationQueue: [SessionCompletionNotification] = []
-    @State private var activeCompletionNotification: SessionCompletionNotification?
-    @State private var completionNotificationDismissWorkItem: DispatchWorkItem?
-    @State private var shouldDismissCompletionNotificationOnHoverExit: Bool = false
     @State private var activePluginNotification: PluginNotifyUpdate?
     @State private var pluginNotificationDismissWork: DispatchWorkItem?
     @State private var isShowingDetachmentHint: Bool = false
@@ -72,227 +52,28 @@ struct NotchView: View {
 
     private let petIconSize: CGFloat = 16
 
-    /// Whether any tracked session is currently processing or compacting
-    private var isAnyProcessing: Bool {
-        sessionMonitor.instances.contains { $0.phase == .processing || $0.phase == .compacting }
-    }
-
-    /// Whether any tracked session has a pending permission request
-    private var hasPendingPermission: Bool {
-        sessionMonitor.instances.contains { $0.needsApprovalResponse }
-    }
-
-    /// Whether any session needs explicit human intervention (for example multi-choice questions).
-    private var hasHumanIntervention: Bool {
-        sessionMonitor.instances.contains {
-            $0.phase == .waitingForInput && $0.intervention != nil
-        }
-    }
-
-    /// Whether any session requires a user decision right now.
-    private var hasManualAttentionIndicator: Bool {
-        sessionMonitor.instances.contains {
-            $0.needsApprovalResponse || $0.intervention != nil
-        }
-    }
-
-    private var activeSessions: [SessionState] {
-        sessionMonitor.instances.filter(\.phase.isActive)
-    }
-
-    private var countedClosedSessions: [SessionState] {
-        sessionMonitor.instances.filter { session in
-            session.phase.isActive || session.phase.needsAttention
-        }
-    }
-
-    private var activeSessionCount: Int {
-        countedClosedSessions.count
-    }
-
-
-
-
-
-
     private var isOnBuiltinDisplay: Bool {
         screenSelector.selectedScreen?.isBuiltinDisplay == true
     }
 
-
     private var shouldHideForIdleState: Bool {
         settings.autoHideWhenIdle
-            && activeSessions.isEmpty
-            && !hasPendingPermission
-            && !hasHumanIntervention
-            && !hasCompletedReadyState
-            && activeCompletionNotification == nil
-            && activeRealtimeNotificationSession == nil
             && activePluginNotification == nil
     }
 
-    /// Most recently active live session that has a hook message we can surface in the compact notch.
-    private var latestHookMessageSession: SessionState? {
-        latestHookMessageSession(from: sessionMonitor.instances)
+    /// Whether the closed notch is currently surfacing a plugin notification.
+    private var isInNotificationMoment: Bool {
+        activePluginNotification != nil
     }
 
-    private var closedCenterMessage: String? {
-        guard settings.notchDisplayMode == .detailed else { return nil }
-        return latestHookMessageSession?.compactHookMessage
+    private var showsClosedNotificationSource: Bool {
+        viewModel.status != .opened && isInNotificationMoment
     }
 
-    /// Whether any tracked session completed and is ready for the user to continue.
-    private var hasCompletedReadyState: Bool {
-        let now = Date()
-        let displayDuration: TimeInterval = 30  // Show checkmark for 30 seconds
-
-        return sessionMonitor.instances.contains { session in
-            guard SessionCompletionStateEvaluator.isCompletedReadySession(session) else { return false }
-            // Only show if within the 30-second display window
-            if let enteredAt = waitingForInputTimestamps[session.stableId] {
-                return now.timeIntervalSince(enteredAt) < displayDuration
-            }
-            return false
-        }
-    }
-
-    private var closedIndicatorTone: NotchIndicatorTone {
-        if hasHumanIntervention {
-            return .intervention
-        }
-        if hasPendingPermission {
-            return .warning
-        }
-        if let session = activeRealtimeNotificationSession {
-            return indicatorTone(for: session)
-        }
-        if let session = activeCompletionNotification?.session {
-            return indicatorTone(for: session)
-        }
-        return .normal
-    }
-
-    private func indicatorTone(for session: SessionState) -> NotchIndicatorTone {
-        switch session.clientInfo.brand {
-        case .claude:
-            return .claude
-        case .codebuddy:
-            return .codebuddy
-        case .codex:
-            return .codex
-        case .qoder:
-            return .qoder
-        case .gemini, .hermes, .qwen, .opencode, .copilot, .neutral, .kimi:
-            switch session.provider {
-            case .claude:
-                return .claude
-            case .codex:
-                return .codex
-            case .copilot, .kimi, .gemini:
-                return .normal
-            }
-        }
-    }
-
-    private var representativeClosedSession: SessionState? {
-        if let attention = sessionMonitor.instances
-            .filter({ $0.needsManualAttention })
-            .sorted(by: { ($0.attentionRequestedAt ?? $0.lastActivity) > ($1.attentionRequestedAt ?? $1.lastActivity) })
-            .first {
-            return attention
-        }
-
-        if let active = sessionMonitor.instances
-            .filter({ $0.phase.isActive })
-            .sorted(by: { $0.lastActivity > $1.lastActivity })
-            .first {
-            return active
-        }
-
-        return sessionMonitor.instances
-            .sorted(by: { $0.lastActivity > $1.lastActivity })
-            .first
-    }
-
-    private var preferredShortcutSession: SessionState? {
-        representativeClosedSession ?? latestHookMessageSession
-    }
-
-    private var closedMascotKind: MascotKind {
-        settings.mascotKind(for: latestMascotSourceSession(from: sessionMonitor.instances)?.mascotClient)
-    }
-
-    private var completionNotificationMascotKind: MascotKind {
-        let client = activeCompletionNotification?.session.mascotClient
-            ?? latestMascotSourceSession(from: sessionMonitor.instances)?.mascotClient
-        return settings.mascotKind(for: client)
-    }
-
-    private var notificationSourceSession: SessionState? {
-        activeCompletionNotification?.session
-            ?? activeRealtimeNotificationSession
-            ?? representativeClosedSession
-    }
-
-    private var activeRealtimeNotificationSession: SessionState? {
-        guard let session = trackedRealtimeNotificationSession else { return nil }
-        guard !isRealtimeNotificationAcknowledged(for: session) else { return nil }
-        return session
-    }
-
-    private var trackedRealtimeNotificationSession: SessionState? {
-        guard let activeRealtimeNotificationSessionId else { return nil }
-        return sessionMonitor.instances.first {
-            $0.stableId == activeRealtimeNotificationSessionId
-                && $0.phase != .ended
-                && realtimeNotificationText(for: $0) != nil
-        }
-    }
-
-    private var areReminderNotificationsSuppressed: Bool {
-        settings.areNotificationsMutedTemporarily
-    }
-
-    private var temporaryMuteButtonHelpText: String {
-        guard let mutedUntil = settings.temporarilyMuteNotificationsUntil,
-              AppSettings.isNotificationMuteActive(until: mutedUntil) else {
-            return AppLocalization.string("10 分钟静音通知和声音")
-        }
-
-        return AppLocalization.format(
-            "通知与声音已静音至 %@，点击恢复",
-            formattedTemporaryMuteTime(mutedUntil)
-        )
-    }
-
-    private var closedMascotStatus: MascotStatus {
-        if viewModel.isDetachmentGestureActive {
-            return .dragging
-        }
-        return MascotStatus.closedNotchStatus(
-            representativePhase: representativeClosedSession?.phase,
-            hasPendingPermission: hasPendingPermission,
-            hasHumanIntervention: hasHumanIntervention
-        )
-    }
-
-    private func latestHookMessageSession(from instances: [SessionState]) -> SessionState? {
-        instances
-            .filter { $0.phase != .ended && $0.compactHookMessage != nil }
-            .sorted { $0.lastActivity > $1.lastActivity }
-            .first
-    }
-
-    private func latestMascotSourceSession(from instances: [SessionState]) -> SessionState? {
-        IslandMascotResolver.sourceSession(from: instances)
-    }
-
-    private func formattedTemporaryMuteTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = settings.locale
-        formatter.timeStyle = .short
-        formatter.dateStyle = .none
-        return formatter.string(from: date)
+    /// In fullscreen on physical-notch displays, the closed state should visually
+    /// collapse back to the native macOS notch with no Island content shown.
+    private var shouldHideClosedContent: Bool {
+        viewModel.usesPhysicalNotchClosedPresentation && viewModel.status != .opened
     }
 
     // MARK: - Sizing
@@ -310,7 +91,6 @@ struct NotchView: View {
         }
     }
 
-    /// Width of the closed content (notch + any expansion)
     private var closedContentWidth: CGFloat {
         closedNotchSize.width
     }
@@ -350,98 +130,31 @@ struct NotchView: View {
         instrumentedBody
     }
 
-    private var presentedBody: some View {
-        bodyContent
-            .offset(y: viewModel.closedPresentationOffsetY)
-            .opacity(isVisible ? 1 : 0)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .preferredColorScheme(.dark)
+    private var instrumentedBody: some View {
+        shortcutAwareBody
     }
 
-    private var lifecycleBody: some View {
-        presentedBody
-            .onAppear {
-                if !SessionMonitor.isRunningUnderXCTest {
-                    sessionMonitor.startMonitoring()
+    private var shortcutAwareBody: some View {
+        visibilityAwareBody
+            .onReceive(NotificationCenter.default.publisher(for: .pingIslandPresentNotchDetachmentHint)) { _ in
+                presentDetachmentHintIfNeeded(force: true)
+            }
+            .onPreferenceChange(OpenedPanelContentHeightPreferenceKey.self) { height in
+                guard viewModel.status == .opened else {
+                    viewModel.updateOpenedMeasuredHeight(nil)
+                    return
                 }
-                viewModel.updateIdleAutoHiddenState(hasVisibleSessionActivity: !shouldHideForIdleState)
-                isVisible = !viewModel.shouldHideWindowPresentation
-                viewModel.setManualAttentionActive(hasManualAttentionIndicator)
-                handleProcessingChange()
-                primeStartupPresentationState(sessionMonitor.instances)
-                scheduleDetachmentHintPresentationIfNeeded(delay: Self.startupDetachmentHintDelay)
-            }
-            .onDisappear {
-                cancelScheduledDetachmentHintPresentation()
-            }
-            .onChange(of: viewModel.status) { oldStatus, newStatus in
-                handleStatusChange(from: oldStatus, to: newStatus)
-            }
-    }
 
-    private var settingsAwareBody: some View {
-        lifecycleBody
-            .onChange(of: settings.autoOpenCompletionPanel) { _, isEnabled in
-                if !isEnabled {
-                    removeCompletionNotifications(
-                        matching: { $0 == .completed || $0 == .ended },
-                        keepPanelOpen: true
-                    )
-                } else {
-                    maybePresentNextCompletionNotification()
+                switch viewModel.contentType {
+                case .plugin:
+                    let measuredHeight = height > 0
+                        ? closedNotchSize.height + height + 12
+                        : nil
+                    viewModel.updateOpenedMeasuredHeight(measuredHeight)
+                default:
+                    viewModel.updateOpenedMeasuredHeight(nil)
                 }
             }
-            .onChange(of: settings.autoOpenCompactedNotificationPanel) { _, isEnabled in
-                if !isEnabled {
-                    removeCompletionNotifications(
-                        matching: { $0 == .compacted },
-                        keepPanelOpen: true
-                    )
-                } else {
-                    maybePresentNextCompletionNotification()
-                }
-            }
-            .onChange(of: settings.temporarilyMuteNotificationsUntil) { _, mutedUntil in
-                guard AppSettings.isNotificationMuteActive(until: mutedUntil) else { return }
-                clearCompletionNotifications(keepPanelOpen: true)
-                if viewModel.openReason == .notification {
-                    viewModel.exitChat()
-                }
-            }
-            .onChange(of: settings.autoHideWhenIdle) { _, _ in
-                handleProcessingChange()
-            }
-    }
-
-    private var contentTypeAwareBody: some View {
-        settingsAwareBody
-            .onChange(of: viewModel.contentType.id) { _, _ in
-                maybePresentNextCompletionNotification()
-            }
-            .onReceive(sessionMonitor.$pendingInstances) { sessions in
-                handlePendingSessionsChange(sessions)
-            }
-            .onReceive(sessionMonitor.$instances) { instances in
-                viewModel.setManualAttentionActive(
-                    instances.contains { $0.needsApprovalResponse || $0.intervention != nil }
-                )
-                handleProcessingChange()
-                handleSessionSoundTransitions(instances)
-                handleManualAttentionChange(instances)
-                handleRealtimeHookNotificationChange(instances)
-                handleWaitingForInputChange(instances)
-                handleCompletionNotificationChange(instances)
-            }
-            .onChange(of: pluginArbiter.pendingNotifications) { _, notifications in
-                if activePluginNotification == nil, !notifications.isEmpty {
-                    dequeuePluginNotification()
-                }
-            }
-            // Gate hover-to-expand on whether a notification is being surfaced.
-            .onChange(of: isInNotificationMoment) { _, active in
-                viewModel.hoverExpansionAllowed = active
-            }
-            .onAppear { viewModel.hoverExpansionAllowed = isInNotificationMoment }
     }
 
     private var visibilityAwareBody: some View {
@@ -450,7 +163,7 @@ struct NotchView: View {
                 if isActive && viewModel.status != .opened {
                     isVisible = false
                 } else {
-                    handleProcessingChange()
+                    handleVisibilityChange()
                     scheduleDetachmentHintPresentationIfNeeded(delay: Self.detachmentHintRetryDelay)
                 }
             }
@@ -458,7 +171,7 @@ struct NotchView: View {
                 if isActive {
                     isVisible = false
                 } else {
-                    handleProcessingChange()
+                    handleVisibilityChange()
                     scheduleDetachmentHintPresentationIfNeeded(delay: Self.detachmentHintRetryDelay)
                 }
             }
@@ -466,7 +179,7 @@ struct NotchView: View {
                 if isHidden && viewModel.status != .opened {
                     isVisible = false
                 } else {
-                    handleProcessingChange()
+                    handleVisibilityChange()
                     scheduleDetachmentHintPresentationIfNeeded(delay: Self.detachmentHintRetryDelay)
                 }
             }
@@ -490,58 +203,53 @@ struct NotchView: View {
             }
     }
 
-    private var shortcutAwareBody: some View {
-        visibilityAwareBody
-            .onReceive(NotificationCenter.default.publisher(for: .pingIslandOpenActiveSessionShortcut)) { _ in
-                handleOpenActiveSessionShortcut()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .pingIslandOpenSessionListShortcut)) { _ in
-                handleOpenSessionListShortcut()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .pingIslandPresentNotchDetachmentHint)) { _ in
-                presentDetachmentHintIfNeeded(force: true)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .pingIslandHookWalkthroughDemoShouldCloseNotch)) { _ in
-                closeDockedNotchForHookWalkthroughDemo()
-            }
-            .onPreferenceChange(OpenedPanelContentHeightPreferenceKey.self) { height in
-                guard viewModel.status == .opened else {
-                    viewModel.updateOpenedMeasuredHeight(nil)
-                    return
-                }
-
-                switch viewModel.contentType {
-                case .instances, .plugin:
-                    let effectiveHeight = activeCompletionNotification == nil
-                        ? height
-                        : max(height, SessionCompletionNotificationView.minimumContentHeight)
-                    let measuredHeight = height > 0
-                        ? closedNotchSize.height + effectiveHeight + 12
-                        : nil
-                    viewModel.updateOpenedMeasuredHeight(measuredHeight)
-                case .chat:
-                    viewModel.updateOpenedMeasuredHeight(nil)
+    private var contentTypeAwareBody: some View {
+        settingsAwareBody
+            .onChange(of: pluginArbiter.pendingNotifications) { _, notifications in
+                if activePluginNotification == nil, !notifications.isEmpty {
+                    dequeuePluginNotification()
                 }
             }
+            .onChange(of: isInNotificationMoment) { _, active in
+                viewModel.hoverExpansionAllowed = active
+            }
+            .onAppear { viewModel.hoverExpansionAllowed = isInNotificationMoment }
     }
 
-    private func closeDockedNotchForHookWalkthroughDemo() {
-        guard settings.surfaceMode == .notch else { return }
-        guard viewModel.presentationMode == .docked else { return }
-        guard viewModel.status == .opened else { return }
-
-        withAnimation(viewModel.animation) {
-            viewModel.notchClose()
-        }
+    private var settingsAwareBody: some View {
+        lifecycleBody
+            .onChange(of: settings.autoHideWhenIdle) { _, _ in
+                handleVisibilityChange()
+            }
     }
 
-    private var instrumentedBody: some View {
-        shortcutAwareBody
+    private var lifecycleBody: some View {
+        presentedBody
+            .onAppear {
+                viewModel.updateIdleAutoHiddenState(hasVisibleSessionActivity: !shouldHideForIdleState)
+                isVisible = !viewModel.shouldHideWindowPresentation
+                scheduleDetachmentHintPresentationIfNeeded(delay: Self.startupDetachmentHintDelay)
+            }
+            .onDisappear {
+                cancelScheduledDetachmentHintPresentation()
+            }
+            .onChange(of: viewModel.status) { oldStatus, newStatus in
+                handleStatusChange(from: oldStatus, to: newStatus)
+            }
     }
+
+    private var presentedBody: some View {
+        bodyContent
+            .offset(y: viewModel.closedPresentationOffsetY)
+            .opacity(isVisible ? 1 : 0)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .preferredColorScheme(.dark)
+    }
+
+    // MARK: - Body Content
 
     private var bodyContent: some View {
         ZStack(alignment: .top) {
-            // Outer container does NOT receive hits - only the notch content does
             VStack(spacing: 0) {
                 styledNotchLayout
             }
@@ -588,9 +296,6 @@ struct NotchView: View {
             .animation(isOpened ? openAnimation : closeAnimation, value: viewModel.status)
             .animation(viewModel.closedNotchResizeAnimation, value: notchSize)
             .animation(.smooth, value: activityCoordinator.expandingActivity)
-            .animation(.smooth, value: hasPendingPermission)
-            .animation(.smooth, value: hasHumanIntervention)
-            .animation(.smooth, value: hasCompletedReadyState)
             .animation(.spring(response: 0.3, dampingFraction: 0.5), value: isBouncing)
             .contentShape(Rectangle())
             .onHover { hovering in
@@ -601,60 +306,23 @@ struct NotchView: View {
             }
             .onTapGesture {
                 if !isOpened {
-                    if let session = activeRealtimeNotificationSession {
-                        viewModel.presentNotificationChat(for: session)
-                    } else {
-                        viewModel.notchOpen(reason: isInNotificationMoment ? .notification : .click)
-                    }
+                    viewModel.notchOpen(reason: isInNotificationMoment ? .notification : .click)
                 }
             }
     }
 
     // MARK: - Notch Layout
 
-    private var isProcessing: Bool {
-        activityCoordinator.expandingActivity.show && activityCoordinator.expandingActivity.type == .claude
-    }
-
-    /// Whether to show the expanded closed state (processing, pending permission, or waiting for input)
-    private var showClosedActivity: Bool {
-        isProcessing || hasPendingPermission || hasHumanIntervention || hasCompletedReadyState
-    }
-
-    /// Whether the closed notch is currently surfacing a notification/attention
-    /// moment (approval, intervention, just-completed, or a plugin notification).
-    /// Idle states keep both ears assigned to plugins.
-    private var isInNotificationMoment: Bool {
-        hasPendingPermission || hasHumanIntervention || hasCompletedReadyState
-            || activeCompletionNotification != nil
-            || activeRealtimeNotificationSession != nil
-            || activePluginNotification != nil
-    }
-
-    /// In the closed state the leading ear shows the notification source only
-    /// during a notification moment; idle closed states hand it to its plugin.
-    private var showsClosedNotificationSource: Bool {
-        viewModel.status != .opened && isInNotificationMoment
-    }
-
-    /// In fullscreen on physical-notch displays, the closed state should visually
-    /// collapse back to the native macOS notch with no Island content shown.
-    private var shouldHideClosedContent: Bool {
-        viewModel.usesPhysicalNotchClosedPresentation && viewModel.status != .opened
-    }
-
     @ViewBuilder
     private var notchLayout: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header row - always present, contains pet and spinner that persist across states
             headerRow
                 .frame(height: max(24, closedNotchSize.height))
                 .zIndex(1)
 
-            // Main content only when opened
             if viewModel.status == .opened {
                 contentView
-                    .frame(width: notchSize.width - 24) // Fixed width to prevent reflow
+                    .frame(width: notchSize.width - 24)
                     .zIndex(0)
                     .transition(
                         .asymmetric(
@@ -675,17 +343,17 @@ struct NotchView: View {
         Group {
             if shouldHideClosedContent {
                 Color.clear
-                    // Preserve the native-notch footprint without letting the
-                    // empty closed state expand across the whole window.
                     .frame(width: closedInnerWidth, height: closedNotchSize.height)
             } else {
                 HStack(spacing: 0) {
-                    // Left ear — notification source only during a notification
-                    // moment, otherwise the assigned plugin.
+                    // Left ear — plugin notification source during notification,
+                    // otherwise the assigned plugin.
                     if viewModel.status != .opened {
                         ZStack {
-                            if showsClosedNotificationSource {
-                                notificationSourceIcon(size: petIconSize, status: closedMascotStatus)
+                            if showsClosedNotificationSource,
+                               let notification = activePluginNotification,
+                               let plugin = installedPlugin(for: notification.pluginId) {
+                                pluginSourceIcon(plugin, size: petIconSize)
                             } else if let pluginContent = pluginArbiter.activeLeft {
                                 IslandPluginRenderer.compactView(content: pluginContent)
                                     .padding(.leading, compactLeftEarContentInset)
@@ -703,13 +371,12 @@ struct NotchView: View {
 
                     // Center content
                     if viewModel.status == .opened {
-                        // Opened: show header content
                         openedHeaderContent
                     } else {
                         closedCenterContent
                     }
 
-                    // Right ear — notification icon during notification moments,
+                    // Right ear — notification bell during plugin notification,
                     // otherwise the assigned plugin.
                     if viewModel.status != .opened {
                         ZStack {
@@ -773,22 +440,8 @@ struct NotchView: View {
     @ViewBuilder
     private var closedCenterContent: some View {
         HStack {
-            if let message = closedCenterMessage {
-                Text(message)
-                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color.white.opacity(showClosedActivity ? 0.9 : 0.74))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .minimumScaleFactor(0.85)
-                    .padding(.horizontal, 6)
-                    .frame(width: compactCenterContentWidth, alignment: .center)
-                    .allowsHitTesting(false)
-                    .accessibilityLabel("最新 hooks 消息")
-            } else {
-                // Preserve the compact notch footprint when there is no hook text to show.
-                Color.clear
-                    .frame(width: compactCenterContentWidth)
-            }
+            Color.clear
+                .frame(width: compactCenterContentWidth)
         }
         .frame(width: closedCenterWidth, alignment: .center)
     }
@@ -798,18 +451,14 @@ struct NotchView: View {
     @ViewBuilder
     private var openedHeaderContent: some View {
         HStack(spacing: 8) {
-            if isInNotificationMoment {
-                notificationSourceIcon(size: petIconSize, status: .idle)
-                .padding(.leading, 14)
+            if isInNotificationMoment,
+               let notification = activePluginNotification,
+               let plugin = installedPlugin(for: notification.pluginId) {
+                pluginSourceIcon(plugin, size: petIconSize)
+                    .padding(.leading, 14)
             }
 
             Spacer(minLength: 0)
-
-            NotchTemporaryMuteButton(
-                isActive: areReminderNotificationsSuppressed,
-                action: activateTemporaryReminderMute,
-                helpText: temporaryMuteButtonHelpText
-            )
 
             NotchSettingsButton(
                 hasUnseenUpdate: updateManager.hasUnseenUpdate,
@@ -821,28 +470,8 @@ struct NotchView: View {
     }
 
     @ViewBuilder
-    private func notificationSourceIcon(size: CGFloat, status: MascotStatus) -> some View {
-        if let plugin = activePluginNotification.flatMap({ installedPlugin(for: $0.pluginId) }) {
-            pluginSourceIcon(plugin, size: size)
-        } else if let session = notificationSourceSession,
-                  realtimeSourceProfile(for: session) != nil {
-            MascotView(
-                kind: settings.mascotKind(for: session.mascotClient),
-                status: status,
-                size: size
-            )
-        } else {
-            MascotView(
-                kind: closedMascotKind,
-                status: status,
-                size: size
-            )
-        }
-    }
-
-    @ViewBuilder
     private func notificationIndicatorIcon(size: CGFloat) -> some View {
-        RingingBellIndicatorIcon(size: size + 2, color: closedIndicatorTone.emphasisColor)
+        RingingBellIndicatorIcon(size: size + 2, color: .white.opacity(0.9))
     }
 
     @ViewBuilder
@@ -869,87 +498,21 @@ struct NotchView: View {
         PluginRegistry.shared.installedPlugins.first { $0.id == pluginId }
     }
 
-    private func realtimeSourceProfile(for session: SessionState) -> ManagedHookClientProfile? {
-        let runtimeID = session.clientInfo.resolvedProfile(for: session.provider)?.id
-        let managedID = managedHookProfileID(forRuntimeProfileID: runtimeID, provider: session.provider)
-        return ClientProfileRegistry.managedHookProfile(id: managedID)
-    }
-
-    private func managedHookProfileID(
-        forRuntimeProfileID runtimeProfileID: String?,
-        provider: SessionProvider
-    ) -> String {
-        switch runtimeProfileID {
-        case "codex-app", "codex-cli":
-            return "codex-hooks"
-        case "gemini":
-            return "gemini-hooks"
-        case "hermes":
-            return "hermes-hooks"
-        case "qwen-code":
-            return "qwen-code-hooks"
-        case "openclaw":
-            return "openclaw-hooks"
-        case "opencode":
-            return "opencode-hooks"
-        case "kimi":
-            return "kimi-hooks"
-        case "copilot-cli":
-            return "copilot-hooks"
-        case "codebuddy":
-            return "codebuddy-hooks"
-        case "codebuddy-cli":
-            return "codebuddy-cli-hooks"
-        case "workbuddy":
-            return "workbuddy-hooks"
-        case "cursor":
-            return "cursor-hooks"
-        case "qoder":
-            return "qoder-hooks"
-        case "qoder-cli":
-            return "qoder-cli-hooks"
-        case "qoderwork":
-            return "qoderwork-hooks"
-        default:
-            switch provider {
-            case .claude:
-                return "claude-hooks"
-            case .codex:
-                return "codex-hooks"
-            case .copilot:
-                return "copilot-hooks"
-            case .kimi:
-                return "kimi-hooks"
-            case .gemini:
-                return "gemini-hooks"
-            }
-        }
-    }
-
     // MARK: - Content View (Opened State)
 
     @ViewBuilder
     private var contentView: some View {
         IslandOpenedContentView(
-            sessionMonitor: sessionMonitor,
             viewModel: viewModel,
             surface: .docked,
             trigger: triggerForCurrentPresentation,
             style: .docked,
-            activeCompletionNotification: activeCompletionNotification,
-            activeRealtimeNotificationSession: activeRealtimeNotificationSession,
             activePluginNotification: activePluginNotification,
-            onAttentionActionCompleted: {},
-            onCompletionNotificationHoverChanged: handleCompletionNotificationHover,
-            onDismissCompletionNotification: {
-                clearCompletionNotifications(keepPanelOpen: true)
-            },
             onDismissPluginNotification: {
                 clearActivePluginNotification(keepPanelOpen: true)
             }
         )
-        .frame(width: notchSize.width - 24) // Fixed width to prevent text reflow
-        // Removed .id() - was causing view recreation and performance issues
+        .frame(width: notchSize.width - 24)
     }
 
     private var triggerForCurrentPresentation: IslandExpandedTrigger {
@@ -965,7 +528,7 @@ struct NotchView: View {
 
     // MARK: - Event Handlers
 
-    private func handleProcessingChange() {
+    private func handleVisibilityChange() {
         viewModel.updateIdleAutoHiddenState(hasVisibleSessionActivity: !shouldHideForIdleState)
 
         if viewModel.shouldHideWindowPresentation {
@@ -973,19 +536,8 @@ struct NotchView: View {
             return
         }
 
-        if isAnyProcessing || hasPendingPermission {
-            // Show claude activity when processing or waiting for permission
-            activityCoordinator.showActivity(type: .claude)
-            isVisible = true
-        } else if hasHumanIntervention || hasCompletedReadyState {
-            // Keep visible for attention/completion states but stop the active processing animation.
-            activityCoordinator.hideActivity()
-            isVisible = true
-        } else {
-            // Hide activity when done
-            activityCoordinator.hideActivity()
-            isVisible = true
-        }
+        activityCoordinator.hideActivity()
+        isVisible = true
     }
 
     private func handleStatusChange(from oldStatus: NotchStatus, to newStatus: NotchStatus) {
@@ -994,32 +546,109 @@ struct NotchView: View {
             isVisible = true
             cancelScheduledDetachmentHintPresentation()
             dismissDetachmentHint()
-            if newStatus == .opened,
-               viewModel.openReason == .hover || viewModel.openReason == .notification,
-               let session = activeRealtimeNotificationSession {
-                viewModel.showChat(for: session)
-            }
             if oldStatus != .opened, newStatus == .opened {
                 recordIslandOpened()
             }
-            // Clear waiting-for-input timestamps only when manually opened (user acknowledged)
-            if viewModel.openReason == .click || viewModel.openReason == .hover {
-                waitingForInputTimestamps.removeAll()
-                clearCompletionNotifications(keepPanelOpen: true)
-            }
         case .closed:
             if oldStatus == .opened {
-                if let session = trackedRealtimeNotificationSession {
-                    acknowledgeRealtimeNotification(for: session)
-                }
-                activeRealtimeNotificationSessionId = nil
                 recordIslandClosed()
             }
             isVisible = !viewModel.shouldHideWindowPresentation
-            maybePresentNextCompletionNotification()
             scheduleDetachmentHintPresentationIfNeeded(delay: Self.detachmentHintRetryDelay)
         }
     }
+
+    // MARK: - Plugin Notifications
+
+    private func dequeuePluginNotification() {
+        guard let update = PluginSlotArbiter.shared.dequeueNotification() else { return }
+        pluginNotificationDismissWork?.cancel()
+        pluginNotificationDismissWork = nil
+        activePluginNotification = update
+        viewModel.contentType = nil
+        viewModel.notchOpen(reason: .notification)
+    }
+
+    private func clearActivePluginNotification(keepPanelOpen: Bool) {
+        pluginNotificationDismissWork?.cancel()
+        pluginNotificationDismissWork = nil
+        guard activePluginNotification != nil else { return }
+        withAnimation(.smooth) {
+            activePluginNotification = nil
+        }
+        if !keepPanelOpen,
+           viewModel.status == .opened,
+           viewModel.openReason == .notification {
+            viewModel.contentType = nil
+            viewModel.notchClose()
+        }
+
+        if activePluginNotification == nil, !pluginArbiter.pendingNotifications.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                dequeuePluginNotification()
+            }
+        }
+    }
+
+    // MARK: - Detachment Hint
+
+    private func scheduleDetachmentHintPresentationIfNeeded(force: Bool = false, delay: TimeInterval) {
+        guard force || settings.notchDetachmentHintPending else {
+            cancelScheduledDetachmentHintPresentation()
+            return
+        }
+
+        detachmentHintPresentationWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [force] in
+            detachmentHintPresentationWorkItem = nil
+            presentDetachmentHintIfNeeded(force: force)
+        }
+        detachmentHintPresentationWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    private func cancelScheduledDetachmentHintPresentation() {
+        detachmentHintPresentationWorkItem?.cancel()
+        detachmentHintPresentationWorkItem = nil
+    }
+
+    private func presentDetachmentHintIfNeeded(force: Bool = false) {
+        guard force || settings.notchDetachmentHintPending else { return }
+        guard settings.surfaceMode == .notch else { return }
+        guard viewModel.presentationMode == .docked else { return }
+        guard viewModel.status == .closed else { return }
+        guard !shouldHideClosedContent else { return }
+
+        cancelScheduledDetachmentHintPresentation()
+        settings.notchDetachmentHintPending = false
+        detachmentHintDismissWorkItem?.cancel()
+
+        if !isShowingDetachmentHint {
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+                isShowingDetachmentHint = true
+            }
+        }
+
+        let workItem = DispatchWorkItem {
+            withAnimation(.easeOut(duration: 0.18)) {
+                isShowingDetachmentHint = false
+            }
+        }
+        detachmentHintDismissWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: workItem)
+    }
+
+    private func dismissDetachmentHint() {
+        detachmentHintDismissWorkItem?.cancel()
+        detachmentHintDismissWorkItem = nil
+        guard isShowingDetachmentHint else { return }
+        withAnimation(.easeOut(duration: 0.18)) {
+            isShowingDetachmentHint = false
+        }
+    }
+
+    // MARK: - Telemetry
 
     private func recordIslandOpened() {
         let openSource = telemetryOpenSource(for: viewModel.openReason)
@@ -1071,673 +700,28 @@ struct NotchView: View {
         }
     }
 
-    private func telemetryContentRoute(for contentType: NotchContentType) -> String {
-        if activeCompletionNotification != nil {
-            return "completion_notification"
-        }
-        if activeRealtimeNotificationSession != nil {
-            return "realtime_notification"
-        }
+    private func telemetryContentRoute(for contentType: NotchContentType?) -> String {
         if activePluginNotification != nil {
             return "plugin_notification"
         }
-        if hasPendingPermission {
-            return "approval"
-        }
-        if hasHumanIntervention {
-            return "question"
-        }
 
         switch contentType {
-        case .instances:
-            return "session_list"
-        case .chat:
-            return "session_detail"
         case .plugin:
-            return "plugin_content"  // plugin content handled by PluginSlotArbiter
+            return "plugin_content"
+        case .none:
+            return "idle"
         }
     }
 
-    private func scheduleDetachmentHintPresentationIfNeeded(force: Bool = false, delay: TimeInterval) {
-        guard force || settings.notchDetachmentHintPending else {
-            cancelScheduledDetachmentHintPresentation()
-            return
-        }
-
-        detachmentHintPresentationWorkItem?.cancel()
-
-        let workItem = DispatchWorkItem { [force] in
-            detachmentHintPresentationWorkItem = nil
-            presentDetachmentHintIfNeeded(force: force)
-        }
-        detachmentHintPresentationWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
-    }
-
-    private func cancelScheduledDetachmentHintPresentation() {
-        detachmentHintPresentationWorkItem?.cancel()
-        detachmentHintPresentationWorkItem = nil
-    }
-
-    private func handlePendingSessionsChange(_ sessions: [SessionState]) {
-        let currentIds = Set(sessions.map { $0.stableId })
-        let newPendingIds = currentIds.subtracting(previousPendingIds)
-
-        if areReminderNotificationsSuppressed {
-            previousPendingIds = currentIds
-            return
-        }
-
-        let shouldSuppressAutoOpen = settings.smartSuppression &&
-            TerminalVisibilityDetector.isTerminalVisibleOnCurrentSpace()
-
-        if viewModel.shouldSuppressAutomaticPresentation {
-            previousPendingIds = currentIds
-            return
-        }
-
-        if !newPendingIds.isEmpty &&
-           viewModel.status == .closed &&
-           !shouldSuppressAutoOpen {
-            viewModel.notchOpen(reason: .notification)
-        }
-
-        previousPendingIds = currentIds
-    }
-
-    private func primeStartupPresentationState(_ instances: [SessionState]) {
-        previousPendingIds = Set(instances.filter(\.needsAttention).map(\.stableId))
-        previousWaitingForInputIds = Set(
-            instances
-                .filter { $0.phase == .waitingForInput }
-                .map(\.stableId)
-        )
-        previousRealtimeHookMessages = realtimeNotificationMessages(from: instances)
-        _ = manualAttentionTracker.consumeNewAttentionSession(from: instances)
-        primeCompletionNotificationTracking(instances)
-    }
-
-    private func presentDetachmentHintIfNeeded(force: Bool = false) {
-        guard force || settings.notchDetachmentHintPending else { return }
-        guard settings.surfaceMode == .notch else { return }
-        guard viewModel.presentationMode == .docked else { return }
-        guard viewModel.status == .closed else { return }
-        guard !shouldHideClosedContent else { return }
-
-        cancelScheduledDetachmentHintPresentation()
-        settings.notchDetachmentHintPending = false
-        detachmentHintDismissWorkItem?.cancel()
-
-        if !isShowingDetachmentHint {
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
-                isShowingDetachmentHint = true
-            }
-        }
-
-        let workItem = DispatchWorkItem {
-            withAnimation(.easeOut(duration: 0.18)) {
-                isShowingDetachmentHint = false
-            }
-        }
-        detachmentHintDismissWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: workItem)
-    }
-
-    private func dismissDetachmentHint() {
-        detachmentHintDismissWorkItem?.cancel()
-        detachmentHintDismissWorkItem = nil
-        guard isShowingDetachmentHint else { return }
-        withAnimation(.easeOut(duration: 0.18)) {
-            isShowingDetachmentHint = false
-        }
-    }
-
-    private func handleManualAttentionChange(_ instances: [SessionState]) {
-        guard let targetSession = manualAttentionTracker.consumeNewAttentionSession(from: instances) else {
-            return
-        }
-
-        if areReminderNotificationsSuppressed {
-            return
-        }
-
-        clearCompletionNotifications(keepPanelOpen: true)
-
-        if viewModel.shouldSuppressAutomaticPresentation {
-            return
-        }
-
-        if targetSession.needsApprovalResponse || targetSession.needsQuestionResponse {
-            viewModel.presentNotificationAttention()
-            return
-        }
-
-        viewModel.presentNotificationChat(for: targetSession)
-    }
-
-    private func handleRealtimeHookNotificationChange(_ instances: [SessionState]) {
-        let currentMessages = realtimeNotificationMessages(from: instances)
-        let currentKeys = Set(instances.compactMap { realtimeNotificationKey(for: $0) })
-        acknowledgedRealtimeNotificationKeys.formIntersection(currentKeys)
-        defer { previousRealtimeHookMessages = currentMessages }
-
-        if activeRealtimeNotificationSession == nil {
-            activeRealtimeNotificationSessionId = nil
-        }
-
-        guard !areReminderNotificationsSuppressed else { return }
-        guard activeCompletionNotification == nil, activePluginNotification == nil else { return }
-        guard !hasPendingPermission, !hasHumanIntervention else { return }
-
-        let changedSessions = instances.filter { session in
-            guard let message = realtimeNotificationText(for: session), session.phase != .ended else { return false }
-            guard !isRealtimeNotificationAcknowledged(for: session) else { return false }
-            return previousRealtimeHookMessages[session.stableId] != message
-        }
-
-        guard let target = changedSessions.sorted(by: { $0.lastActivity > $1.lastActivity }).first else {
-            return
-        }
-
-        activeRealtimeNotificationSessionId = target.stableId
-        if viewModel.status == .opened {
-            viewModel.showChat(for: target)
-        } else {
-            viewModel.hoverExpansionAllowed = true
-            isVisible = true
-        }
-        playEventSoundIfNeeded(.taskCompleted, sessions: [target])
-    }
-
-    private func acknowledgeRealtimeNotification(for session: SessionState) {
-        guard let key = realtimeNotificationKey(for: session) else { return }
-        acknowledgedRealtimeNotificationKeys.insert(key)
-    }
-
-    private func isRealtimeNotificationAcknowledged(for session: SessionState) -> Bool {
-        guard let key = realtimeNotificationKey(for: session) else { return false }
-        return acknowledgedRealtimeNotificationKeys.contains(key)
-    }
-
-    private func realtimeNotificationKey(for session: SessionState) -> String? {
-        guard let message = realtimeNotificationText(for: session), session.phase != .ended else {
-            return nil
-        }
-        return "\(session.stableId)::\(message)"
-    }
-
-    private func realtimeNotificationMessages(from instances: [SessionState]) -> [String: String] {
-        Dictionary(
-            uniqueKeysWithValues: instances.compactMap { session in
-                guard let message = realtimeNotificationText(for: session), session.phase != .ended else {
-                    return nil
-                }
-                return (session.stableId, message)
-            }
-        )
-    }
-
-    private func realtimeNotificationText(for session: SessionState) -> String? {
-        let text = session.compactHookMessage
-            ?? (session.provider == .codex ? session.lastMessage : nil)
-        guard let text else { return nil }
-        let normalized = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return normalized.isEmpty ? nil : normalized
-    }
-
-    private func handleWaitingForInputChange(_ instances: [SessionState]) {
-        let allWaitingIds = Set(
-            instances
-                .filter { $0.phase == .waitingForInput }
-                .map(\.stableId)
-        )
-        let newWaitingIds = allWaitingIds.subtracting(previousWaitingForInputIds)
-
-        // Only completed sessions without intervention should get the temporary green checkmark.
-        let completedSessions = instances.filter { SessionCompletionStateEvaluator.isCompletedReadySession($0) }
-        let completedIds = Set(completedSessions.map(\.stableId))
-
-        // Track timestamps for newly waiting sessions
-        let now = Date()
-        for session in completedSessions where newWaitingIds.contains(session.stableId) {
-            waitingForInputTimestamps[session.stableId] = now
-        }
-
-        // Clean up timestamps for sessions no longer waiting
-        let staleIds = Set(waitingForInputTimestamps.keys).subtracting(completedIds)
-        for staleId in staleIds {
-            waitingForInputTimestamps.removeValue(forKey: staleId)
-        }
-
-        // Bounce the notch when a session newly enters waitingForInput state
-        if !newWaitingIds.isEmpty {
-            // Trigger bounce animation to get user's attention
-            DispatchQueue.main.async {
-                isBouncing = true
-                // Bounce back after a short delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    isBouncing = false
-                }
-            }
-
-            // Schedule hiding the checkmark after 30 seconds
-            DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [self] in
-                // Trigger a UI update to re-evaluate the temporary completion badge.
-                handleProcessingChange()
-            }
-        }
-
-        previousWaitingForInputIds = allWaitingIds
-    }
-
-    private func primeCompletionNotificationTracking(_ instances: [SessionState]) {
-        previousCompletionNotificationPhases = Dictionary(
-            uniqueKeysWithValues: instances.map { ($0.stableId, $0.phase) }
-        )
-        synchronizeCompletionNotifications(with: instances)
-    }
-
-    // MARK: - Plugin notifications
-
-    private func dequeuePluginNotification() {
-        guard let update = PluginSlotArbiter.shared.dequeueNotification() else { return }
-        pluginNotificationDismissWork?.cancel()
-        pluginNotificationDismissWork = nil
-        activePluginNotification = update
-        viewModel.contentType = .instances
-        viewModel.notchOpen(reason: .notification)
-    }
-
-    private func clearActivePluginNotification(keepPanelOpen: Bool) {
-        pluginNotificationDismissWork?.cancel()
-        pluginNotificationDismissWork = nil
-        guard activePluginNotification != nil else { return }
-        withAnimation(.smooth) {
-            activePluginNotification = nil
-        }
-        if !keepPanelOpen,
-           viewModel.status == .opened,
-           viewModel.openReason == .notification,
-           activeCompletionNotification == nil,
-           completionNotificationQueue.isEmpty,
-           !hasPendingPermission,
-           !hasHumanIntervention {
-            viewModel.contentType = .instances
-            viewModel.notchClose()
-        }
-
-        if activePluginNotification == nil, !pluginArbiter.pendingNotifications.isEmpty {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                dequeuePluginNotification()
-            }
-        }
-    }
-
-    private func handleCompletionNotificationChange(_ instances: [SessionState]) {
-        synchronizeCompletionNotifications(with: instances)
-
-        if activeRealtimeNotificationSession != nil {
-            clearCompletionNotifications(keepPanelOpen: true)
-            previousCompletionNotificationPhases = Dictionary(
-                uniqueKeysWithValues: instances.map { ($0.stableId, $0.phase) }
-            )
-            return
-        }
-
-        if areReminderNotificationsSuppressed {
-            if activeCompletionNotification != nil || !completionNotificationQueue.isEmpty {
-                clearCompletionNotifications(keepPanelOpen: true)
-            }
-
-            previousCompletionNotificationPhases = Dictionary(
-                uniqueKeysWithValues: instances.map { ($0.stableId, $0.phase) }
-            )
-            return
-        }
-
-        let currentPhases = Dictionary(
-            uniqueKeysWithValues: instances.map { ($0.stableId, $0.phase) }
-        )
-
-        let newNotifications = instances
-            .compactMap { session -> SessionCompletionNotification? in
-                let previousPhase = previousCompletionNotificationPhases[session.stableId]
-
-                if shouldQueueCompactedNotification(for: session, previousPhase: previousPhase) {
-                    return SessionCompletionNotification(session: session, kind: .compacted)
-                }
-
-                if shouldQueueCompletedNotification(for: session, previousPhase: previousPhase) {
-                    return SessionCompletionNotification(session: session, kind: .completed)
-                }
-
-                if shouldQueueEndedNotification(for: session, previousPhase: previousPhase) {
-                    return SessionCompletionNotification(session: session, kind: .ended)
-                }
-
-                return nil
-            }
-            .sorted { $0.session.lastActivity < $1.session.lastActivity }
-
-        for notification in newNotifications {
-            enqueueCompletionNotification(notification)
-        }
-
-        previousCompletionNotificationPhases = currentPhases
-        maybePresentNextCompletionNotification()
-    }
-
-    private func shouldQueueCompletedNotification(
-        for session: SessionState,
-        previousPhase: SessionPhase?
-    ) -> Bool {
-        SessionCompletionNotificationPolicy.shouldQueueCompletedNotification(
-            for: session,
-            previousPhase: previousPhase,
-            isEnabled: settings.autoOpenCompletionPanel
-        )
-    }
-
-    private func shouldQueueEndedNotification(
-        for session: SessionState,
-        previousPhase: SessionPhase?
-    ) -> Bool {
-        SessionCompletionNotificationPolicy.shouldQueueEndedNotification(
-            for: session,
-            previousPhase: previousPhase,
-            isEnabled: settings.autoOpenCompletionPanel
-        )
-    }
-
-    private func shouldQueueCompactedNotification(
-        for session: SessionState,
-        previousPhase: SessionPhase?
-    ) -> Bool {
-        SessionCompletionNotificationPolicy.shouldQueueCompactedNotification(
-            for: session,
-            previousPhase: previousPhase,
-            isEnabled: settings.autoOpenCompactedNotificationPanel
-        )
-    }
-
-    private func synchronizeCompletionNotifications(with instances: [SessionState]) {
-        let sessionsById = Dictionary(uniqueKeysWithValues: instances.map { ($0.stableId, $0) })
-
-        if let active = activeCompletionNotification {
-            if let latest = sessionsById[active.session.stableId] {
-                activeCompletionNotification?.session = latest
-            } else {
-                dismissActiveCompletionNotification(closePanel: false, advanceQueue: true)
-            }
-        }
-
-        completionNotificationQueue = completionNotificationQueue.compactMap { notification in
-            guard let latest = sessionsById[notification.session.stableId] else { return nil }
-            var updated = notification
-            updated.session = latest
-            return updated
-        }
-    }
-
-    private func enqueueCompletionNotification(_ notification: SessionCompletionNotification) {
-        if let active = activeCompletionNotification,
-           active.session.stableId == notification.session.stableId {
-            activeCompletionNotification?.session = notification.session
-            return
-        }
-
-        if let queuedIndex = completionNotificationQueue.firstIndex(where: {
-            $0.session.stableId == notification.session.stableId
-        }) {
-            var updated = completionNotificationQueue[queuedIndex]
-            updated.session = notification.session
-            completionNotificationQueue[queuedIndex] = updated
-            return
-        }
-
-        completionNotificationQueue.append(notification)
-    }
-
-    private func maybePresentNextCompletionNotification() {
-        guard !areReminderNotificationsSuppressed else { return }
-        guard activeCompletionNotification == nil else { return }
-        guard activeRealtimeNotificationSession == nil else { return }
-        guard !completionNotificationQueue.isEmpty else { return }
-        guard !viewModel.shouldSuppressAutomaticPresentation else { return }
-        guard !hasPendingPermission && !hasHumanIntervention else { return }
-
-        let nextNotification = completionNotificationQueue.removeFirst()
-        activeCompletionNotification = nextNotification
-        shouldDismissCompletionNotificationOnHoverExit = false
-        viewModel.contentType = .instances
-
-        if viewModel.status != .opened || viewModel.openReason != .notification {
-            viewModel.notchOpen(reason: .notification)
-        }
-
-        completionNotificationDismissWorkItem?.cancel()
-        completionNotificationDismissWorkItem = nil
-    }
-
-    private func scheduleCompletionNotificationDismissal(for notificationID: UUID) {
-        completionNotificationDismissWorkItem?.cancel()
-
-        let workItem = DispatchWorkItem { [self] in
-            guard activeCompletionNotification?.id == notificationID else { return }
-            dismissActiveCompletionNotification(closePanel: true, advanceQueue: true)
-        }
-
-        completionNotificationDismissWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: workItem)
-    }
-
-    private func clearCompletionNotifications(keepPanelOpen: Bool) {
-        removeCompletionNotifications(matching: { _ in true }, keepPanelOpen: keepPanelOpen)
-    }
-
-    private func removeCompletionNotifications(
-        matching shouldRemove: (SessionCompletionNotification.Kind) -> Bool,
-        keepPanelOpen: Bool
-    ) {
-        completionNotificationQueue.removeAll { shouldRemove($0.kind) }
-
-        if let activeCompletionNotification, shouldRemove(activeCompletionNotification.kind) {
-            dismissActiveCompletionNotification(closePanel: !keepPanelOpen, advanceQueue: true)
-        }
-    }
-
-    private func handleCompletionNotificationHover(_ isHovering: Bool) {
-        guard activeCompletionNotification != nil else {
-            shouldDismissCompletionNotificationOnHoverExit = false
-            return
-        }
-
-        shouldDismissCompletionNotificationOnHoverExit = false
-        completionNotificationDismissWorkItem?.cancel()
-        completionNotificationDismissWorkItem = nil
-    }
-
-    private func dismissActiveCompletionNotification(
-        closePanel: Bool,
-        advanceQueue: Bool
-    ) {
-        completionNotificationDismissWorkItem?.cancel()
-        completionNotificationDismissWorkItem = nil
-        shouldDismissCompletionNotificationOnHoverExit = false
-
-        guard activeCompletionNotification != nil else {
-            if advanceQueue {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    maybePresentNextCompletionNotification()
-                }
-            }
-            return
-        }
-
-        activeCompletionNotification = nil
-
-        if closePanel,
-           viewModel.status == .opened,
-           viewModel.openReason == .notification,
-           !hasPendingPermission,
-           !hasHumanIntervention {
-            viewModel.notchClose()
-        }
-
-        if advanceQueue {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                maybePresentNextCompletionNotification()
-            }
-        }
-    }
-
-    private func handleSessionSoundTransitions(_ instances: [SessionState]) {
-        if !hasPrimedSoundTransitions {
-            previousProcessingIds = Set(
-                instances
-                    .filter { $0.phase == .processing || $0.phase == .compacting }
-                    .map(\.stableId)
-            )
-            previousAttentionSoundIds = Set(
-                instances
-                    .filter { $0.needsApprovalResponse || ($0.phase == .waitingForInput && $0.intervention != nil) }
-                    .map(\.stableId)
-            )
-            previousCompletionSoundIds = Set(
-                instances
-                    .filter { $0.phase == .waitingForInput && $0.intervention == nil }
-                    .map(\.stableId)
-            )
-            previousTaskErrorIds = Set(
-                instances.flatMap { session in
-                    session.completedErrorToolIDs.map { "\(session.sessionId):\($0)" }
-                }
-            )
-            previousResourceLimitIds = Set(
-                instances
-                    .filter { $0.phase == .compacting }
-                    .map(\.stableId)
-            )
-            hasPrimedSoundTransitions = true
-            return
-        }
-
-        let processingSessions = instances.filter {
-            $0.phase == .processing || $0.phase == .compacting
-        }
-        let attentionSessions = instances.filter {
-            $0.needsApprovalResponse || ($0.phase == .waitingForInput && $0.intervention != nil)
-        }
-        let completedSessions = instances.filter { SessionCompletionStateEvaluator.isCompletedReadySession($0) }
-        let resourceLimitedSessions = instances.filter {
-            $0.phase == .compacting
-        }
-
-        let newProcessingIds = Set(processingSessions.map(\.stableId))
-        let newAttentionIds = Set(attentionSessions.map(\.stableId))
-        let newCompletedIds = Set(completedSessions.map(\.stableId))
-        let newTaskErrorIds = Set(
-            instances.flatMap { session in
-                session.completedErrorToolIDs.map { "\(session.sessionId):\($0)" }
-            }
-        )
-        let newResourceLimitIds = Set(resourceLimitedSessions.map(\.stableId))
-        let errorDeltaIds = newTaskErrorIds.subtracting(previousTaskErrorIds)
-        let errorSessions = instances.filter { session in
-            session.completedErrorToolIDs.contains { errorDeltaIds.contains("\(session.sessionId):\($0)") }
-        }
-        let completionDeltaIds = newCompletedIds.subtracting(previousCompletionSoundIds)
-        let newlyCompletedSessions = completedSessions.filter { session in
-            completionDeltaIds.contains(session.stableId)
-        }
-
-        let isNewAttention = !newAttentionIds.subtracting(previousAttentionSoundIds).isEmpty
-        let isNewCompletion = !completionDeltaIds.isEmpty
-        let isNewTaskError = !errorDeltaIds.isEmpty
-        let isNewResourceLimit = !newResourceLimitIds.subtracting(previousResourceLimitIds).isEmpty
-
-        if isNewTaskError {
-            playEventSoundIfNeeded(.taskError, sessions: errorSessions)
-        } else if isNewResourceLimit {
-            playEventSoundIfNeeded(.resourceLimit, sessions: resourceLimitedSessions)
-        } else if isNewAttention {
-            playEventSoundIfNeeded(.attentionRequired, sessions: attentionSessions)
-        } else if isNewCompletion {
-            playEventSoundIfNeeded(.taskCompleted, sessions: newlyCompletedSessions)
-        } else if !newProcessingIds.subtracting(previousProcessingIds).isEmpty {
-            playEventSoundIfNeeded(.processingStarted, sessions: processingSessions)
-        }
-
-        previousProcessingIds = newProcessingIds
-        previousAttentionSoundIds = newAttentionIds
-        previousCompletionSoundIds = newCompletedIds
-        previousTaskErrorIds = newTaskErrorIds
-        previousResourceLimitIds = newResourceLimitIds
-    }
-
-    private func playEventSoundIfNeeded(_ event: NotificationEvent, sessions: [SessionState]) {
-        guard AppSettings.soundEnabled else { return }
-
-        Task {
-            let shouldPlaySound = await shouldPlayNotificationSound(for: sessions)
-            if shouldPlaySound {
-                _ = await MainActor.run {
-                    AppSettings.playSound(for: event)
-                }
-            }
-        }
-    }
+    // MARK: - Misc
 
     private func openSettingsWindow() {
         updateManager.markUpdateSeen()
         SettingsWindowController.shared.present()
     }
-
-    private func handleOpenActiveSessionShortcut() {
-        guard let session = preferredShortcutSession else { return }
-        NSApp.activate(ignoringOtherApps: true)
-        viewModel.toggleChat(for: session, reason: .click)
-    }
-
-    private func handleOpenSessionListShortcut() {
-        NSApp.activate(ignoringOtherApps: true)
-        viewModel.toggleSessionList(reason: .click)
-    }
-
-    private func activateTemporaryReminderMute() {
-        if areReminderNotificationsSuppressed {
-            AppSettings.clearReminderNotificationMute()
-        } else {
-            AppSettings.muteReminderNotifications(for: Self.temporaryReminderMuteDuration)
-            clearCompletionNotifications(keepPanelOpen: true)
-            clearActivePluginNotification(keepPanelOpen: true)
-
-            if viewModel.openReason == .notification {
-                viewModel.exitChat()
-            }
-        }
-    }
-
-    /// Determine if notification sound should play for the given sessions
-    /// Returns true if ANY session is not actively focused
-    private func shouldPlayNotificationSound(for sessions: [SessionState]) async -> Bool {
-        for session in sessions {
-            guard let pid = session.pid else {
-                // No PID means we can't check focus, assume not focused
-                return true
-            }
-
-            let isFocused = await TerminalVisibilityDetector.isSessionFocused(sessionPid: pid)
-            if !isFocused {
-                return true
-            }
-        }
-
-        return false
-    }
 }
+
+// MARK: - Private Views
 
 private struct NotchDetachmentHintView: View {
     @State private var isArrowNudging = false
@@ -1873,77 +857,5 @@ private struct RingingBellIndicatorIcon: View {
             .onDisappear {
                 isRinging = false
             }
-    }
-}
-
-private struct NotchTemporaryMuteButton: View {
-    let isActive: Bool
-    let action: () -> Void
-    let helpText: String
-
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: isActive ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(iconForegroundStyle)
-                .frame(width: 28, height: 28)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(backgroundFillColor)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(borderColor, lineWidth: isActive ? 1 : 0)
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(helpText)
-        .accessibilityLabel(helpText)
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
-                isHovering = hovering
-            }
-        }
-    }
-
-    private var iconForegroundStyle: AnyShapeStyle {
-        if isActive {
-            return AnyShapeStyle(Color.white.opacity(isHovering ? 0.8 : 0.6))
-        }
-        return AnyShapeStyle(isHovering ? Color.black : Color.white.opacity(0.92))
-    }
-
-    private var backgroundFillColor: Color {
-        if isActive {
-            return Color.white.opacity(isHovering ? 0.12 : 0.06)
-        }
-        return isHovering ? Color.white.opacity(0.95) : Color.white.opacity(0.1)
-    }
-
-    private var borderColor: Color {
-        if isActive {
-            return Color.white.opacity(isHovering ? 0.22 : 0.12)
-        }
-        return .clear
-    }
-}
-
-private struct SessionCountIndicator: View {
-    let count: Int
-    private let closedNotchRightShift: CGFloat = 4
-
-    var body: some View {
-        PixelNumberView(
-            value: count,
-            color: .white.opacity(0.92),
-            fontSize: count >= 10 ? 8.8 : 9.6,
-            weight: .semibold,
-            tracking: count >= 10 ? -0.15 : -0.05
-        )
-        .frame(minWidth: 18)
-        .offset(x: closedNotchRightShift)
     }
 }

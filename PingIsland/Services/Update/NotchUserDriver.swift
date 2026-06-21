@@ -103,8 +103,8 @@ final class UpdateManager: ObservableObject {
 
     func showReleaseNotes() {}
 
-    nonisolated static func hasActiveSessions(in sessions: [SessionState]) -> Bool {
-        sessions.contains(where: { $0.phase.isActive })
+    nonisolated static func hasActiveSessions() -> Bool {
+        false
     }
 
     nonisolated static func isValidFeedURL(_ value: String) -> Bool {
@@ -189,7 +189,7 @@ final class UpdateManager: NSObject, ObservableObject {
         beginObservingUpdatePreferenceIfNeeded()
         beginObservingSessionActivityIfNeeded()
         beginObservingEnergyPolicyIfNeeded()
-        refreshSilentUpdateSchedule(hasActiveSessions: Self.hasActiveSessions(in: []))
+        refreshSilentUpdateSchedule(hasActiveSessions: false)
         performUpdateCheck(trigger: .automatic)
     }
 
@@ -254,14 +254,6 @@ final class UpdateManager: NSObject, ObservableObject {
     }
 
     private func beginObservingSessionActivityIfNeeded() {
-        guard sessionActivityObserver == nil else { return }
-
-        sessionActivityObserver = SessionStore.shared.sessionsPublisher
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] sessions in
-                guard let self else { return }
-                self.refreshSilentUpdateSchedule(hasActiveSessions: Self.hasActiveSessions(in: sessions))
-            }
     }
 
     private func beginObservingUpdatePreferenceIfNeeded() {
@@ -493,8 +485,8 @@ final class UpdateManager: NSObject, ObservableObject {
         return description
     }
 
-    nonisolated static func hasActiveSessions(in sessions: [SessionState]) -> Bool {
-        sessions.contains(where: { $0.phase.isActive })
+    nonisolated static func hasActiveSessions() -> Bool {
+        false
     }
 
     nonisolated static func isValidFeedURL(_ value: String) -> Bool {

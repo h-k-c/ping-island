@@ -5,7 +5,6 @@ import Combine
 final class IslandPresentationCoordinator {
     private static let dockedWindowHeight: CGFloat = 750
 
-    let sessionMonitor = SessionMonitor()
     let viewModel: NotchViewModel
 
     private var screen: NSScreen
@@ -39,14 +38,13 @@ final class IslandPresentationCoordinator {
             status: viewModel.status,
             openReason: viewModel.openReason,
             contentType: viewModel.contentType,
-            sessions: sessionMonitor.instances
+            sessions: []
         )
 
         viewModel.beginDetachedPresentation(contentType: resolvedContent, playSound: true)
 
         let windowSize = DetachedIslandWindowController.windowSize(
-            for: viewModel,
-            sessionMonitor: sessionMonitor
+            for: viewModel
         )
         let cursorWindowOffset = CGPoint(
             x: windowSize.width / 2,
@@ -179,7 +177,7 @@ final class IslandPresentationCoordinator {
             status: viewModel.status,
             openReason: viewModel.openReason,
             contentType: viewModel.contentType,
-            sessions: sessionMonitor.instances
+            sessions: []
         )
 
         viewModel.beginDetachedPresentation(
@@ -210,7 +208,6 @@ final class IslandPresentationCoordinator {
 
         let detachedWindowController = DetachedIslandWindowController(
             viewModel: viewModel,
-            sessionMonitor: sessionMonitor,
             onClose: { [weak self] in
                 AppSettings.surfaceMode = .notch
                 self?.activeDetachmentPayload = nil
@@ -242,7 +239,6 @@ final class IslandPresentationCoordinator {
         let controller = NotchWindowController(
             screen: screen,
             viewModel: viewModel,
-            sessionMonitor: sessionMonitor,
             performBootAnimation: performBootAnimation
         )
         dockedWindowController = controller

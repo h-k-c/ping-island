@@ -48,12 +48,10 @@ class PassThroughHostingView<Content: View>: NSHostingView<Content> {
 
 class NotchViewController: NSViewController {
     private let viewModel: NotchViewModel
-    private let sessionMonitor: SessionMonitor
     private var hostingView: PassThroughHostingView<AppLocalizedRootView<NotchView>>!
 
-    init(viewModel: NotchViewModel, sessionMonitor: SessionMonitor) {
+    init(viewModel: NotchViewModel) {
         self.viewModel = viewModel
-        self.sessionMonitor = sessionMonitor
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -65,8 +63,7 @@ class NotchViewController: NSViewController {
         hostingView = PassThroughHostingView(
             rootView: AppLocalizedRootView {
                 NotchView(
-                    viewModel: viewModel,
-                    sessionMonitor: sessionMonitor
+                    viewModel: viewModel
                 )
             }
         )

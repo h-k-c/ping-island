@@ -24,14 +24,10 @@ enum NotchOpenReason {
 }
 
 enum NotchContentType: Equatable {
-    case instances
-    case chat(SessionState)
     case plugin(pluginId: String)
 
     var id: String {
         switch self {
-        case .instances: return "instances"
-        case .chat(let session): return "chat-\(session.sessionId)"
         case .plugin(let id): return "plugin-\(id)"
         }
     }
@@ -45,7 +41,7 @@ class NotchViewModel: ObservableObject {
     @Published private(set) var presentationMode: IslandPresentationMode = .docked
     @Published private(set) var detachedDisplayMode: DetachedIslandDisplayMode = .compact
     @Published var openReason: NotchOpenReason = .unknown
-    @Published var contentType: NotchContentType = .instances
+    @Published var contentType: NotchContentType?
     @Published var isHovering: Bool = false
     /// Whether hovering the closed notch is allowed to auto-expand it. Idle states
     /// (ears just showing plugins) do not expand on hover; only notification
@@ -198,20 +194,7 @@ class NotchViewModel: ObservableObject {
         let maxAllowedHeight = maximumOpenedHeight
 
         switch contentType {
-        case .chat:
-            switch style {
-            case .docked:
-                return CGSize(
-                    width: min(screenRect.width - 64, 600),
-                    height: maxAllowedHeight
-                )
-            case .detached:
-                return CGSize(
-                    width: min(screenRect.width - 96, 500),
-                    height: min(maxAllowedHeight, screenRect.height - 180)
-                )
-            }
-        case .instances, .plugin:
+        case .plugin, .none:
             let fallbackHeight: CGFloat = pluginPreferredFallbackHeight ?? (openReason == .hover ? 150 : 170)
             let measuredHeight = openedMeasuredHeight ?? fallbackHeight
 
@@ -278,14 +261,7 @@ class NotchViewModel: ObservableObject {
             return min(screenLimit, maxPanelHeight)
         }
 
-        switch contentType {
-        case .chat:
-            return min(screenLimit, maxPanelHeight)
-        case .instances:
-            return min(screenLimit, maxPanelHeight)
-        case .plugin:
-            return min(screenLimit, maxPanelHeight)
-        }
+        return min(screenLimit, maxPanelHeight)
     }
 
     // MARK: - Animation
@@ -561,12 +537,8 @@ class NotchViewModel: ObservableObject {
 
     /// Whether we're in chat mode.
     private var isInChatMode: Bool {
-        if case .chat = contentType { return true }
         return false
     }
-
-    /// The chat session we're currently presenting while the island stays open.
-    private var currentChatSession: SessionState?
 
     private func handleMouseMove(_ location: CGPoint) {
         guard presentationMode == .docked else { return }
@@ -881,29 +853,7 @@ class NotchViewModel: ObservableObject {
 
         openReason = reason
         status = .opened
-        if case .instances = contentType {
-            openedMeasuredHeight = nil
-        }
-
-        // Don't restore chat on notification - show instances list instead
-        if reason == .notification {
-            currentChatSession = nil
-            return
-        }
-
-        // Hover opens a lightweight preview instead of restoring the full chat view.
-        if reason == .hover {
-            return
-        }
-
-        // Restore chat session if we had one open before
-        if let chatSession = currentChatSession {
-            // Avoid unnecessary updates if already showing this chat
-            if case .chat(let current) = contentType, current.sessionId == chatSession.sessionId {
-                return
-            }
-            contentType = .chat(chatSession)
-        }
+        openedMeasuredHeight = nil
     }
 
     func performDeferredHoverOpenIfNeeded() {
@@ -917,13 +867,11 @@ class NotchViewModel: ObservableObject {
 
     func notchClose() {
         status = .closed
-        currentChatSession = nil
-        contentType = .instances
         openedMeasuredHeight = nil
         isInlineTextInputActive = false
     }
 
-    func beginDetachedPresentation(contentType: NotchContentType, playSound: Bool = true) {
+    func beginDetachedPresentation(contentType: NotchContentType?, playSound: Bool = true) {
         hoverTimer?.cancel()
         hoverTimer = nil
         detachmentLongPressWorkItem?.cancel()
@@ -933,15 +881,6 @@ class NotchViewModel: ObservableObject {
         isHovering = false
         detachedDisplayMode = .compact
         openedMeasuredHeight = nil
-
-        switch contentType {
-        case .chat(let session):
-            currentChatSession = session
-        case .instances:
-            currentChatSession = nil
-        case .plugin:
-            currentChatSession = nil  // plugin content handled separately
-        }
 
         self.contentType = contentType
         openReason = .click
@@ -987,78 +926,10 @@ class NotchViewModel: ObservableObject {
         isInlineTextInputActive = isActive
     }
 
-    func showChat(for session: SessionState) {
-        currentChatSession = session
-        openedMeasuredHeight = nil
-
-        // Avoid unnecessary updates only when the snapshot is already current.
-        if case .chat(let current) = contentType, current == session {
-            return
-        }
-        contentType = .chat(session)
-    }
-
     func presentPlugin(_ pluginId: String, reason: NotchOpenReason = .click) {
-        currentChatSession = nil
         openedMeasuredHeight = nil
         contentType = .plugin(pluginId: pluginId)
         notchOpen(reason: reason)
-    }
-
-    func presentChat(for session: SessionState, reason: NotchOpenReason = .click) {
-        notchOpen(reason: reason)
-        showChat(for: session)
-    }
-
-    func toggleChat(for session: SessionState, reason: NotchOpenReason = .click) {
-        if status == .opened,
-           case .chat(let currentSession) = contentType,
-           currentSession.sessionId == session.sessionId {
-            notchClose()
-            return
-        }
-
-        presentChat(for: session, reason: reason)
-    }
-
-    /// Surface a session from an automatic notification without collapsing first.
-    /// This keeps attention-driven panel refreshes stable when the notch is already open.
-    func presentNotificationChat(for session: SessionState) {
-        notchOpen(reason: .notification)
-        showChat(for: session)
-    }
-
-    /// Surface manual-attention content through the route resolver instead of forcing chat.
-    /// Approval cards should take priority over the underlying session detail view.
-    func presentNotificationAttention() {
-        currentChatSession = nil
-        contentType = .instances
-        openedMeasuredHeight = nil
-        notchOpen(reason: .notification)
-    }
-
-    /// Go back to instances list and clear saved chat state
-    func exitChat() {
-        currentChatSession = nil
-        contentType = .instances
-        openedMeasuredHeight = nil
-    }
-
-    func presentSessionList(reason: NotchOpenReason = .click) {
-        exitChat()
-        notchOpen(reason: reason)
-    }
-
-    func toggleSessionList(reason: NotchOpenReason = .click) {
-        if status == .opened,
-           reason == .click,
-           openReason == .click,
-           case .instances = contentType {
-            notchClose()
-            return
-        }
-
-        presentSessionList(reason: reason)
     }
 
     func updateOpenedMeasuredHeight(_ height: CGFloat?) {

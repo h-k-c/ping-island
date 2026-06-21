@@ -131,14 +131,6 @@ final class EnergyGovernor: ObservableObject {
     ) {
         inputs.isLowPowerModeEnabled = Foundation.ProcessInfo.processInfo.isLowPowerModeEnabled
 
-        if observeSessions {
-            SessionStore.shared.sessionsPublisher
-                .receive(on: DispatchQueue.main)
-                .sink { [weak self] sessions in
-                    self?.updateSessions(sessions)
-                }
-                .store(in: &cancellables)
-        }
 
         observeLifecycle(
             notificationCenter: notificationCenter,
@@ -204,11 +196,11 @@ final class EnergyGovernor: ObservableObject {
             .store(in: &cancellables)
     }
 
-    private func updateSessions(_ sessions: [SessionState]) {
+    private func updateSessions() {
         let next = EnergyGovernorInputs(
-            hasActiveSession: sessions.contains { $0.phase.isActive },
-            hasAttentionSession: sessions.contains { $0.needsAttention },
-            hasVisibleSession: sessions.contains { !$0.shouldHideFromPrimaryUI },
+            hasActiveSession: false,
+            hasAttentionSession: false,
+            hasVisibleSession: false,
             isSystemSuspended: inputs.isSystemSuspended,
             isWakeGraceActive: inputs.isWakeGraceActive,
             isLowPowerModeEnabled: inputs.isLowPowerModeEnabled

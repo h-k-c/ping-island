@@ -1474,6 +1474,8 @@ enum ClientProfileRegistry {
             return runtimeProfile(id: "kimi")
         case .gemini:
             return runtimeProfile(id: "gemini")
+        case .unknown:
+            return nil
         }
     }
 

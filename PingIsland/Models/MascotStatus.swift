@@ -22,11 +22,11 @@ extension MascotStatus {
     /// Convert from session phase to mascot status
     init(from sessionPhase: SessionPhase) {
         switch sessionPhase {
-        case .idle, .ended:
+        case .idle, .ended, .completed, .error, .unknown:
             self = .idle
         case .waitingForApproval, .waitingForInput:
             self = .warning
-        case .processing, .compacting:
+        case .active, .processing, .compacting:
             self = .working
         }
     }
@@ -48,9 +48,9 @@ extension MascotStatus {
         }
 
         switch representativePhase {
-        case .ended:
+        case .ended, .completed, .error, .unknown:
             return .idle
-        case .idle, .processing, .waitingForInput, .waitingForApproval, .compacting:
+        case .idle, .active, .processing, .waitingForInput, .waitingForApproval, .compacting:
             return .working
         }
     }

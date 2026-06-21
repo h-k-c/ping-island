@@ -18,118 +18,29 @@ enum IslandExpandedTrigger: Equatable {
 }
 
 enum IslandExpandedRoute: Equatable {
-    case sessionList
-    case hoverDashboard
-    case attentionNotification(SessionState)
-    case completionNotification(SessionCompletionNotification)
     case pluginNotification(PluginNotifyUpdate)
-    case chat(SessionState)
     case plugin(pluginId: String)
+    case empty
 }
 
 enum IslandExpandedRouteResolver {
+    /// Plugin-host routing: the island only ever surfaces plugin content or a
+    /// plugin notification. Session monitoring has been removed.
     nonisolated static func resolve(
         surface: IslandExpandedSurface,
         trigger: IslandExpandedTrigger,
-        contentType: NotchContentType,
-        sessions: [SessionState],
-        activeCompletionNotification: SessionCompletionNotification? = nil,
-        activeRealtimeNotificationSession: SessionState? = nil,
+        contentType: NotchContentType?,
         activePluginNotification: PluginNotifyUpdate? = nil
     ) -> IslandExpandedRoute {
-        switch trigger {
-        case .notification:
-            if let session = highestPriorityAttentionSession(from: sessions) {
-                return .attentionNotification(session)
-            }
-            if let activeCompletionNotification {
-                return .completionNotification(activeCompletionNotification)
-            }
-            if let activeRealtimeNotificationSession {
-                return .chat(activeRealtimeNotificationSession)
-            }
-            if let activePluginNotification {
-                return .pluginNotification(activePluginNotification)
-            }
-        case .hover:
-            if let session = highestPriorityAttentionSession(from: sessions) {
-                return .attentionNotification(session)
-            }
-            if let activeRealtimeNotificationSession {
-                return .chat(activeRealtimeNotificationSession)
-            }
-        case .click, .pinnedList:
-            break
-        }
-
         if case .plugin(let id) = contentType {
             return .plugin(pluginId: id)
         }
 
-        if case .chat(let session) = contentType {
-            return .chat(session)
+        if let activePluginNotification {
+            return .pluginNotification(activePluginNotification)
         }
 
-        switch (surface, trigger) {
-        case (.docked, .notification):
-            if let session = highestPriorityAttentionSession(from: sessions) {
-                return .attentionNotification(session)
-            }
-            if let activeCompletionNotification {
-                return .completionNotification(activeCompletionNotification)
-            }
-            if let activeRealtimeNotificationSession {
-                return .chat(activeRealtimeNotificationSession)
-            }
-            if let activePluginNotification {
-                return .pluginNotification(activePluginNotification)
-            }
-            return .sessionList
-        case (.docked, .hover), (.floating, .hover):
-            if let session = highestPriorityAttentionSession(from: sessions) {
-                return .attentionNotification(session)
-            }
-            return .hoverDashboard
-        case (.floating, .notification):
-            if let session = highestPriorityAttentionSession(from: sessions) {
-                return .attentionNotification(session)
-            }
-            if let activeCompletionNotification {
-                return .completionNotification(activeCompletionNotification)
-            }
-            if let activePluginNotification {
-                return .pluginNotification(activePluginNotification)
-            }
-            return .hoverDashboard
-        case (_, .click):
-            if let session = highestPriorityAttentionSession(from: sessions) {
-                return .attentionNotification(session)
-            }
-            return .sessionList
-        case (_, .pinnedList):
-            return .sessionList
-        }
-    }
-
-    nonisolated static func orderedSessions(from sessions: [SessionState]) -> [SessionState] {
-        sessions.sorted { $0.shouldSortBeforeInQueue($1) }
-    }
-
-    nonisolated static func activePreviewSessions(from sessions: [SessionState]) -> [SessionState] {
-        orderedSessions(from: sessions).filter(\.phase.isActive)
-    }
-
-    nonisolated static func highestPriorityAttentionSession(from sessions: [SessionState]) -> SessionState? {
-        orderedSessions(from: sessions)
-            .filter { $0.needsApprovalResponse || $0.needsQuestionResponse }
-            .sorted(by: attentionSort)
-            .first
-    }
-
-    nonisolated private static func attentionSort(_ lhs: SessionState, _ rhs: SessionState) -> Bool {
-        let lhsDate = lhs.attentionRequestedAt ?? lhs.lastUserMessageDate ?? lhs.lastActivity
-        let rhsDate = rhs.attentionRequestedAt ?? rhs.lastUserMessageDate ?? rhs.lastActivity
-        return lhsDate > rhsDate
+        return .empty
     }
 }
 
