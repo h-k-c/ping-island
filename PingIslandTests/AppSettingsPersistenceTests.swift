@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import Ping_Island
+@testable import Auralink
 
 @MainActor
 final class AppSettingsPersistenceTests: XCTestCase {
@@ -19,69 +19,6 @@ final class AppSettingsPersistenceTests: XCTestCase {
         return store
     }
 
-    func testShortcutsUseDefaultsWhenNoPreferenceExists() {
-        let defaults = makeDefaults()
-        let store = makeStore(defaults: defaults)
-
-        XCTAssertEqual(store.shortcut(for: .openActiveSession), GlobalShortcutAction.openActiveSession.defaultShortcut)
-        XCTAssertEqual(store.shortcut(for: .openSessionList), GlobalShortcutAction.openSessionList.defaultShortcut)
-    }
-
-    func testClearedShortcutPersistsAsDisabledInsteadOfRestoringDefault() {
-        let defaults = makeDefaults()
-        let key = "openActiveSessionShortcut"
-        let disabledKey = "openActiveSessionShortcutDisabled"
-        let store = makeStore(defaults: defaults)
-
-        store.setShortcut(nil, for: .openActiveSession)
-
-        let reloadedStore = makeStore(defaults: defaults)
-        XCTAssertNil(reloadedStore.shortcut(for: .openActiveSession))
-        XCTAssertEqual(defaults.object(forKey: disabledKey) as? Bool, true)
-        XCTAssertNil(defaults.data(forKey: key))
-    }
-
-    func testSettingShortcutAfterClearReEnablesAndPersistsCustomValue() {
-        let defaults = makeDefaults()
-        let disabledKey = "openSessionListShortcutDisabled"
-        let store = makeStore(defaults: defaults)
-        let shortcut = GlobalShortcut(
-            keyCode: 45,
-            modifierFlags: [.control, .option]
-        )
-
-        store.setShortcut(nil, for: .openSessionList)
-        store.setShortcut(shortcut, for: .openSessionList)
-
-        let reloadedStore = makeStore(defaults: defaults)
-        XCTAssertEqual(reloadedStore.shortcut(for: .openSessionList), shortcut)
-        XCTAssertEqual(defaults.object(forKey: disabledKey) as? Bool, false)
-    }
-
-    func testShortcutLegacyDictionaryMigratesToDataStorage() {
-        let defaults = makeDefaults()
-        let key = "openActiveSessionShortcut"
-        let modifiers: NSEvent.ModifierFlags = [.control, .option]
-        let expected = GlobalShortcut(
-            keyCode: 42,
-            modifierFlags: modifiers
-        )
-
-        defaults.set(
-            [
-                "keyCode": 42,
-                "modifierFlags": Int(modifiers.rawValue)
-            ],
-            forKey: key
-        )
-
-        let store = makeStore(defaults: defaults)
-
-        XCTAssertEqual(store.shortcut(for: .openActiveSession), expected)
-        XCTAssertNotNil(defaults.data(forKey: key))
-        XCTAssertNil(defaults.dictionary(forKey: key))
-    }
-
     func testMascotOverridesLegacyDictionaryMigratesToDataStorage() {
         let defaults = makeDefaults()
         let key = "mascotOverrides"
@@ -96,40 +33,6 @@ final class AppSettingsPersistenceTests: XCTestCase {
         let store = makeStore(defaults: defaults)
 
         XCTAssertEqual(store.mascotOverride(for: .codex), .qoder)
-        XCTAssertNotNil(defaults.data(forKey: key))
-        XCTAssertNil(defaults.dictionary(forKey: key))
-    }
-
-    func testRealtimeNotificationIconStylesLegacyDictionaryMigratesToDataStorage() {
-        let defaults = makeDefaults()
-        let key = "realtimeNotificationIconStyles"
-
-        defaults.set(
-            [
-                "codex-hooks": RealtimeNotificationIconStyle.mascot.rawValue
-            ],
-            forKey: key
-        )
-
-        let store = makeStore(defaults: defaults)
-
-        XCTAssertEqual(store.realtimeNotificationIconStyle(for: "codex-hooks"), .mascot)
-        XCTAssertNotNil(defaults.data(forKey: key))
-        XCTAssertNil(defaults.dictionary(forKey: key))
-    }
-
-    func testShortcutWritesTypedDataForFreshValues() {
-        let defaults = makeDefaults()
-        let key = "openSessionListShortcut"
-        let store = makeStore(defaults: defaults)
-        let shortcut = GlobalShortcut(
-            keyCode: 44,
-            modifierFlags: [.command, .shift]
-        )
-
-        store.setShortcut(shortcut, for: .openSessionList)
-        let reloadedStore = makeStore(defaults: defaults)
-        XCTAssertEqual(reloadedStore.shortcut(for: .openSessionList), shortcut)
         XCTAssertNotNil(defaults.data(forKey: key))
         XCTAssertNil(defaults.dictionary(forKey: key))
     }
@@ -304,26 +207,6 @@ final class AppSettingsPersistenceTests: XCTestCase {
         store.previewMascotKind = .qwen
 
         XCTAssertEqual(store.mascotKind(for: client), .qwen)
-    }
-
-    func testRealtimeNotificationIconStylePersistsAndClearsDefault() {
-        let defaults = makeDefaults()
-        let key = "realtimeNotificationIconStyles"
-        let store = makeStore(defaults: defaults)
-
-        XCTAssertEqual(store.realtimeNotificationIconStyle(for: "claude-hooks"), .official)
-
-        store.setRealtimeNotificationIconStyle(.mascot, for: "claude-hooks")
-
-        let reloadedStore = makeStore(defaults: defaults)
-        XCTAssertEqual(reloadedStore.realtimeNotificationIconStyle(for: "claude-hooks"), .mascot)
-        XCTAssertNotNil(defaults.data(forKey: key))
-
-        reloadedStore.setRealtimeNotificationIconStyle(.official, for: "claude-hooks")
-
-        let clearedStore = makeStore(defaults: defaults)
-        XCTAssertEqual(clearedStore.realtimeNotificationIconStyle(for: "claude-hooks"), .official)
-        XCTAssertTrue(clearedStore.realtimeNotificationIconStyles.isEmpty)
     }
 
     func testFloatingPetAnchorPersists() {

@@ -1,6 +1,6 @@
 import CoreGraphics
 import XCTest
-@testable import Ping_Island
+@testable import Auralink
 
 final class FullscreenAppDetectorTests: XCTestCase {
     func testNearlyScreenSizedWindowWithMenuBarInsetIsNotFullscreen() {

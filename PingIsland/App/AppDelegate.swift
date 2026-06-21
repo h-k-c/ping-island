@@ -6,7 +6,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowManager: WindowManager?
     private var screenObserver: ScreenObserver?
     private let launchConfiguration = AppLaunchConfiguration()
-    private let globalShortcutManager = GlobalShortcutManager.shared
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         signal(SIGPIPE, SIG_IGN)
@@ -80,8 +79,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.handleScreenChange()
             }
         }
-
-        globalShortcutManager.start()
 
         if launchFlow.shouldPresentSurfaceModeOnboarding {
             PresentationModeWelcomeWindowController.shared.present { [weak self] selectedMode in

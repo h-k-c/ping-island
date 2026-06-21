@@ -376,10 +376,6 @@ final class AppSettingsStore: ObservableObject {
         static let labsSettingsUnlocked = "labsSettingsUnlocked"
         static let automaticUpdateChecksEnabled = "automaticUpdateChecksEnabled"
         static let mascotOverrides = "mascotOverrides"
-        static let openActiveSessionShortcut = "openActiveSessionShortcut"
-        static let openActiveSessionShortcutDisabled = "openActiveSessionShortcutDisabled"
-        static let openSessionListShortcut = "openSessionListShortcut"
-        static let openSessionListShortcutDisabled = "openSessionListShortcutDisabled"
         static let analyticsEnabled = AppSettingsDefaultKeys.analyticsEnabled
         static let analyticsConsentPromptCompleted = AppSettingsDefaultKeys.analyticsConsentPromptCompleted
     }
@@ -826,30 +822,6 @@ final class AppSettingsStore: ObservableObject {
         }
     }
 
-    @Published var openActiveSessionShortcut: GlobalShortcut? {
-        didSet {
-            guard !isBootstrapping else { return }
-            Self.persistShortcut(
-                openActiveSessionShortcut,
-                defaults: defaults,
-                key: Keys.openActiveSessionShortcut,
-                disabledKey: Keys.openActiveSessionShortcutDisabled
-            )
-        }
-    }
-
-    @Published var openSessionListShortcut: GlobalShortcut? {
-        didSet {
-            guard !isBootstrapping else { return }
-            Self.persistShortcut(
-                openSessionListShortcut,
-                defaults: defaults,
-                key: Keys.openSessionListShortcut,
-                disabledKey: Keys.openSessionListShortcutDisabled
-            )
-        }
-    }
-
     func mascotOverride(for client: MascotClient) -> MascotKind? {
         guard let rawValue = mascotOverrides[client.rawValue] else {
             return nil
@@ -884,36 +856,6 @@ final class AppSettingsStore: ObservableObject {
 
     func resetMascotOverrides() {
         mascotOverrides = [:]
-    }
-
-    func shortcut(for action: GlobalShortcutAction) -> GlobalShortcut? {
-        switch action {
-        case .openActiveSession:
-            return openActiveSessionShortcut
-        case .openSessionList:
-            return openSessionListShortcut
-        }
-    }
-
-    func setShortcut(_ shortcut: GlobalShortcut?, for action: GlobalShortcutAction) {
-        let normalized = Self.sanitizedShortcut(shortcut)
-
-        switch action {
-        case .openActiveSession:
-            openActiveSessionShortcut = normalized
-            if normalized != nil, normalized == openSessionListShortcut {
-                openSessionListShortcut = nil
-            }
-        case .openSessionList:
-            openSessionListShortcut = normalized
-            if normalized != nil, normalized == openActiveSessionShortcut {
-                openActiveSessionShortcut = nil
-            }
-        }
-    }
-
-    func resetShortcut(_ action: GlobalShortcutAction) {
-        setShortcut(action.defaultShortcut, for: action)
     }
 
     var customizedMascotClientCount: Int {
@@ -999,64 +941,6 @@ final class AppSettingsStore: ObservableObject {
         }
     }
 
-    private static func sanitizedShortcut(_ shortcut: GlobalShortcut?) -> GlobalShortcut? {
-        guard let shortcut else { return nil }
-        return GlobalShortcut(keyCode: shortcut.keyCode, modifierFlags: shortcut.modifierFlags)
-    }
-
-    private static func shortcut(from defaults: UserDefaults, key: String) -> GlobalShortcut? {
-        if let shortcut = decodeValue(GlobalShortcut.self, from: defaults, key: key) {
-            return sanitizedShortcut(shortcut)
-        }
-
-        guard let rawValue = defaults.dictionary(forKey: key) as? [String: Int] else {
-            return nil
-        }
-
-        guard let keyCode = rawValue["keyCode"],
-              let modifiers = rawValue["modifierFlags"] else {
-            return nil
-        }
-
-        let shortcut = GlobalShortcut(
-            keyCode: UInt16(keyCode),
-            modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(modifiers))
-        )
-
-        persistValue(shortcut, defaults: defaults, key: key)
-        return shortcut
-    }
-
-    private static func resolvedShortcut(
-        from defaults: UserDefaults,
-        key: String,
-        disabledKey: String,
-        action: GlobalShortcutAction
-    ) -> GlobalShortcut? {
-        if defaults.bool(forKey: disabledKey) {
-            return nil
-        }
-
-        let persistedShortcut = shortcut(from: defaults, key: key)
-
-        if let persistedShortcut,
-           action.legacyDefaultShortcuts.contains(persistedShortcut) {
-            return action.defaultShortcut
-        }
-
-        return persistedShortcut ?? action.defaultShortcut
-    }
-
-    private static func persistShortcut(
-        _ shortcut: GlobalShortcut?,
-        defaults: UserDefaults,
-        key: String,
-        disabledKey: String
-    ) {
-        defaults.set(shortcut == nil, forKey: disabledKey)
-        persistValue(shortcut, defaults: defaults, key: key)
-    }
-
     private static func mascotOverrides(from defaults: UserDefaults, key: String) -> [String: String] {
         if let overrides = decodeValue([String: String].self, from: defaults, key: key) {
             return overrides
@@ -1110,18 +994,6 @@ final class AppSettingsStore: ObservableObject {
         let floatingPetAnchor = Self.decodeValue(FloatingPetAnchor.self, from: defaults, key: Keys.floatingPetAnchor)
         let floatingPetSizeModeRaw = defaults.string(forKey: Keys.floatingPetSizeMode)
         let mascotOverrideRaw = Self.mascotOverrides(from: defaults, key: Keys.mascotOverrides)
-        let openActiveSessionShortcut = Self.resolvedShortcut(
-            from: defaults,
-            key: Keys.openActiveSessionShortcut,
-            disabledKey: Keys.openActiveSessionShortcutDisabled,
-            action: .openActiveSession
-        )
-        let openSessionListShortcut = Self.resolvedShortcut(
-            from: defaults,
-            key: Keys.openSessionListShortcut,
-            disabledKey: Keys.openSessionListShortcutDisabled,
-            action: .openSessionList
-        )
         let temporarilyMuteNotificationsUntil = temporarilyMuteNotificationsUntilTimestamp.map {
             Date(timeIntervalSince1970: $0)
         }
@@ -1337,8 +1209,6 @@ final class AppSettingsStore: ObservableObject {
             default: false
         ))
         _mascotOverrides = Published(initialValue: Self.sanitizedMascotOverrides(mascotOverrideRaw))
-        _openActiveSessionShortcut = Published(initialValue: openActiveSessionShortcut)
-        _openSessionListShortcut = Published(initialValue: openSessionListShortcut)
 
         if defaults.string(forKey: Keys.soundThemeMode) == nil {
             defaults.set(resolvedSoundThemeMode.rawValue, forKey: Keys.soundThemeMode)
@@ -1546,18 +1416,6 @@ enum AppSettings {
     static var analyticsConsentPromptCompleted: Bool {
         get { shared.analyticsConsentPromptCompleted }
         set { shared.analyticsConsentPromptCompleted = newValue }
-    }
-
-    static func shortcut(for action: GlobalShortcutAction) -> GlobalShortcut? {
-        shared.shortcut(for: action)
-    }
-
-    static func setShortcut(_ shortcut: GlobalShortcut?, for action: GlobalShortcutAction) {
-        shared.setShortcut(shortcut, for: action)
-    }
-
-    static func resetShortcut(_ action: GlobalShortcutAction) {
-        shared.resetShortcut(action)
     }
 
     static func mascotKind(for client: MascotClient) -> MascotKind {

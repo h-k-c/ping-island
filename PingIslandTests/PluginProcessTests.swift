@@ -1,5 +1,5 @@
 import XCTest
-@testable import Ping_Island
+@testable import Auralink
 
 final class PluginProcessTests: XCTestCase {
     private var tempDir: URL!
@@ -186,7 +186,6 @@ final class PluginProcessTests: XCTestCase {
         let defaults = UserDefaults(suiteName: "PluginProcessTests-\(UUID().uuidString)")!
         let registry = PluginRegistry(
             pluginsDirectoryURL: tempDir,
-            defaults: defaults,
             includeBuiltInPlugins: false
         )
         let arbiter = PluginSlotArbiter(defaults: defaults)

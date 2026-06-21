@@ -9,6 +9,10 @@ import AppKit
 import CoreGraphics
 import SwiftUI
 
+extension Notification.Name {
+    static let pingIslandPresentNotchDetachmentHint = Notification.Name("pingIslandPresentNotchDetachmentHint")
+}
+
 // Corner radius constants
 private let cornerRadiusInsets = (
     opened: (top: CGFloat(19), bottom: CGFloat(24)),
