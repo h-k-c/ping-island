@@ -1752,21 +1752,6 @@ private struct UsageValueModePicker: View {
     }
 }
 
-private struct AutoRoutePromptsIdleDelayPicker: View {
-    @Binding var delay: AutoRoutePromptsIdleDelay
-
-    var body: some View {
-        Picker("", selection: $delay) {
-            ForEach(AutoRoutePromptsIdleDelay.allCases) { candidate in
-                Text(appLocalized: candidate.title).tag(candidate)
-            }
-        }
-        .labelsHidden()
-        .accessibilityLabel(Text(appLocalized: "静默时长"))
-        .settingsMenuPicker(width: 132)
-    }
-}
-
 private struct DisplayPreviewMascotPicker: View {
     private let accessibilityTitleKey = "默认宠物形象"
     @Binding var kind: MascotKind

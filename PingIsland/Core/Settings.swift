@@ -99,32 +99,6 @@ enum UsageValueMode: String, CaseIterable, Identifiable {
     }
 }
 
-enum AutoRoutePromptsIdleDelay: Int, CaseIterable, Identifiable {
-    case tenMinutes = 600
-    case twentyMinutes = 1200
-    case thirtyMinutes = 1800
-    case sixtyMinutes = 3600
-
-    nonisolated var id: Int { rawValue }
-
-    nonisolated var duration: TimeInterval {
-        TimeInterval(rawValue)
-    }
-
-    nonisolated var title: String {
-        switch self {
-        case .tenMinutes:
-            return "10 分钟"
-        case .twentyMinutes:
-            return "20 分钟"
-        case .thirtyMinutes:
-            return "30 分钟"
-        case .sixtyMinutes:
-            return "1 小时"
-        }
-    }
-}
-
 enum NotchDisplayMode: String, CaseIterable, Identifiable {
     case compact
     case detailed
@@ -406,11 +380,6 @@ final class AppSettingsStore: ObservableObject {
         static let openActiveSessionShortcutDisabled = "openActiveSessionShortcutDisabled"
         static let openSessionListShortcut = "openSessionListShortcut"
         static let openSessionListShortcutDisabled = "openSessionListShortcutDisabled"
-        static let routePromptsToTerminal = "routePromptsToTerminal"  // legacy global key (migrated)
-        static let claudeRoutePromptsToTerminal = "claudeRoutePromptsToTerminal"
-        static let codexRoutePromptsToTerminal = "codexRoutePromptsToTerminal"
-        static let autoRoutePromptsToTerminalWhenIdleEnabled = "autoRoutePromptsToTerminalWhenIdleEnabled"
-        static let autoRoutePromptsIdleDelay = "autoRoutePromptsIdleDelay"
         static let analyticsEnabled = AppSettingsDefaultKeys.analyticsEnabled
         static let analyticsConsentPromptCompleted = AppSettingsDefaultKeys.analyticsConsentPromptCompleted
     }
@@ -879,80 +848,6 @@ final class AppSettingsStore: ObservableObject {
                 disabledKey: Keys.openSessionListShortcutDisabled
             )
         }
-    }
-
-    // Legacy global key — kept for bridge config writes but not exposed in UI.
-    // Derived from per-provider settings.
-    @Published var routePromptsToTerminal: Bool {
-        didSet {
-            guard !isBootstrapping else { return }
-            defaults.set(routePromptsToTerminal, forKey: Keys.routePromptsToTerminal)
-            recordTelemetrySettingChange(key: Keys.routePromptsToTerminal, value: routePromptsToTerminal.description)
-            writeEffectiveBridgeRuntimeConfig()
-        }
-    }
-
-    // Per-provider approval routing settings
-    @Published var claudeRoutePromptsToTerminal: Bool {
-        didSet {
-            guard !isBootstrapping else { return }
-            defaults.set(claudeRoutePromptsToTerminal, forKey: Keys.claudeRoutePromptsToTerminal)
-            // Keep legacy key in sync for bridge compatibility
-            routePromptsToTerminal = claudeRoutePromptsToTerminal || codexRoutePromptsToTerminal
-        }
-    }
-
-    @Published var codexRoutePromptsToTerminal: Bool {
-        didSet {
-            guard !isBootstrapping else { return }
-            defaults.set(codexRoutePromptsToTerminal, forKey: Keys.codexRoutePromptsToTerminal)
-            routePromptsToTerminal = claudeRoutePromptsToTerminal || codexRoutePromptsToTerminal
-        }
-    }
-
-    @Published var autoRoutePromptsToTerminalWhenIdleEnabled: Bool {
-        didSet {
-            guard !isBootstrapping else { return }
-            defaults.set(
-                autoRoutePromptsToTerminalWhenIdleEnabled,
-                forKey: Keys.autoRoutePromptsToTerminalWhenIdleEnabled
-            )
-            recordTelemetrySettingChange(
-                key: Keys.autoRoutePromptsToTerminalWhenIdleEnabled,
-                value: autoRoutePromptsToTerminalWhenIdleEnabled.description
-            )
-            if !autoRoutePromptsToTerminalWhenIdleEnabled {
-                setIdleAutoRoutePromptsToTerminalActive(false)
-                return
-            }
-            writeEffectiveBridgeRuntimeConfig()
-        }
-    }
-
-    @Published var autoRoutePromptsIdleDelay: AutoRoutePromptsIdleDelay {
-        didSet {
-            guard !isBootstrapping else { return }
-            defaults.set(autoRoutePromptsIdleDelay.rawValue, forKey: Keys.autoRoutePromptsIdleDelay)
-            writeEffectiveBridgeRuntimeConfig()
-        }
-    }
-
-    @Published private(set) var idleAutoRoutePromptsToTerminalActive: Bool = false {
-        didSet {
-            guard !isBootstrapping else { return }
-            writeEffectiveBridgeRuntimeConfig()
-        }
-    }
-
-    var effectiveRoutePromptsToTerminal: Bool {
-        routePromptsToTerminal
-            || (autoRoutePromptsToTerminalWhenIdleEnabled && idleAutoRoutePromptsToTerminalActive)
-    }
-
-    func setIdleAutoRoutePromptsToTerminalActive(_ active: Bool) {
-        let next = autoRoutePromptsToTerminalWhenIdleEnabled && active
-        guard idleAutoRoutePromptsToTerminalActive != next else { return }
-        idleAutoRoutePromptsToTerminalActive = next
     }
 
     func mascotOverride(for client: MascotClient) -> MascotKind? {
@@ -1444,38 +1339,6 @@ final class AppSettingsStore: ObservableObject {
         _mascotOverrides = Published(initialValue: Self.sanitizedMascotOverrides(mascotOverrideRaw))
         _openActiveSessionShortcut = Published(initialValue: openActiveSessionShortcut)
         _openSessionListShortcut = Published(initialValue: openSessionListShortcut)
-        // Migration: if legacy global key was true, seed per-provider keys
-        let legacyRoutePromptsToTerminal = Self.boolValue(
-            from: defaults,
-            key: Keys.routePromptsToTerminal,
-            exists: persistedKeys.contains(Keys.routePromptsToTerminal),
-            default: false
-        )
-        let claudeRoute = Self.boolValue(
-            from: defaults,
-            key: Keys.claudeRoutePromptsToTerminal,
-            exists: persistedKeys.contains(Keys.claudeRoutePromptsToTerminal),
-            default: legacyRoutePromptsToTerminal  // inherit legacy value
-        )
-        let codexRoute = Self.boolValue(
-            from: defaults,
-            key: Keys.codexRoutePromptsToTerminal,
-            exists: persistedKeys.contains(Keys.codexRoutePromptsToTerminal),
-            default: legacyRoutePromptsToTerminal  // inherit legacy value
-        )
-        _claudeRoutePromptsToTerminal = Published(initialValue: claudeRoute)
-        _codexRoutePromptsToTerminal = Published(initialValue: codexRoute)
-        let routePromptsToTerminal = claudeRoute || codexRoute
-        _routePromptsToTerminal = Published(initialValue: routePromptsToTerminal)
-        _autoRoutePromptsToTerminalWhenIdleEnabled = Published(initialValue: Self.boolValue(
-            from: defaults,
-            key: Keys.autoRoutePromptsToTerminalWhenIdleEnabled,
-            exists: persistedKeys.contains(Keys.autoRoutePromptsToTerminalWhenIdleEnabled),
-            default: true
-        ))
-        _autoRoutePromptsIdleDelay = Published(initialValue: AutoRoutePromptsIdleDelay(
-            rawValue: defaults.integer(forKey: Keys.autoRoutePromptsIdleDelay)
-        ) ?? .thirtyMinutes)
 
         if defaults.string(forKey: Keys.soundThemeMode) == nil {
             defaults.set(resolvedSoundThemeMode.rawValue, forKey: Keys.soundThemeMode)
@@ -1489,11 +1352,7 @@ final class AppSettingsStore: ObservableObject {
         applyIsland8BitStartSoundMigrationIfNeeded(for: resolvedSoundThemeMode)
 
         isBootstrapping = false
-
-        writeEffectiveBridgeRuntimeConfig()
     }
-
-    private func writeEffectiveBridgeRuntimeConfig() {}
 
     private func recordTelemetrySettingChange(key: String, value: String) {
         Task {

@@ -20,7 +20,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if !launchConfiguration.isRunningTests {
             UpdateManager.shared.start()
-            UserIdleAutoProtection.shared.start()
             Task {
                 await TelemetryService.shared.start()
             }
@@ -132,7 +131,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         screenObserver = nil
-        UserIdleAutoProtection.shared.stop()
         Task {
             await TelemetryService.shared.stop()
         }

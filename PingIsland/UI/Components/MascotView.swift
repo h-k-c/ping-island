@@ -235,7 +235,6 @@ enum MascotKind: String, CaseIterable, Identifiable, Sendable {
 struct MascotView: View {
     @Environment(\.mascotAnimationsEnabled) private var mascotAnimationsEnabled
     @ObservedObject private var energyGovernor = EnergyGovernor.shared
-    @ObservedObject private var settings = AppSettingsStore.shared
 
     let kind: MascotKind
     let status: MascotStatus
@@ -259,7 +258,6 @@ struct MascotView: View {
 
     var body: some View {
         let renderTime = effectiveAnimationTime
-        let isIdleProtectionActive = settings.idleAutoRoutePromptsToTerminalActive
 
         ZStack {
             if isDragging || status == .dragging {
@@ -276,21 +274,10 @@ struct MascotView: View {
                     draggingScene(time: renderTime)
                 }
             }
-
-            if isIdleProtectionActive {
-                IdleProtectionMascotOverlay(size: size, time: renderTime)
-            }
         }
         .frame(width: size, height: size)
         .clipped()
-        .accessibilityLabel(accessibilityLabel(isIdleProtectionActive: isIdleProtectionActive))
-    }
-
-    private func accessibilityLabel(isIdleProtectionActive: Bool) -> String {
-        guard isIdleProtectionActive else {
-            return AppLocalization.format("%@ %@", kind.title, status.displayName)
-        }
-        return AppLocalization.format("%@ %@ 空闲保护中", kind.title, status.displayName)
+        .accessibilityLabel(AppLocalization.format("%@ %@", kind.title, status.displayName))
     }
 
     private var effectiveAnimationTime: TimeInterval? {
@@ -1689,65 +1676,6 @@ private struct AlertHalo: View {
             .fill(tint.opacity(0.10 + pulse * 0.12))
             .frame(width: size * (0.78 + pulse * 0.10))
             .blur(radius: size * 0.07)
-    }
-}
-
-private struct IdleProtectionMascotOverlay: View {
-    let size: CGFloat
-    var time: TimeInterval?
-
-    @ObservedObject private var energyGovernor = EnergyGovernor.shared
-
-    private static let updateInterval: TimeInterval = 0.12
-
-    var body: some View {
-        if let time {
-            overlayBody(time: time)
-        } else if energyGovernor.policy.animationLevel == .staticFrames {
-            overlayBody(time: 0)
-        } else {
-            TimelineView(.periodic(from: .now, by: effectiveUpdateInterval)) { context in
-                overlayBody(time: context.date.timeIntervalSinceReferenceDate)
-            }
-        }
-    }
-
-    private var effectiveUpdateInterval: TimeInterval {
-        switch energyGovernor.policy.animationLevel {
-        case .full:
-            Self.updateInterval
-        case .reduced:
-            Self.updateInterval * 2.5
-        case .staticFrames:
-            Self.updateInterval
-        }
-    }
-
-    private func overlayBody(time: TimeInterval) -> some View {
-        let tint = Color(red: 0.24, green: 0.88, blue: 0.48)
-
-        return ZStack(alignment: .bottomTrailing) {
-            if size >= 16 {
-                IdleProtectionBadge(size: min(14, max(7, size * 0.24)), tint: tint)
-                    .offset(x: -size * 0.02, y: -size * 0.02)
-                    .shadow(color: tint.opacity(0.34), radius: size * 0.08)
-                    .accessibilityHidden(true)
-            }
-        }
-        .frame(width: size, height: size, alignment: .bottomTrailing)
-        .allowsHitTesting(false)
-    }
-}
-
-private struct IdleProtectionBadge: View {
-    let size: CGFloat
-    let tint: Color
-
-    var body: some View {
-        Image(systemName: "shield.fill")
-            .font(.system(size: size, weight: .bold))
-            .foregroundStyle(tint)
-        .frame(width: size, height: size)
     }
 }
 
