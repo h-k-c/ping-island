@@ -217,8 +217,30 @@ class NotchViewModel: ObservableObject {
     }
 
     private var pluginPreferredFallbackHeight: CGFloat? {
-        guard case .plugin(Self.procMonitorPluginId) = contentType else { return nil }
-        return 445
+        if case .plugin(Self.procMonitorPluginId) = contentType { return 445 }
+        // The recorder opens as a minimal peek bar; give it a small fallback so it
+        // never flashes a tall panel before the real height is measured. When the
+        // user expands it, allow more room.
+        if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = contentType {
+            // Both states are a single row now, so the height stays compact.
+            return 38
+        }
+        return nil
+    }
+
+    /// True when the notch is currently showing the sticky-peek (recorder) plugin.
+    private var currentlyDisplayedStickyPeekPlugin: Bool {
+        if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = contentType { return true }
+        return false
+    }
+
+    /// Collapse the recorder's expanded panel back to the peek bar. Invoked by the
+    /// panel window when a left click lands on empty panel space (hitTest miss).
+    func collapseStickyPeekIfNeeded() {
+        guard status == .opened, currentlyDisplayedStickyPeekPlugin else { return }
+        let arbiter = PluginSlotArbiter.shared
+        guard arbiter.stickyPeekActive, arbiter.stickyPeekExpanded else { return }
+        arbiter.stickyPeekExpanded = false
     }
 
     private var dockedPanelWidth: CGFloat {
@@ -227,6 +249,14 @@ class NotchViewModel: ObservableObject {
         }
         if case .plugin(Self.procMonitorPluginId) = contentType {
             return min(screenRect.width - 64, 414)
+        }
+        // The recorder's peek bar keeps the closed notch's width (just taller);
+        // only the expanded panel widens to fit the control grid.
+        if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = contentType {
+            // Finished result and the expanded control row both need a wider panel;
+            // the minimal peek bar keeps the closed notch width.
+            if PluginSlotArbiter.shared.recorderFinished { return 360 }
+            return PluginSlotArbiter.shared.stickyPeekExpanded ? 380 : closedSize.width
         }
         return min(
             screenRect.width * Self.clickedInstancesPanelWidthRatio,
@@ -596,8 +626,33 @@ class NotchViewModel: ObservableObject {
             if detachmentTriggerScreenRect.contains(location) {
                 beginDockedDetachmentTracking(source: .opened, startLocation: location)
             } else if geometry.isPointOutsidePanel(location, size: openedSize) {
-                // The panel window already handles click-through replay for intercepted clicks.
-                notchClose()
+                if PluginSlotArbiter.shared.stickyPeekActive {
+                    // A recording is in progress — the recorder's live activity must
+                    // never be torn down by an outside click.
+                    if currentlyDisplayedStickyPeekPlugin {
+                        // Already showing the recorder; collapsing the expanded panel
+                        // to the peek bar is handled precisely by the window hitTest
+                        // (`collapseStickyPeekIfNeeded`), so do nothing here.
+                    } else {
+                        // The user had detoured to an ear plugin; return to the
+                        // recorder peek instead of closing (which would orphan the
+                        // recording and leave the window intercepting clicks).
+                        PluginSlotArbiter.shared.stickyPeekExpanded = false
+                        presentPlugin(PluginSlotArbiter.stickyPeekPluginId, reason: .click)
+                    }
+                } else if PluginSlotArbiter.shared.recorderFinished, currentlyDisplayedStickyPeekPlugin {
+                    // The finished result is dismissable: tell the recorder to
+                    // dismiss (resets it to idle + restores the pill) and close, so
+                    // the island stops intercepting clicks.
+                    NotificationCenter.default.post(
+                        name: .pluginButtonTapped, object: nil,
+                        userInfo: ["pluginId": PluginSlotArbiter.stickyPeekPluginId, "actionId": "dismiss"]
+                    )
+                    notchClose()
+                } else {
+                    // The panel window already handles click-through replay for intercepted clicks.
+                    notchClose()
+                }
             }
         case .closed, .popping:
             if let earTarget = closedEarClickTarget(at: location) {
@@ -606,7 +661,9 @@ class NotchViewModel: ObservableObject {
                 }
             } else if detachmentTriggerScreenRect.contains(location) {
                 beginDockedDetachmentTracking(source: .closed, startLocation: location)
-            } else if isPointInHoverTrigger(location) {
+            } else if isPointInHoverTrigger(location), contentType != nil {
+                // Only enlarge if there is content to show; with just ear plugins
+                // assigned, the center has nothing and would open to an empty panel.
                 notchOpen(reason: .click)
             }
         }

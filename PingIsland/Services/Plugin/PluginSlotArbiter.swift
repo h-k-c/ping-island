@@ -14,6 +14,33 @@ final class PluginSlotArbiter: ObservableObject {
     @Published private(set) var pendingNotifications: [PluginNotifyUpdate] = []
     @Published private(set) var expandedContent: [String: [ExpandedSection]] = [:]
     @Published var currentlyDisplayedExpandedPluginId: String?
+    @Published private(set) var pendingAutoPresent: String?
+
+    // MARK: - Sticky peek (VideoLoom recorder)
+
+    /// The recorder plugin keeps the notch raised in a minimal "peek" bar while a
+    /// recording is in progress, instead of collapsing on blur. When this is set,
+    /// the notch must stay open; clicking outside collapses to peek rather than
+    /// fully closing.
+    static let stickyPeekPluginId = "com.videoloom.recorder"
+
+    /// True while the recorder is actively presenting content (recording / paused
+    /// / finished) and therefore wants the notch pinned open.
+    @Published private(set) var stickyPeekActive = false
+
+    /// Whether the recorder panel is currently expanded to full controls (true) or
+    /// collapsed to the minimal peek bar (false). Owned here so the notch's
+    /// outside-click handler can collapse it without closing the notch.
+    @Published var stickyPeekExpanded = false
+
+    /// Transient screenshot feedback: bumps each time the recorder captures a still
+    /// so the panel can play a shutter flash + thumbnail-landing animation.
+    @Published private(set) var recorderShotToken = 0
+    @Published private(set) var recorderShotPath: String?
+
+    /// True when the recorder is showing its "finished/saved" result (reveal +
+    /// dismiss buttons, no toggles). The finished row needs a wider panel.
+    @Published private(set) var recorderFinished = false
 
     // MARK: - Slot assignment (explicit — no carousel)
 
@@ -115,11 +142,47 @@ final class PluginSlotArbiter: ObservableObject {
 
     func handleExpanded(_ update: PluginExpandedUpdate) {
         let pluginId = Self.normalizedPluginId(update.pluginId) ?? update.pluginId
+        // Live-activity plugins (the recorder) are suppressed entirely when the
+        // user has turned off third-party live activities.
+        if pluginId == Self.stickyPeekPluginId, !AppSettings.receiveLiveActivities {
+            return
+        }
         if update.sections.isEmpty {
             expandedContent.removeValue(forKey: pluginId)
         } else {
             expandedContent[pluginId] = update.sections
         }
+
+        if pluginId == Self.stickyPeekPluginId {
+            let finished = update.sections.contains {
+                if case .button(let b) = $0 { return b.actionId == "dismiss" }
+                return false
+            }
+            // Sticky (must persist, never close on outside click) is ONLY the live
+            // recording/paused state. The finished result is dismissable.
+            let active = !update.sections.isEmpty && !finished
+            if active != stickyPeekActive {
+                stickyPeekActive = active
+                if stickyPeekExpanded { stickyPeekExpanded = false }
+            }
+            if finished != recorderFinished { recorderFinished = finished }
+            if update.shotToken != recorderShotToken {
+                recorderShotToken = update.shotToken
+                recorderShotPath = update.shotPath
+            }
+        }
+    }
+
+    func handleAutoPresent(pluginId: String) {
+        let normalized = Self.normalizedPluginId(pluginId) ?? pluginId
+        if normalized == Self.stickyPeekPluginId, !AppSettings.receiveLiveActivities {
+            return
+        }
+        pendingAutoPresent = normalized
+    }
+
+    func clearAutoPresent() {
+        pendingAutoPresent = nil
     }
 
     func removePlugin(_ pluginId: String) {

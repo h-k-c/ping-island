@@ -22,6 +22,9 @@ final class PluginRegistry: ObservableObject {
         "com.auralink.localServices",
         "com.auralink.quickLauncher",
         "com.auralink.taskBoard",
+        // Removed on request — Claude / Codex notification plugins are unused.
+        "com.auralink.claude",
+        "com.auralink.codex",
     ]
 
     nonisolated static var defaultPluginsDirectoryURL: URL {

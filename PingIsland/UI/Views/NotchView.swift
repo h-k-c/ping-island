@@ -74,6 +74,27 @@ struct NotchView: View {
         viewModel.status != .opened && isInNotificationMoment
     }
 
+    /// While the recorder's sticky peek is open we keep the left/right ear plugins
+    /// visible (and drop the settings gear), since the recorder content lives in
+    /// the raised area below the notch — not in the header.
+    private var isRecorderPeekOpen: Bool {
+        guard viewModel.status == .opened else { return false }
+        if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = viewModel.contentType {
+            return true
+        }
+        return false
+    }
+
+    /// Close the recorder's notch once it has nothing left to show — i.e. neither
+    /// recording (sticky) nor displaying the finished result.
+    private func closeRecorderNotchIfIdle() {
+        guard !pluginArbiter.stickyPeekActive, !pluginArbiter.recorderFinished else { return }
+        if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = viewModel.contentType {
+            viewModel.contentType = nil
+            viewModel.notchClose()
+        }
+    }
+
     /// In fullscreen on physical-notch displays, the closed state should visually
     /// collapse back to the native macOS notch with no Island content shown.
     private var shouldHideClosedContent: Bool {
@@ -214,6 +235,24 @@ struct NotchView: View {
                     dequeuePluginNotification()
                 }
             }
+            .onChange(of: pluginArbiter.pendingAutoPresent) { _, pluginId in
+                guard let pluginId else { return }
+                viewModel.presentPlugin(pluginId, reason: .click)
+                pluginArbiter.clearAutoPresent()
+            }
+            .onChange(of: pluginArbiter.stickyPeekActive) { _, _ in
+                closeRecorderNotchIfIdle()
+            }
+            .onChange(of: pluginArbiter.recorderFinished) { _, _ in
+                closeRecorderNotchIfIdle()
+            }
+            .onChange(of: pluginArbiter.stickyPeekExpanded) { _, _ in
+                // Drop the stale measured height so the peek/expanded fallback size
+                // applies immediately while the new content is re-measured.
+                if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = viewModel.contentType {
+                    viewModel.updateOpenedMeasuredHeight(nil)
+                }
+            }
             .onChange(of: isInNotificationMoment) { _, active in
                 viewModel.hoverExpansionAllowed = active
             }
@@ -309,10 +348,21 @@ struct NotchView: View {
                 }
             }
             .onTapGesture {
-                if !isOpened {
+                // Only expand if there is actually something to show. With only ear
+                // plugins assigned (no center/expanded content), tapping the middle
+                // would otherwise enlarge the island to an empty panel.
+                if !isOpened, hasOpenableContent {
                     viewModel.notchOpen(reason: isInNotificationMoment ? .notification : .click)
                 }
             }
+    }
+
+    /// Whether opening the notch would actually present content (a plugin panel or
+    /// a notification), rather than an empty enlarged island.
+    private var hasOpenableContent: Bool {
+        if isInNotificationMoment { return true }
+        if viewModel.contentType != nil { return true }
+        return false
     }
 
     // MARK: - Notch Layout
@@ -352,7 +402,7 @@ struct NotchView: View {
                 HStack(spacing: 0) {
                     // Left ear — plugin notification source during notification,
                     // otherwise the assigned plugin.
-                    if viewModel.status != .opened {
+                    if viewModel.status != .opened || isRecorderPeekOpen {
                         ZStack {
                             if showsClosedNotificationSource,
                                let notification = activePluginNotification,
@@ -374,7 +424,11 @@ struct NotchView: View {
                     }
 
                     // Center content
-                    if viewModel.status == .opened {
+                    if isRecorderPeekOpen {
+                        // Flexible center pushes the ears to the panel edges so they
+                        // stay aligned even when the expanded panel is wider.
+                        Spacer(minLength: 0)
+                    } else if viewModel.status == .opened {
                         openedHeaderContent
                     } else {
                         closedCenterContent
@@ -382,7 +436,7 @@ struct NotchView: View {
 
                     // Right ear — notification bell during plugin notification,
                     // otherwise the assigned plugin.
-                    if viewModel.status != .opened {
+                    if viewModel.status != .opened || isRecorderPeekOpen {
                         ZStack {
                             if isInNotificationMoment {
                                 notificationIndicatorIcon(size: 12)
@@ -400,6 +454,7 @@ struct NotchView: View {
                         )
                     }
                 }
+                .frame(width: isRecorderPeekOpen ? max(0, notchSize.width - 24) : nil)
             }
         }
         .frame(height: closedNotchSize.height)

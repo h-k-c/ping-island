@@ -13,6 +13,9 @@ class NotchWindowController: NSWindowController {
     let viewModel: NotchViewModel
     private let fullWindowFrame: NSRect
     private var cancellables = Set<AnyCancellable>()
+    /// While the settings window is open, the full-width notch window must not
+    /// intercept clicks (it would block the settings UI underneath it).
+    private var settingsWindowVisible = false
 
     init(
         screen: NSScreen,
@@ -118,6 +121,27 @@ class NotchWindowController: NSWindowController {
             }
             .store(in: &cancellables)
 
+        // Collapse the recorder's expanded panel back to the peek bar when the
+        // user clicks an empty area of the panel. Driven by the window's hitTest
+        // so real control clicks are never eaten.
+        notchWindow.onEmptyAreaMouseDown = { [weak viewModel] in
+            viewModel?.collapseStickyPeekIfNeeded()
+        }
+
+        // Yield click interception while the settings window is open.
+        NotificationCenter.default.addObserver(
+            forName: .settingsWindowVisibilityDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self, weak notchWindow, weak viewModel] note in
+            MainActor.assumeIsolated {
+                guard let self, let notchWindow, let viewModel else { return }
+                self.settingsWindowVisible =
+                    note.userInfo?[SettingsWindowVisibilityNotification.isVisibleKey] as? Bool ?? false
+                self.updateWindowPresentation(window: notchWindow, viewModel: viewModel)
+            }
+        }
+
         // Start with ignoring mouse events (closed state)
         notchWindow.ignoresMouseEvents = true
         updateWindowPresentation(window: notchWindow, viewModel: viewModel)
@@ -151,6 +175,13 @@ class NotchWindowController: NSWindowController {
 
         if !window.isVisible {
             window.orderFront(nil)
+        }
+
+        // The settings window sits underneath the full-width notch window; never
+        // intercept clicks while it's open, or its UI becomes unclickable.
+        if settingsWindowVisible {
+            window.ignoresMouseEvents = true
+            return
         }
 
         switch viewModel.status {

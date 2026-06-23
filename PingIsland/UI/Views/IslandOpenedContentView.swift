@@ -40,10 +40,16 @@ struct IslandOpenedContentView: View {
                 }
             )
         case .plugin(let pluginId):
-            ScrollView(.vertical, showsIndicators: false) {
+            if pluginId == PluginSlotArbiter.stickyPeekPluginId {
+                // The recorder is always a single compact row — no scrolling, so it
+                // never turns into a vertically draggable surface when collapsing.
                 PluginExpandedPanelView(pluginId: pluginId)
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    PluginExpandedPanelView(pluginId: pluginId)
+                }
+                .frame(maxHeight: pluginContentMaxHeight)
             }
-            .frame(maxHeight: pluginContentMaxHeight)
         case .empty:
             EmptyView()
         }
@@ -63,11 +69,15 @@ struct IslandOpenedContentView: View {
     }
 
     private var pluginContentMaxHeight: CGFloat {
+        // Floor kept low so SHORT panels (e.g. the recorder's peek bar) don't get
+        // forced taller than the notch frame — which would overflow the frame and
+        // make controls in the overflow region untappable. Tall panels (procmonitor
+        // etc.) are unaffected since their measured height far exceeds the floor.
         switch style {
         case .docked:
-            return max(120, viewModel.openedSize.height - viewModel.closedHeight)
+            return max(36, viewModel.openedSize.height - viewModel.closedHeight)
         case .detached:
-            return max(120, viewModel.detachedSize.height - viewModel.closedHeight)
+            return max(36, viewModel.detachedSize.height - viewModel.closedHeight)
         }
     }
 }

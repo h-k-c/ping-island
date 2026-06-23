@@ -4,6 +4,7 @@ struct PluginsSettingsView: View {
     @ObservedObject private var registry = PluginRegistry.shared
     @ObservedObject private var host = PluginHost.shared
     @ObservedObject private var arbiter = PluginSlotArbiter.shared
+    @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -70,8 +71,35 @@ struct PluginsSettingsView: View {
                         assignment: Binding(get: { arbiter.leftEarAssignment },
                                            set: { arbiter.leftEarAssignment = $0 }),
                         plugins: compactCapablePlugins)
+                rowDivider()
+                liveActivityRow
             }
         }
+    }
+
+    /// Master switch for third-party live activities (e.g. the screen recorder),
+    /// pushed by other apps and shown in the island's content area. Styled to
+    /// match the ear slot rows in the same card.
+    private var liveActivityRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "dot.radiowaves.left.and.right")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            Text("第三方实时活动")
+                .font(.system(size: 11, weight: .medium))
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { settings.receiveLiveActivities },
+                set: { settings.receiveLiveActivities = $0 }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .help("接收录屏等 App 推送的实时内容")
     }
 
     private func slotRow(side: String, image: String,
@@ -191,9 +219,11 @@ struct PluginsSettingsView: View {
 
     // MARK: - Helpers
 
-    /// Plugins shown as configurable cards.
+    /// Plugins shown as configurable cards. Third-party live-activity plugins
+    /// (e.g. the screen recorder) are always-on and controlled by their host app,
+    /// so they're hidden here and governed by the "receive live activities" toggle.
     private var visiblePlugins: [InstalledPlugin] {
-        registry.installedPlugins
+        registry.installedPlugins.filter { $0.id != PluginSlotArbiter.stickyPeekPluginId }
     }
 
     /// Plugins that can render a compact ear, regardless of the specific side

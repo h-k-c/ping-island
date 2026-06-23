@@ -6,6 +6,7 @@ actor PluginProcess {
     nonisolated let compactUpdates: AsyncStream<PluginCompactUpdate>
     nonisolated let notifyUpdates: AsyncStream<PluginNotifyUpdate>
     nonisolated let expandedUpdates: AsyncStream<PluginExpandedUpdate>
+    nonisolated let autoPresentUpdates: AsyncStream<String>
 
     private(set) var state: PluginProcessState = .stopped
 
@@ -28,6 +29,7 @@ actor PluginProcess {
     private let compactCont: AsyncStream<PluginCompactUpdate>.Continuation
     private let notifyCont: AsyncStream<PluginNotifyUpdate>.Continuation
     private let expandedCont: AsyncStream<PluginExpandedUpdate>.Continuation
+    private let autoPresentCont: AsyncStream<String>.Continuation
 
     init(
         manifest: PluginManifest,
@@ -44,13 +46,16 @@ actor PluginProcess {
         var cc: AsyncStream<PluginCompactUpdate>.Continuation!
         var nc: AsyncStream<PluginNotifyUpdate>.Continuation!
         var ec: AsyncStream<PluginExpandedUpdate>.Continuation!
+        var apc: AsyncStream<String>.Continuation!
 
         compactUpdates = AsyncStream(bufferingPolicy: .bufferingNewest(16)) { cc = $0 }
         notifyUpdates = AsyncStream(bufferingPolicy: .bufferingNewest(16)) { nc = $0 }
         expandedUpdates = AsyncStream(bufferingPolicy: .bufferingNewest(16)) { ec = $0 }
+        autoPresentUpdates = AsyncStream(bufferingPolicy: .bufferingNewest(4)) { apc = $0 }
         compactCont = cc
         notifyCont = nc
         expandedCont = ec
+        autoPresentCont = apc
     }
 
     func start() async {
@@ -241,6 +246,13 @@ actor PluginProcess {
         }
 
         guard let method = json["method"] as? String else { return }
+
+        // Handle methods that carry no params before the params guard.
+        if method == "island/autoPresent" {
+            autoPresentCont.yield(manifest.id)
+            return
+        }
+
         guard let params = json["params"],
               let paramsData = try? JSONSerialization.data(withJSONObject: params) else { return }
 
@@ -270,9 +282,18 @@ actor PluginProcess {
 
         case "island/expanded":
             guard manifest.slots.contains(.expanded) else { return }
-            struct Params: Decodable { let sections: [ExpandedSection] }
+            struct Params: Decodable {
+                let sections: [ExpandedSection]
+                let shotToken: Int?
+                let shotPath: String?
+            }
             if let p = try? decoder.decode(Params.self, from: paramsData) {
-                expandedCont.yield(PluginExpandedUpdate(pluginId: manifest.id, sections: p.sections))
+                expandedCont.yield(PluginExpandedUpdate(
+                    pluginId: manifest.id,
+                    sections: p.sections,
+                    shotToken: p.shotToken ?? 0,
+                    shotPath: p.shotPath
+                ))
             }
 
         // ── Storage API ────────────────────────────────────────────────
@@ -318,6 +339,9 @@ actor PluginProcess {
                     )
                 }
             }
+
+        case "island/autoPresent":
+            autoPresentCont.yield(manifest.id)
 
         default:
             logger.debug("Unknown method from plugin \(self.manifest.id, privacy: .public): \(method, privacy: .public)")

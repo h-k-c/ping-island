@@ -576,7 +576,7 @@ enum IslandPluginRenderer {
     }
 
     @ViewBuilder
-    private static func iconBadge(_ icon: PluginIcon, tint: PluginTint?, size: CGFloat, iconSize: CGFloat) -> some View {
+    static func iconBadge(_ icon: PluginIcon, tint: PluginTint?, size: CGFloat, iconSize: CGFloat) -> some View {
         iconView(icon, size: iconSize)
             .foregroundStyle(tintColor(tint).opacity(0.94))
             .frame(width: size, height: size)
@@ -745,7 +745,7 @@ enum IslandPluginRenderer {
         }
     }
 
-    private static func tintColor(_ tint: PluginTint?) -> Color {
+    static func tintColor(_ tint: PluginTint?) -> Color {
         switch tint ?? .default {
         case .default: return .white
         case .green:   return .green

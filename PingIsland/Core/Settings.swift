@@ -352,6 +352,7 @@ final class AppSettingsStore: ObservableObject {
         static let hideInFullscreen = "hideInFullscreen"
         static let autoHideWhenIdle = "autoHideWhenIdle"
         static let autoCollapseOnLeave = "autoCollapseOnLeave"
+        static let receiveLiveActivities = "receiveLiveActivities"
         static let smartSuppression = "smartSuppression"
         static let autoOpenCompletionPanel = "autoOpenCompletionPanel"
         static let autoOpenCompactedNotificationPanel = "autoOpenCompactedNotificationPanel"
@@ -593,6 +594,17 @@ final class AppSettingsStore: ObservableObject {
             guard !isBootstrapping else { return }
             defaults.set(autoCollapseOnLeave, forKey: Keys.autoCollapseOnLeave)
             recordTelemetrySettingChange(key: Keys.autoCollapseOnLeave, value: autoCollapseOnLeave.description)
+        }
+    }
+
+    /// Whether the island accepts live activities pushed by third-party apps
+    /// (e.g. the VideoLoom screen recorder). When off, those plugins never pop
+    /// the notch.
+    @Published var receiveLiveActivities: Bool {
+        didSet {
+            guard !isBootstrapping else { return }
+            defaults.set(receiveLiveActivities, forKey: Keys.receiveLiveActivities)
+            recordTelemetrySettingChange(key: Keys.receiveLiveActivities, value: receiveLiveActivities.description)
         }
     }
 
@@ -1097,6 +1109,12 @@ final class AppSettingsStore: ObservableObject {
             exists: persistedKeys.contains(Keys.autoCollapseOnLeave),
             default: true
         ))
+        _receiveLiveActivities = Published(initialValue: Self.boolValue(
+            from: defaults,
+            key: Keys.receiveLiveActivities,
+            exists: persistedKeys.contains(Keys.receiveLiveActivities),
+            default: true
+        ))
         _smartSuppression = Published(initialValue: Self.boolValue(
             from: defaults,
             key: Keys.smartSuppression,
@@ -1294,6 +1312,11 @@ enum AppSettings {
     static var autoCollapseOnLeave: Bool {
         get { shared.autoCollapseOnLeave }
         set { shared.autoCollapseOnLeave = newValue }
+    }
+
+    static var receiveLiveActivities: Bool {
+        get { shared.receiveLiveActivities }
+        set { shared.receiveLiveActivities = newValue }
     }
 
     static var smartSuppression: Bool {

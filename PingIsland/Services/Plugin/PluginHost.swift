@@ -147,7 +147,10 @@ final class PluginHost: ObservableObject {
     private func desiredPluginIds(from plugins: [InstalledPlugin]) -> Set<String> {
         var ids = Set(
             plugins
-                .filter { $0.manifest.isBuiltIn && $0.manifest.subscribesTo.contains("hookEvent") }
+                .filter {
+                    ($0.manifest.isBuiltIn && $0.manifest.subscribesTo.contains("hookEvent"))
+                    || $0.manifest.runMode == .always
+                }
                 .map(\.id)
         )
 
@@ -200,6 +203,11 @@ final class PluginHost: ObservableObject {
             Task.detached {
                 for await update in process.expandedUpdates where !Task.isCancelled {
                     await MainActor.run { arbiter.handleExpanded(update) }
+                }
+            },
+            Task.detached {
+                for await pluginId in process.autoPresentUpdates where !Task.isCancelled {
+                    await MainActor.run { arbiter.handleAutoPresent(pluginId: pluginId) }
                 }
             }
         ]

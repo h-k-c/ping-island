@@ -47,6 +47,7 @@ enum IslandExpandedRouteResolver {
 struct PluginExpandedPanelView: View {
     private static let procMonitorPluginId = "com.auralink.procmonitor"
     private static let usageMonitorPluginId = "com.auralink.usage"
+    private static let videoLoomPluginId = "com.videoloom.recorder"
 
     let pluginId: String
     @ObservedObject private var arbiter = PluginSlotArbiter.shared
@@ -58,6 +59,11 @@ struct PluginExpandedPanelView: View {
                 ProcMonitorIslandPanelView()
             } else if pluginId == Self.usageMonitorPluginId {
                 UsageMonitorIslandPanelView(
+                    pluginId: pluginId,
+                    sections: arbiter.expandedContent[pluginId] ?? []
+                )
+            } else if pluginId == Self.videoLoomPluginId {
+                VideoLoomIslandPanelView(
                     pluginId: pluginId,
                     sections: arbiter.expandedContent[pluginId] ?? []
                 )
@@ -1749,6 +1755,257 @@ private enum ProcMonitorIslandStyle {
             return value
         }
         return "进程：\(name)"
+    }
+}
+
+// MARK: - VideoLoom recorder panel
+
+private struct VideoLoomIslandPanelView: View {
+    let pluginId: String
+    let sections: [ExpandedSection]
+    @ObservedObject private var arbiter = PluginSlotArbiter.shared
+
+    @State private var shotInProgress = false
+
+    private var isExpanded: Bool { arbiter.stickyPeekExpanded }
+
+    private var statSection: StatSection? {
+        sections.compactMap { s -> StatSection? in
+            guard case .stat(let stat) = s else { return nil }
+            return stat
+        }.first
+    }
+
+    private var toggleSections: [ActionToggleSection] {
+        sections.compactMap { s -> ActionToggleSection? in
+            guard case .actionToggle(let t) = s else { return nil }
+            return t
+        }
+    }
+
+    private var buttonSections: [ButtonSection] {
+        sections.compactMap { s -> ButtonSection? in
+            guard case .button(let b) = s else { return nil }
+            return b
+        }
+    }
+
+    private var textSections: [TextSection] {
+        sections.compactMap { s -> TextSection? in
+            guard case .text(let t) = s else { return nil }
+            return t
+        }
+    }
+
+    /// The recorder reports the finished state with reveal/dismiss buttons and no
+    /// toggles. It gets a dedicated single-row (horizontal) layout.
+    private var isFinished: Bool {
+        toggleSections.isEmpty && buttonSections.contains { $0.actionId == "dismiss" }
+    }
+
+    var body: some View {
+        Group {
+            if isFinished {
+                finishedRow
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+            } else {
+                recordingPanel
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, isExpanded ? 8 : 2)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.black.opacity(0.44))
+        )
+        .animation(.easeOut(duration: 0.2), value: isExpanded)
+        .onChange(of: arbiter.recorderShotToken) { _, token in
+            // Capture finished — stop the spinner.
+            guard token > 0 else { return }
+            shotInProgress = false
+        }
+    }
+
+    /// Begin the screenshot spinner; a safety timeout clears it if no result comes.
+    private func beginShot() {
+        shotInProgress = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            shotInProgress = false
+        }
+    }
+
+    /// Single-row layout for both states. Peek shows timer + pause + stop;
+    /// expanding just adds mic / annotate / screenshot to the same row (taller
+    /// notch is avoided — only the width grows). Tap the row to toggle.
+    private var recordingPanel: some View {
+        HStack(spacing: 7) {
+            Spacer(minLength: 0)
+            statCluster
+            Spacer(minLength: 0).frame(maxWidth: isExpanded ? 14 : 32)
+            controlButtons
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { arbiter.stickyPeekExpanded.toggle() }
+    }
+
+    @ViewBuilder
+    private var statCluster: some View {
+        if let stat = statSection {
+            HStack(spacing: 4) {
+                if let icon = stat.icon {
+                    IslandPluginRenderer.iconBadge(icon, tint: stat.tint, size: 15, iconSize: 7)
+                }
+                Text(stat.value)
+                    .font(.system(size: 11.5, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.92))
+                Text(stat.label)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            .fixedSize()
+        }
+    }
+
+    @ViewBuilder
+    private var controlButtons: some View {
+        if let pause = toggleSections.first(where: { $0.actionId == "togglePause" }) {
+            peekIconButton(icon: toggleIcon(pause), tint: pause.active ? .green : .default,
+                           actionId: pause.actionId, help: pause.label)
+        }
+        if isExpanded {
+            if let mic = toggleSections.first(where: { $0.actionId == "toggleMic" }) {
+                peekIconButton(icon: toggleIcon(mic), tint: mic.active ? .green : .default,
+                               actionId: mic.actionId, help: mic.label)
+            }
+            if let annotate = toggleSections.first(where: { $0.actionId == "toggleAnnotate" }) {
+                peekIconButton(icon: toggleIcon(annotate), tint: annotate.active ? .green : .default,
+                               actionId: annotate.actionId, help: annotate.label)
+            }
+            if let shot = buttonSections.first(where: { $0.actionId == "screenshot" }) {
+                peekIconButton(icon: "camera.fill", tint: .default,
+                               actionId: shot.actionId, help: shot.label,
+                               loading: shotInProgress,
+                               onTap: { beginShot() })
+            }
+        }
+        if let stop = buttonSections.first(where: { $0.actionId == "stop" }) {
+            peekIconButton(icon: "stop.fill", tint: .red, actionId: stop.actionId, help: stop.label)
+        }
+    }
+
+    // MARK: - Finished (horizontal: 已保存 + 打开文件夹 + 完成)
+
+    private var finishedRow: some View {
+        HStack(spacing: 8) {
+            if let stat = statSection {
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(IslandPluginRenderer.tintColor(.green))
+                    Text(stat.label)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+                .fixedSize()
+            }
+
+            if let name = textSections.first?.content {
+                Text(name)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .layoutPriority(-1)
+            }
+
+            Spacer(minLength: 6)
+
+            ForEach(Array(buttonSections.enumerated()), id: \.offset) { _, button in
+                finishedButton(button)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func finishedButton(_ button: ButtonSection) -> some View {
+        let isDismiss = button.actionId == "dismiss"
+        let tint: PluginTint = isDismiss ? .green : .blue
+        let label = isDismiss ? "完成" : "打开"
+        return Button {
+            NotificationCenter.default.post(
+                name: .pluginButtonTapped,
+                object: nil,
+                userInfo: ["pluginId": pluginId, "actionId": button.actionId]
+            )
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: buttonIcon(button))
+                    .font(.system(size: 10, weight: .semibold))
+                Text(label)
+                    .font(.system(size: 10.5, weight: .semibold))
+            }
+            .fixedSize()
+            .foregroundStyle(.white.opacity(0.9))
+            .padding(.horizontal, 11)
+            .frame(height: 27)
+            .background(
+                Capsule().fill(IslandPluginRenderer.tintColor(tint).opacity(isDismiss ? 0.28 : 0.16))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func peekIconButton(icon: String, tint: PluginTint, actionId: String, help: String,
+                                loading: Bool = false, onTap: (() -> Void)? = nil) -> some View {
+        Button {
+            onTap?()
+            NotificationCenter.default.post(
+                name: .pluginButtonTapped,
+                object: nil,
+                userInfo: ["pluginId": pluginId, "actionId": actionId]
+            )
+        } label: {
+            Group {
+                if loading {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(.white.opacity(0.85))
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(tint == .default ? .white.opacity(0.85) : IslandPluginRenderer.tintColor(tint))
+                }
+            }
+            .frame(width: 21, height: 21)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(tint == .default ? .white.opacity(0.08) : IslandPluginRenderer.tintColor(tint).opacity(0.16))
+            )
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+
+    private func toggleIcon(_ toggle: ActionToggleSection) -> String {
+        switch toggle.actionId {
+        case "togglePause": return toggle.active ? "play.fill" : "pause.fill"
+        case "toggleMic": return toggle.active ? "mic.fill" : "mic.slash.fill"
+        case "toggleAnnotate": return toggle.active ? "pencil.tip" : "pencil.tip.crop.circle"
+        default: return "circle.fill"
+        }
+    }
+
+    private func buttonIcon(_ button: ButtonSection) -> String {
+        switch button.actionId {
+        case "stop": return "stop.fill"
+        case "screenshot": return "camera.fill"
+        case "revealFile": return "folder.fill"
+        case "dismiss": return "checkmark.circle.fill"
+        default: return "circle.fill"
+        }
     }
 }
 

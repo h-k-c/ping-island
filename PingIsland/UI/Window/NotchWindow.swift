@@ -64,26 +64,54 @@ class NotchPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
+    /// Called when a left mouse-down lands on an empty area of the panel (no
+    /// SwiftUI view wants it). Used by the recorder's sticky peek to collapse the
+    /// expanded panel back to the peek bar — driven by the authoritative hitTest
+    /// so a real control click is never mistaken for an outside click.
+    var onEmptyAreaMouseDown: (() -> Void)?
+
     // MARK: - Click-through for areas outside the panel content
 
     override func sendEvent(_ event: NSEvent) {
         // For mouse events, check if we should pass through
         if event.type == .leftMouseDown || event.type == .leftMouseUp ||
            event.type == .rightMouseDown || event.type == .rightMouseUp {
+
+            // Replayed events (ones we reposted while ignoresMouseEvents was
+            // temporarily true) arrive here if ignoresMouseEvents was already
+            // restored to false. Deliver them normally — they've already been
+            // dispatched to windows behind us, so no further pass-through needed.
+            if MouseEventReplay.isReplayed(event) {
+                NSLog("[NotchPanel] REPLAYED type=\(event.type.rawValue) → super.sendEvent")
+                super.sendEvent(event)
+                return
+            }
+
             // Get the location in window coordinates
             let locationInWindow = event.locationInWindow
+            let hitResult = self.contentView?.hitTest(locationInWindow)
+            NSLog("[NotchPanel] type=\(event.type.rawValue) loc=\(locationInWindow) hit=\(hitResult != nil ? "HIT(\(type(of: hitResult!)))" : "MISS") ignores=\(ignoresMouseEvents)")
 
             // Check if any view wants to handle this event
             if let contentView = self.contentView,
                contentView.hitTest(locationInWindow) == nil {
+                if event.type == .leftMouseDown {
+                    onEmptyAreaMouseDown?()
+                }
                 // No view wants this event - pass it through to windows behind
                 // by temporarily ignoring mouse events and re-posting
                 let screenLocation = convertPoint(toScreen: locationInWindow)
                 ignoresMouseEvents = true
+                NSLog("[NotchPanel] MISS → set ignoresMouseEvents=true, will repost")
 
-                // Re-post the event after a tiny delay
+                // Re-post the event, then restore interactivity so subsequent
+                // button clicks aren't permanently blocked. cgEvent.post to
+                // cghidEventTap is synchronous: routing to the window behind
+                // completes inside repostMouseEvent before we return.
                 DispatchQueue.main.async { [weak self] in
                     self?.repostMouseEvent(event, at: screenLocation)
+                    self?.ignoresMouseEvents = false
+                    NSLog("[NotchPanel] async: reposted + ignoresMouseEvents=false")
                 }
                 return
             }

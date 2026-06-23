@@ -297,6 +297,10 @@ struct PluginNotifyUpdate: Equatable, Sendable {
 struct PluginExpandedUpdate: Equatable, Sendable {
     let pluginId: String
     let sections: [ExpandedSection]
+    /// Transient screenshot feedback for the recorder: bumps each capture; the UI
+    /// shows a shutter flash and the thumbnail at `shotPath` briefly.
+    var shotToken: Int = 0
+    var shotPath: String? = nil
 }
 
 enum ExpandedSection: Codable, Equatable, Sendable {
