@@ -73,6 +73,19 @@ class NotchWindowController: NSWindowController {
             }
             .store(in: &cancellables)
 
+        // The recorder peek stays open for the whole recording. Its full-width
+        // window would block the menu bar / desktop underneath, so for the recorder
+        // we only intercept clicks while the cursor is actually over the panel.
+        viewModel.$isHovering
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self, weak notchWindow, weak viewModel] _ in
+                guard let self, let notchWindow, let viewModel else { return }
+                if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = viewModel.contentType {
+                    self.updateWindowPresentation(window: notchWindow, viewModel: viewModel)
+                }
+            }
+            .store(in: &cancellables)
+
         viewModel.$isFullscreenEdgeRevealActive
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak notchWindow, weak viewModel] _ in
@@ -186,10 +199,18 @@ class NotchWindowController: NSWindowController {
 
         switch viewModel.status {
         case .opened:
-            window.ignoresMouseEvents = false
-            if viewModel.openReason != .notification {
-                NSApp.activate(ignoringOtherApps: false)
-                window.makeKey()
+            if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = viewModel.contentType {
+                // Recorder peek: only grab clicks when the cursor is over the panel,
+                // so the rest of the screen (menu bar, desktop) stays usable while
+                // recording. Don't steal focus — the non-activating panel still
+                // receives control clicks.
+                window.ignoresMouseEvents = !viewModel.isHovering
+            } else {
+                window.ignoresMouseEvents = false
+                if viewModel.openReason != .notification {
+                    NSApp.activate(ignoringOtherApps: false)
+                    window.makeKey()
+                }
             }
         case .closed, .popping:
             window.ignoresMouseEvents = true
