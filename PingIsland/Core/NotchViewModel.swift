@@ -260,9 +260,9 @@ class NotchViewModel: ObservableObject {
     /// window). Must not collide with any plugin actionId.
     static let recorderPanelFrameKey = "__recorderPanel__"
 
-    /// The recorder peek now uses the full-size click-through window, so window-local
-    /// button frames map to screen space through the full window frame (matching the
-    /// "notchWindow" coordinate space, which spans the whole hosting view).
+    /// Screen frame (bottom-left origin) of the recorder peek's VISIBLE window — the
+    /// full notch window — matching the "notchWindow" coordinate space the SwiftUI
+    /// button frames are reported in, so window-local frames map to screen correctly.
     private var recorderPeekScreenFrame: CGRect {
         let height = geometry.windowHeight
         return CGRect(
@@ -281,6 +281,16 @@ class NotchViewModel: ObservableObject {
             width: local.width,
             height: local.height
         )
+    }
+
+    /// Screen rect of the visible recorder card, derived from the SwiftUI-reported
+    /// panel frame (the actual rendered bounds — not the under-measured openedSize).
+    /// The window controller sizes the invisible click-absorber to this so every
+    /// control is covered and no tap on the island leaks through to the desktop.
+    /// Padded slightly so rounded-corner edge taps are still absorbed.
+    var recorderCardScreenFrame: CGRect? {
+        guard let panel = recorderButtonFrames[Self.recorderPanelFrameKey] else { return nil }
+        return recorderFrameToScreen(panel, window: recorderPeekScreenFrame).insetBy(dx: -6, dy: -6)
     }
 
     /// Hit-test a click (screen coordinates) against the recorder peek. Returns true

@@ -1812,7 +1812,7 @@ private struct VideoLoomIslandPanelView: View {
             } else {
                 recordingPanel
                     .padding(.horizontal, 10)
-                    .padding(.vertical, isExpanded ? 8 : 2)
+                    .padding(.vertical, isExpanded ? 8 : 0)
             }
         }
         .fixedSize(horizontal: false, vertical: true)
@@ -1949,12 +1949,8 @@ private struct VideoLoomIslandPanelView: View {
         let isDismiss = button.actionId == "dismiss"
         let tint: PluginTint = isDismiss ? .green : .blue
         let label = isDismiss ? "完成" : "打开"
+        // Visual only — dispatched by the mouse monitor (handleRecorderClick).
         return Button {
-            NotificationCenter.default.post(
-                name: .pluginButtonTapped,
-                object: nil,
-                userInfo: ["pluginId": pluginId, "actionId": button.actionId]
-            )
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: buttonIcon(button))
@@ -1976,13 +1972,12 @@ private struct VideoLoomIslandPanelView: View {
 
     private func peekIconButton(icon: String, tint: PluginTint, actionId: String, help: String,
                                 loading: Bool = false, onTap: (() -> Void)? = nil) -> some View {
+        // Visual only — the click is dispatched by the mouse monitor's coordinate
+        // hit-test (handleRecorderClick), since the click-through peek window doesn't
+        // reliably deliver clicks to SwiftUI buttons (non-activating panel). onTap
+        // drives the local screenshot spinner if SwiftUI registers the press.
         Button {
             onTap?()
-            NotificationCenter.default.post(
-                name: .pluginButtonTapped,
-                object: nil,
-                userInfo: ["pluginId": pluginId, "actionId": actionId]
-            )
         } label: {
             Group {
                 if loading {
@@ -1995,7 +1990,7 @@ private struct VideoLoomIslandPanelView: View {
                         .foregroundStyle(tint == .default ? .white.opacity(0.85) : IslandPluginRenderer.tintColor(tint))
                 }
             }
-            .frame(width: 21, height: 21)
+            .frame(width: 17, height: 17)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(tint == .default ? .white.opacity(0.08) : IslandPluginRenderer.tintColor(tint).opacity(0.16))
