@@ -1820,6 +1820,9 @@ private struct VideoLoomIslandPanelView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.black.opacity(0.44))
         )
+        // Report the whole card's frame so the mouse monitor can tell a tap on the
+        // island background (toggles expand) from a click outside it.
+        .reportsRecorderButtonFrame(NotchViewModel.recorderPanelFrameKey)
         .animation(.easeOut(duration: 0.2), value: isExpanded)
         .onChange(of: arbiter.recorderShotToken) { _, token in
             // Capture finished — stop the spinner.
@@ -1858,9 +1861,21 @@ private struct VideoLoomIslandPanelView: View {
                 if let icon = stat.icon {
                     IslandPluginRenderer.iconBadge(icon, tint: stat.tint, size: 15, iconSize: 7)
                 }
-                Text(stat.value)
+                // If the plugin provided startedAt, render a SwiftUI live timer so
+                // the sections JSON never needs to change on each tick — no periodic
+                // SwiftUI re-layout means button hit-test is always stable.
+                if let startedAt = stat.startedAt {
+                    Text(
+                        timerInterval: Date(timeIntervalSince1970: startedAt)...Date.distantFuture,
+                        countsDown: false
+                    )
                     .font(.system(size: 11.5, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.92))
+                } else {
+                    Text(stat.value)
+                        .font(.system(size: 11.5, weight: .bold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.92))
+                }
                 Text(stat.label)
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.white.opacity(0.5))
@@ -1956,6 +1971,7 @@ private struct VideoLoomIslandPanelView: View {
             )
         }
         .buttonStyle(.plain)
+        .reportsRecorderButtonFrame(button.actionId)
     }
 
     private func peekIconButton(icon: String, tint: PluginTint, actionId: String, help: String,
@@ -1987,6 +2003,7 @@ private struct VideoLoomIslandPanelView: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .reportsRecorderButtonFrame(actionId)
     }
 
     private func toggleIcon(_ toggle: ActionToggleSection) -> String {

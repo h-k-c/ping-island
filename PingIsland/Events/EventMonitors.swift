@@ -104,13 +104,11 @@ final class EventMonitors {
     private func setupMonitors(level: EnergyEventMonitoringLevel) {
         guard level != .disabled else { return }
 
-        if level == .full {
-            mouseMoveMonitor = monitorFactory(.mouseMoved) { [weak self] _ in
-                guard let self else { return }
-                self.mouseLocation.send(self.currentMouseLocation())
-            }
-            mouseMoveMonitor?.start()
+        mouseMoveMonitor = monitorFactory(.mouseMoved) { [weak self] _ in
+            guard let self else { return }
+            self.mouseLocation.send(self.currentMouseLocation())
         }
+        mouseMoveMonitor?.start()
 
         mouseDownMonitor = monitorFactory(.leftMouseDown) { [weak self] event in
             self?.mouseDown.send(event)

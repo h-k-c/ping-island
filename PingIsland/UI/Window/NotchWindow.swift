@@ -73,78 +73,17 @@ class NotchPanel: NSPanel {
     // MARK: - Click-through for areas outside the panel content
 
     override func sendEvent(_ event: NSEvent) {
-        // For mouse events, check if we should pass through
-        if event.type == .leftMouseDown || event.type == .leftMouseUp ||
-           event.type == .rightMouseDown || event.type == .rightMouseUp {
-
-            // Replayed events (ones we reposted while ignoresMouseEvents was
-            // temporarily true) arrive here if ignoresMouseEvents was already
-            // restored to false. Deliver them normally — they've already been
-            // dispatched to windows behind us, so no further pass-through needed.
-            if MouseEventReplay.isReplayed(event) {
-                NSLog("[NotchPanel] REPLAYED type=\(event.type.rawValue) → super.sendEvent")
-                super.sendEvent(event)
-                return
-            }
-
-            // Get the location in window coordinates
-            let locationInWindow = event.locationInWindow
-            let hitResult = self.contentView?.hitTest(locationInWindow)
-            NSLog("[NotchPanel] type=\(event.type.rawValue) loc=\(locationInWindow) hit=\(hitResult != nil ? "HIT(\(type(of: hitResult!)))" : "MISS") ignores=\(ignoresMouseEvents)")
-
-            // Check if any view wants to handle this event
-            if let contentView = self.contentView,
-               contentView.hitTest(locationInWindow) == nil {
-                if event.type == .leftMouseDown {
-                    onEmptyAreaMouseDown?()
-                }
-                // No view wants this event - pass it through to windows behind
-                // by temporarily ignoring mouse events and re-posting
-                let screenLocation = convertPoint(toScreen: locationInWindow)
-                ignoresMouseEvents = true
-                NSLog("[NotchPanel] MISS → set ignoresMouseEvents=true, will repost")
-
-                // Re-post the event, then restore interactivity so subsequent
-                // button clicks aren't permanently blocked. cgEvent.post to
-                // cghidEventTap is synchronous: routing to the window behind
-                // completes inside repostMouseEvent before we return.
-                DispatchQueue.main.async { [weak self] in
-                    self?.repostMouseEvent(event, at: screenLocation)
-                    self?.ignoresMouseEvents = false
-                    NSLog("[NotchPanel] async: reposted + ignoresMouseEvents=false")
-                }
-                return
-            }
+        // If the click lands in an empty area (no SwiftUI view claimed it), fire the
+        // collapse callback and absorb the event. With the tight peek frame this
+        // happens only in the rounded-corner dead-zone; clicks outside the window
+        // frame reach the desktop/menu-bar directly without going through here.
+        if event.type == .leftMouseDown,
+           self.contentView?.hitTest(event.locationInWindow) == nil {
+            onEmptyAreaMouseDown?()
+            return
         }
-
         super.sendEvent(event)
     }
 
-    private func repostMouseEvent(_ event: NSEvent, at screenLocation: NSPoint) {
-        let cgPoint = MouseEventReplay.repostLocation(
-            for: event,
-            fallbackScreenLocation: screenLocation
-        )
 
-        let mouseType: CGEventType
-        switch event.type {
-        case .leftMouseDown: mouseType = .leftMouseDown
-        case .leftMouseUp: mouseType = .leftMouseUp
-        case .rightMouseDown: mouseType = .rightMouseDown
-        case .rightMouseUp: mouseType = .rightMouseUp
-        default: return
-        }
-
-        let mouseButton: CGMouseButton = event.type == .rightMouseDown || event.type == .rightMouseUp ? .right : .left
-
-        if let cgEvent = CGEvent(
-            mouseEventSource: nil,
-            mouseType: mouseType,
-            mouseCursorPosition: cgPoint,
-            mouseButton: mouseButton
-        ) {
-            MouseEventReplay.mark(cgEvent)
-            cgEvent.post(tap: .cghidEventTap)
-        }
-    }
 }

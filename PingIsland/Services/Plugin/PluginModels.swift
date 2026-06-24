@@ -373,17 +373,23 @@ struct StatSection: Equatable, Sendable {
     let value: String
     let icon: PluginIcon?
     let tint: PluginTint?
+    /// When set, the renderer shows a live counting-up timer anchored at this
+    /// Unix timestamp instead of the static `value` string. Keeps sections
+    /// identical on every periodic re-send so SwiftUI doesn't re-layout the
+    /// panel (and cause hit-test misses on the control buttons).
+    let startedAt: Double?
 }
 
 extension StatSection: Codable {
-    private enum CodingKeys: String, CodingKey { case type, label, value, icon, tint }
+    private enum CodingKeys: String, CodingKey { case type, label, value, icon, tint, startedAt }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        label = try c.decode(String.self, forKey: .label)
-        value = try c.decode(String.self, forKey: .value)
-        icon  = try c.decodeIfPresent(PluginIcon.self, forKey: .icon)
-        tint  = try c.decodeIfPresent(PluginTint.self, forKey: .tint)
+        label     = try c.decode(String.self, forKey: .label)
+        value     = try c.decode(String.self, forKey: .value)
+        icon      = try c.decodeIfPresent(PluginIcon.self, forKey: .icon)
+        tint      = try c.decodeIfPresent(PluginTint.self, forKey: .tint)
+        startedAt = try c.decodeIfPresent(Double.self, forKey: .startedAt)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -393,6 +399,7 @@ extension StatSection: Codable {
         try c.encode(value, forKey: .value)
         try c.encodeIfPresent(icon, forKey: .icon)
         try c.encodeIfPresent(tint, forKey: .tint)
+        try c.encodeIfPresent(startedAt, forKey: .startedAt)
     }
 }
 

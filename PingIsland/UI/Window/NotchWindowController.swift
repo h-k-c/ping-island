@@ -73,10 +73,19 @@ class NotchWindowController: NSWindowController {
             }
             .store(in: &cancellables)
 
-        // The recorder peek stays open for the whole recording. Its full-width
-        // window would block the menu bar / desktop underneath, so for the recorder
-        // we only intercept clicks while the cursor is actually over the panel.
-        viewModel.$isHovering
+        // Resize the window when the recorder peek content is remeasured (height
+        // changes on expand/collapse) or when expand state changes (width changes).
+        viewModel.$openedMeasuredHeight
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self, weak notchWindow, weak viewModel] _ in
+                guard let self, let notchWindow, let viewModel else { return }
+                if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = viewModel.contentType {
+                    self.updateWindowPresentation(window: notchWindow, viewModel: viewModel)
+                }
+            }
+            .store(in: &cancellables)
+
+        PluginSlotArbiter.shared.$stickyPeekExpanded
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak notchWindow, weak viewModel] _ in
                 guard let self, let notchWindow, let viewModel else { return }
@@ -182,10 +191,6 @@ class NotchWindowController: NSWindowController {
             return
         }
 
-        if window.frame != fullWindowFrame {
-            window.setFrame(fullWindowFrame, display: true)
-        }
-
         if !window.isVisible {
             window.orderFront(nil)
         }
@@ -193,6 +198,9 @@ class NotchWindowController: NSWindowController {
         // The settings window sits underneath the full-width notch window; never
         // intercept clicks while it's open, or its UI becomes unclickable.
         if settingsWindowVisible {
+            if window.frame != fullWindowFrame {
+                window.setFrame(fullWindowFrame, display: false)
+            }
             window.ignoresMouseEvents = true
             return
         }
@@ -200,12 +208,22 @@ class NotchWindowController: NSWindowController {
         switch viewModel.status {
         case .opened:
             if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = viewModel.contentType {
-                // Recorder peek: only grab clicks when the cursor is over the panel,
-                // so the rest of the screen (menu bar, desktop) stays usable while
-                // recording. Don't steal focus — the non-activating panel still
-                // receives control clicks.
-                window.ignoresMouseEvents = !viewModel.isHovering
+                // Recorder peek: keep the full-size window and stay FULLY click-through.
+                // We never resize the window per state — the island card animates
+                // smoothly inside SwiftUI (resizing the window per state fought the
+                // 0.2 s content animation and clipped/juddered the collapse). Because
+                // the window never intercepts events, the island's controls are driven
+                // by the global mouse monitor coordinate-hit-testing the SwiftUI-
+                // reported button frames (handleRecorderClick), like the closed ears.
+                // The desktop stays usable everywhere outside the visible card.
+                if window.frame != fullWindowFrame {
+                    window.setFrame(fullWindowFrame, display: false)
+                }
+                window.ignoresMouseEvents = true
             } else {
+                if window.frame != fullWindowFrame {
+                    window.setFrame(fullWindowFrame, display: true)
+                }
                 window.ignoresMouseEvents = false
                 if viewModel.openReason != .notification {
                     NSApp.activate(ignoringOtherApps: false)
@@ -213,6 +231,9 @@ class NotchWindowController: NSWindowController {
                 }
             }
         case .closed, .popping:
+            if window.frame != fullWindowFrame {
+                window.setFrame(fullWindowFrame, display: false)
+            }
             window.ignoresMouseEvents = true
         }
     }

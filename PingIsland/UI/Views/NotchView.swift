@@ -33,6 +33,39 @@ struct OpenedPanelContentHeightPreferenceKey: PreferenceKey {
     }
 }
 
+/// Collects the recorder peek controls' frames (window-local, top-left origin via
+/// the "notchWindow" coordinate space), keyed by plugin actionId. The global mouse
+/// monitor hit-tests these because the peek window is fully click-through.
+struct RecorderButtonFramesPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGRect] = [:]
+
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
+/// Reports a view's frame (in the "notchWindow" coordinate space) under the given
+/// recorder actionId so the mouse monitor can route clicks to it.
+struct ReportsRecorderButtonFrame: ViewModifier {
+    let actionId: String
+    func body(content: Content) -> some View {
+        content.background(
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: RecorderButtonFramesPreferenceKey.self,
+                    value: [actionId: geo.frame(in: .named("notchWindow"))]
+                )
+            }
+        )
+    }
+}
+
+extension View {
+    func reportsRecorderButtonFrame(_ actionId: String) -> some View {
+        modifier(ReportsRecorderButtonFrame(actionId: actionId))
+    }
+}
+
 struct NotchView: View {
     private static let startupDetachmentHintDelay: TimeInterval = 1.8
     private static let detachmentHintRetryDelay: TimeInterval = 0.75
@@ -44,7 +77,6 @@ struct NotchView: View {
     @ObservedObject private var screenSelector = ScreenSelector.shared
     @ObservedObject private var pluginArbiter = PluginSlotArbiter.shared
     @State private var isVisible: Bool = false
-    @State private var isHovering: Bool = false
     @State private var isBouncing: Bool = false
     @State private var activePluginNotification: PluginNotifyUpdate?
     @State private var pluginNotificationDismissWork: DispatchWorkItem?
@@ -161,6 +193,10 @@ struct NotchView: View {
 
     private var shortcutAwareBody: some View {
         visibilityAwareBody
+            // Window-local coordinate space: the recorder controls report their
+            // frames here so the click-through peek window's buttons can be
+            // hit-tested by the global mouse monitor.
+            .coordinateSpace(name: "notchWindow")
             .onReceive(NotificationCenter.default.publisher(for: .pingIslandPresentNotchDetachmentHint)) { _ in
                 presentDetachmentHintIfNeeded(force: true)
             }
@@ -179,6 +215,9 @@ struct NotchView: View {
                 default:
                     viewModel.updateOpenedMeasuredHeight(nil)
                 }
+            }
+            .onPreferenceChange(RecorderButtonFramesPreferenceKey.self) { frames in
+                viewModel.updateRecorderButtonFrames(frames)
             }
     }
 
@@ -247,11 +286,11 @@ struct NotchView: View {
                 closeRecorderNotchIfIdle()
             }
             .onChange(of: pluginArbiter.stickyPeekExpanded) { _, _ in
-                // Drop the stale measured height so the peek/expanded fallback size
-                // applies immediately while the new content is re-measured.
-                if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = viewModel.contentType {
-                    viewModel.updateOpenedMeasuredHeight(nil)
-                }
+                // Do NOT reset openedMeasuredHeight here — resetting to nil causes a
+                // double-animation (snap to fallback 170 px then shrink to actual), which
+                // makes expand/collapse feel sluggish. The preference key fires on the
+                // very next render cycle with the correct new height, so the island
+                // animates directly from old size to new size with no visible stale frame.
             }
             .onChange(of: isInNotificationMoment) { _, active in
                 viewModel.hoverExpansionAllowed = active
@@ -316,8 +355,6 @@ struct NotchView: View {
         let horizontalInset = isOpened
             ? cornerRadiusInsets.opened.top
             : cornerRadiusInsets.closed.bottom
-        let shadowColor = (isOpened || isHovering) ? Color.black.opacity(0.7) : .clear
-
         return notchLayout
             .frame(maxWidth: isOpened ? notchSize.width : nil, alignment: .top)
             .padding(.horizontal, horizontalInset)
@@ -330,7 +367,6 @@ struct NotchView: View {
                     .frame(height: 1)
                     .padding(.horizontal, topCornerRadius)
             }
-            .shadow(color: shadowColor, radius: 6)
             .frame(
                 maxWidth: isOpened ? notchSize.width : nil,
                 maxHeight: isOpened ? notchSize.height : nil,
@@ -341,12 +377,6 @@ struct NotchView: View {
             .animation(.smooth, value: activityCoordinator.expandingActivity)
             .animation(.spring(response: 0.3, dampingFraction: 0.5), value: isBouncing)
             .contentShape(Rectangle())
-            .onHover { hovering in
-                let shouldShowHoverFeedback = hovering && (isOpened || isInNotificationMoment)
-                withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
-                    isHovering = shouldShowHoverFeedback
-                }
-            }
             .onTapGesture {
                 // Only expand if there is actually something to show. With only ear
                 // plugins assigned (no center/expanded content), tapping the middle

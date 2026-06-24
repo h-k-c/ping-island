@@ -38,6 +38,15 @@ class PassThroughHostingView<Content: View>: NSHostingView<Content> {
         configureTransparency()
     }
 
+    /// The notch panel is a non-activating panel that never becomes key, so without
+    /// this the FIRST click on the island is swallowed as a window-activation poke
+    /// and never reaches the SwiftUI buttons/gestures — the recorder peek's controls
+    /// appear dead until a second click. Accepting first mouse delivers the click
+    /// straight to SwiftUI.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     private func configureTransparency() {
         wantsLayer = true
         layerContentsRedrawPolicy = .onSetNeedsDisplay
@@ -74,9 +83,20 @@ class NotchViewController: NSViewController {
             let vm = self.viewModel
             let geometry = vm.geometry
 
-            // Window coordinates: origin at bottom-left, Y increases upward
-            // The window is positioned at top of screen, so panel is at top of window
-            let windowHeight = geometry.windowHeight
+            // Window coordinates: origin at bottom-left, Y increases upward.
+            // The hit-test `point` arrives in the hosting view's LOCAL coordinate
+            // space, so this rect must be local too. Use the view's ACTUAL bounds
+            // (not geometry.windowHeight / screenRect.width): the recorder peek
+            // shrinks the window to tightly wrap the island and offsets it from the
+            // screen origin. Using full-screen dimensions placed the rect far
+            // outside the short, offset window — so every click, even directly on a
+            // button, registered as "outside the island" and passed through. The
+            // panel is centered in the window and anchored to its top.
+            let bounds = self.hostingView?.bounds ?? CGRect(
+                x: 0, y: 0, width: geometry.screenRect.width, height: geometry.windowHeight
+            )
+            let windowHeight = bounds.height
+            let viewWidth = bounds.width
 
             switch vm.status {
             case .opened:
@@ -89,19 +109,17 @@ class NotchViewController: NSViewController {
                 // untappable. super.hitTest still gates precisely on the real
                 // SwiftUI views, so a slightly larger rect is safe.
                 let panelHeight = panelSize.height + 60
-                let screenWidth = geometry.screenRect.width
                 return CGRect(
-                    x: (screenWidth - panelWidth) / 2,
+                    x: (viewWidth - panelWidth) / 2,
                     y: windowHeight - panelHeight,
                     width: panelWidth,
                     height: panelHeight
                 )
             case .closed, .popping:
                 let closedSize = vm.closedSize
-                let screenWidth = geometry.screenRect.width
                 // Add some padding for easier interaction
                 return CGRect(
-                    x: (screenWidth - closedSize.width) / 2 - 10,
+                    x: (viewWidth - closedSize.width) / 2 - 10,
                     y: windowHeight - closedSize.height - 5,
                     width: closedSize.width + 20,
                     height: closedSize.height + 10
