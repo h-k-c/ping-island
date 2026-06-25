@@ -310,8 +310,8 @@ class NotchViewModel: ObservableObject {
                 return true
             }
         }
-        // Not on a button: a tap anywhere on the island card toggles expand/collapse,
-        // matching the SwiftUI row's onTapGesture.
+        // Not on a button: a tap anywhere on the island card toggles expand/collapse
+        // (reveals the auxiliary tools), matching the SwiftUI row's onTapGesture.
         if let panelLocal = recorderButtonFrames[Self.recorderPanelFrameKey] {
             let panelScreen = recorderFrameToScreen(panelLocal, window: window)
             if panelScreen.contains(screenPoint) {
@@ -329,13 +329,12 @@ class NotchViewModel: ObservableObject {
         if case .plugin(Self.procMonitorPluginId) = contentType {
             return min(screenRect.width - 64, 414)
         }
-        // The recorder's peek bar keeps the closed notch's width (just taller);
-        // only the expanded panel widens to fit the control grid.
+        // The recorder peek shows status + timer + primary controls (pause / mic /
+        // camera / stop); expanding reveals two more (annotate / screenshot), so the
+        // bar widens to fit them.
         if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = contentType {
-            // Finished result and the expanded control row both need a wider panel;
-            // the minimal peek bar keeps the closed notch width.
             if PluginSlotArbiter.shared.recorderFinished { return 360 }
-            return PluginSlotArbiter.shared.stickyPeekExpanded ? 380 : closedSize.width
+            return PluginSlotArbiter.shared.stickyPeekExpanded ? 340 : 280
         }
         return min(
             screenRect.width * Self.clickedInstancesPanelWidthRatio,

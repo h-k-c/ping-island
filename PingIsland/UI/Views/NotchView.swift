@@ -358,7 +358,10 @@ struct NotchView: View {
         return notchLayout
             .frame(maxWidth: isOpened ? notchSize.width : nil, alignment: .top)
             .padding(.horizontal, horizontalInset)
-            .padding([.horizontal, .bottom], isOpened ? 12 : 0)
+            .padding(.horizontal, isOpened ? 12 : 0)
+            // The recorder peek is a short single row — trim the bottom dead space
+            // (other opened panels keep the full 12 pt breathing room).
+            .padding(.bottom, isOpened ? (isRecorderPeekOpen ? 8 : 12) : 0)
             .background(.black)
             .clipShape(currentNotchShape)
             .overlay(alignment: .top) {

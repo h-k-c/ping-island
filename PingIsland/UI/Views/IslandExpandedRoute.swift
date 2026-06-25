@@ -1812,7 +1812,7 @@ private struct VideoLoomIslandPanelView: View {
             } else {
                 recordingPanel
                     .padding(.horizontal, 10)
-                    .padding(.vertical, isExpanded ? 8 : 0)
+                    .padding(.vertical, 0)
             }
         }
         .fixedSize(horizontal: false, vertical: true)
@@ -1839,14 +1839,14 @@ private struct VideoLoomIslandPanelView: View {
         }
     }
 
-    /// Single-row layout for both states. Peek shows timer + pause + stop;
-    /// expanding just adds mic / annotate / screenshot to the same row (taller
-    /// notch is avoided — only the width grows). Tap the row to toggle.
+    /// Single row: status tag + timer + primary controls (pause / mic / camera /
+    /// stop). Tapping the row expands it to reveal the auxiliary tools (annotate /
+    /// screenshot); tapping again collapses.
     private var recordingPanel: some View {
         HStack(spacing: 7) {
             Spacer(minLength: 0)
             statCluster
-            Spacer(minLength: 0).frame(maxWidth: isExpanded ? 14 : 32)
+            Spacer(minLength: 0).frame(maxWidth: 14)
             controlButtons
             Spacer(minLength: 0)
         }
@@ -1857,13 +1857,26 @@ private struct VideoLoomIslandPanelView: View {
     @ViewBuilder
     private var statCluster: some View {
         if let stat = statSection {
-            HStack(spacing: 4) {
-                if let icon = stat.icon {
-                    IslandPluginRenderer.iconBadge(icon, tint: stat.tint, size: 13, iconSize: 6)
+            HStack(spacing: 5) {
+                // Combined status tag — the colored indicator + label ("录制中" /
+                // "已暂停") as one pill, to the LEFT of the timer.
+                HStack(spacing: 3) {
+                    if let icon = stat.icon {
+                        IslandPluginRenderer.iconView(icon, size: 8)
+                    }
+                    Text(stat.label)
+                        .font(.system(size: 8.5, weight: .semibold))
                 }
-                // If the plugin provided startedAt, render a SwiftUI live timer so
-                // the sections JSON never needs to change on each tick — no periodic
-                // SwiftUI re-layout means button hit-test is always stable.
+                .foregroundStyle(IslandPluginRenderer.tintColor(stat.tint))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(
+                    Capsule().fill(IslandPluginRenderer.tintColor(stat.tint).opacity(0.16))
+                )
+
+                // Live timer. With startedAt the island renders a SwiftUI timer
+                // locally so the sections JSON never changes on each tick (no
+                // re-layout → stable button hit-test).
                 if let startedAt = stat.startedAt {
                     Text(
                         timerInterval: Date(timeIntervalSince1970: startedAt)...Date.distantFuture,
@@ -1873,12 +1886,9 @@ private struct VideoLoomIslandPanelView: View {
                     .foregroundStyle(.white.opacity(0.92))
                 } else {
                     Text(stat.value)
-                        .font(.system(size: 11.5, weight: .bold, design: .rounded).monospacedDigit())
+                        .font(.system(size: 10.5, weight: .bold, design: .rounded).monospacedDigit())
                         .foregroundStyle(.white.opacity(0.92))
                 }
-                Text(stat.label)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.5))
             }
             .fixedSize()
         }
@@ -1886,15 +1896,21 @@ private struct VideoLoomIslandPanelView: View {
 
     @ViewBuilder
     private var controlButtons: some View {
+        // Always in the peek bar: the primary recording controls.
         if let pause = toggleSections.first(where: { $0.actionId == "togglePause" }) {
             peekIconButton(icon: toggleIcon(pause), tint: pause.active ? .green : .default,
                            actionId: pause.actionId, help: pause.label)
         }
+        if let mic = toggleSections.first(where: { $0.actionId == "toggleMic" }) {
+            peekIconButton(icon: toggleIcon(mic), tint: mic.active ? .green : .default,
+                           actionId: mic.actionId, help: mic.label)
+        }
+        if let camera = toggleSections.first(where: { $0.actionId == "toggleCamera" }) {
+            peekIconButton(icon: toggleIcon(camera), tint: camera.active ? .green : .default,
+                           actionId: camera.actionId, help: camera.label)
+        }
+        // Auxiliary tools live behind the expand tap: annotate + screenshot.
         if isExpanded {
-            if let mic = toggleSections.first(where: { $0.actionId == "toggleMic" }) {
-                peekIconButton(icon: toggleIcon(mic), tint: mic.active ? .green : .default,
-                               actionId: mic.actionId, help: mic.label)
-            }
             if let annotate = toggleSections.first(where: { $0.actionId == "toggleAnnotate" }) {
                 peekIconButton(icon: toggleIcon(annotate), tint: annotate.active ? .green : .default,
                                actionId: annotate.actionId, help: annotate.label)
@@ -2005,6 +2021,7 @@ private struct VideoLoomIslandPanelView: View {
         switch toggle.actionId {
         case "togglePause": return toggle.active ? "play.fill" : "pause.fill"
         case "toggleMic": return toggle.active ? "mic.fill" : "mic.slash.fill"
+        case "toggleCamera": return toggle.active ? "video.fill" : "video.slash.fill"
         case "toggleAnnotate": return toggle.active ? "pencil.tip" : "pencil.tip.crop.circle"
         default: return "circle.fill"
         }
