@@ -1,10 +1,18 @@
 // UsageMonitorPlugin — built-in AI Monitor island tool.
-// Monitors Claude and Codex usage via their APIs and renders compact/expanded IPP.
+// Monitors Claude and/or Codex usage via their APIs and renders compact/expanded IPP.
+// Pass a Provider to restrict to one service; .all shows both (original behavior).
 
 import Foundation
 
 enum UsageMonitorPlugin {
 
+    enum Provider {
+        case claude, codex, all
+        var showsClaude: Bool { self == .claude || self == .all }
+        var showsCodex: Bool  { self == .codex  || self == .all }
+    }
+
+    private static var provider: Provider = .all
     private static var refreshInterval: TimeInterval = 300  // 5 minutes
     private static let refreshQueue = DispatchQueue(label: "ai-monitor-refresh", qos: .utility)
     private static var refreshTimer: DispatchSourceTimer?
@@ -38,7 +46,8 @@ enum UsageMonitorPlugin {
         }
     }
 
-    static func run() {
+    static func run(as p: Provider = .all) {
+        provider = p
         guard let initialMessage = readLine() else { return }
         handleInitialize(initialMessage)
 
@@ -133,49 +142,37 @@ enum UsageMonitorPlugin {
         var claude = ProviderResult<UsageData>()
         var codex = ProviderResult<CodexUsageData>()
 
-        group.enter()
-        let finishClaude = Once()
-        let claudeService = ClaudeAPIService()
-        claudeService.onUsageUpdated = { data in
-            claude.data = data
-            claude.needsLogin = false
-            claude.errorMessage = nil
-            finishClaude.run { group.leave() }
+        if provider.showsClaude {
+            group.enter()
+            let finish = Once()
+            let svc = ClaudeAPIService()
+            svc.onUsageUpdated = { data in
+                claude.data = data; claude.needsLogin = false; claude.errorMessage = nil
+                finish.run { group.leave() }
+            }
+            svc.onError = { msg in claude.errorMessage = msg; finish.run { group.leave() } }
+            svc.onNeedsLogin = { claude.needsLogin = true; finish.run { group.leave() } }
+            svc.refresh()
         }
-        claudeService.onError = { message in
-            claude.errorMessage = message
-            finishClaude.run { group.leave() }
-        }
-        claudeService.onNeedsLogin = {
-            claude.needsLogin = true
-            finishClaude.run { group.leave() }
-        }
-        claudeService.refresh()
 
-        group.enter()
-        let finishCodex = Once()
-        let codexService = CodexAPIService()
-        codexService.onUsageUpdated = { data in
-            codex.data = data
-            codex.needsLogin = false
-            codex.errorMessage = nil
-            finishCodex.run { group.leave() }
+        if provider.showsCodex {
+            group.enter()
+            let finish = Once()
+            let svc = CodexAPIService()
+            svc.onUsageUpdated = { data in
+                codex.data = data; codex.needsLogin = false; codex.errorMessage = nil
+                finish.run { group.leave() }
+            }
+            svc.onError = { msg in codex.errorMessage = msg; finish.run { group.leave() } }
+            svc.onNeedsLogin = { codex.needsLogin = true; finish.run { group.leave() } }
+            svc.refresh()
         }
-        codexService.onError = { message in
-            codex.errorMessage = message
-            finishCodex.run { group.leave() }
-        }
-        codexService.onNeedsLogin = {
-            codex.needsLogin = true
-            finishCodex.run { group.leave() }
-        }
-        codexService.refresh()
 
         _ = group.wait(timeout: .now() + 20)
         let snapshot = RefreshSnapshot(
             claude: claude,
             codex: codex,
-            todayTokens: loadTodayTokens(),
+            todayTokens: provider.showsClaude ? loadTodayTokens() : 0,
             lastUpdated: Date()
         )
         pushUpdates(snapshot)
@@ -215,16 +212,21 @@ enum UsageMonitorPlugin {
     }
 
     private static func sendLoadingState() {
+        let loadingText: String
+        switch provider {
+        case .claude: loadingText = "正在获取 Claude 用量…"
+        case .codex:  loadingText = "正在获取 Codex 用量…"
+        case .all:    loadingText = "正在获取 Claude / Codex 用量…"
+        }
+        let icon = provider.showsClaude && !provider.showsCodex
+            ? "brain.head.profile"
+            : "chart.pie.fill"
+
         sendJSON([
             "jsonrpc": "2.0",
             "method": "island/compact",
             "params": [
-                "position": "right",
-                "content": [
-                    "icon": ["type": "sf", "name": "chart.pie.fill"],
-                    "label": "--",
-                    "tint": "default"
-                ]
+                "content": ["icon": ["type": "sf", "name": icon], "label": "--", "tint": "default"]
             ]
         ])
 
@@ -233,49 +235,70 @@ enum UsageMonitorPlugin {
             "method": "island/expanded",
             "params": [
                 "sections": [
-                    ["type": "text", "content": "AI Monitor", "style": "heading"],
-                    ["type": "text", "content": "正在获取 Claude / Codex 用量…", "style": "caption"]
+                    ["type": "text", "content": headingTitle(), "style": "heading"],
+                    ["type": "text", "content": loadingText, "style": "caption"]
                 ]
             ]
         ])
+    }
+
+    private static func headingTitle() -> String {
+        switch provider {
+        case .claude: return "Claude 用量"
+        case .codex:  return "Codex 用量"
+        case .all:    return "AI Monitor"
+        }
     }
 
     // MARK: - island/compact
 
     private static func sendCompact(_ snapshot: RefreshSnapshot) {
         let content: [String: Any]
-        if let codex = snapshot.codex.data, codex.hasPrimaryData {
-            content = [
-                "icon": ["type": "sf", "name": "chart.pie.fill"],
-                "label": "\(min(max(codex.primaryUsedPercent, 0), 999))%",
-                "tint": tint(codex.primaryFraction)
-            ]
-        } else if snapshot.codex.errorMessage != nil {
-            content = [
-                "icon": ["type": "sf", "name": "exclamationmark.triangle.fill"],
-                "tint": "red"
-            ]
-        } else if snapshot.codex.needsLogin {
-            content = [
-                "icon": ["type": "sf", "name": "person.crop.circle.badge.exclamationmark"],
-                "tint": "orange"
-            ]
-        } else {
-            content = [
-                "icon": ["type": "sf", "name": "chart.pie.fill"],
-                "label": "--",
-                "tint": "default"
-            ]
+
+        switch provider {
+        case .claude:
+            content = claudeCompactContent(snapshot)
+        case .codex:
+            content = codexCompactContent(snapshot)
+        case .all:
+            // Combined: prefer Claude if connected, fall back to Codex
+            let c = claudeCompactContent(snapshot)
+            let cx = codexCompactContent(snapshot)
+            content = snapshot.claude.isConnected ? c : cx
         }
 
-        sendJSON([
-            "jsonrpc": "2.0",
-            "method": "island/compact",
-            "params": [
-                "position": "right",
-                "content": content
+        sendJSON(["jsonrpc": "2.0", "method": "island/compact",
+                  "params": ["content": content]])
+    }
+
+    private static func claudeCompactContent(_ snapshot: RefreshSnapshot) -> [String: Any] {
+        if let c = snapshot.claude.data, c.hasSessionData {
+            return [
+                "icon": ["type": "sf", "name": "brain.head.profile"],
+                "label": "\(min(max(Int(c.sessionPercentage * 100), 0), 999))%",
+                "tint": tint(c.sessionPercentage)
             ]
-        ])
+        } else if snapshot.claude.errorMessage != nil {
+            return ["icon": ["type": "sf", "name": "exclamationmark.triangle.fill"], "tint": "red"]
+        } else if snapshot.claude.needsLogin {
+            return ["icon": ["type": "sf", "name": "person.crop.circle.badge.exclamationmark"], "tint": "orange"]
+        }
+        return ["icon": ["type": "sf", "name": "brain.head.profile"], "label": "--", "tint": "default"]
+    }
+
+    private static func codexCompactContent(_ snapshot: RefreshSnapshot) -> [String: Any] {
+        if let cx = snapshot.codex.data, cx.hasPrimaryData {
+            return [
+                "icon": ["type": "sf", "name": "chart.pie.fill"],
+                "label": "\(min(max(cx.primaryUsedPercent, 0), 999))%",
+                "tint": tint(cx.primaryFraction)
+            ]
+        } else if snapshot.codex.errorMessage != nil {
+            return ["icon": ["type": "sf", "name": "exclamationmark.triangle.fill"], "tint": "red"]
+        } else if snapshot.codex.needsLogin {
+            return ["icon": ["type": "sf", "name": "person.crop.circle.badge.exclamationmark"], "tint": "orange"]
+        }
+        return ["icon": ["type": "sf", "name": "chart.pie.fill"], "label": "--", "tint": "default"]
     }
 
     // MARK: - island/expanded
@@ -283,10 +306,16 @@ enum UsageMonitorPlugin {
     private static func sendExpanded(_ snapshot: RefreshSnapshot) {
         var sections: [[String: Any]] = []
 
-        sections.append(["type": "text", "content": "AI Monitor", "style": "heading"])
-        appendClaudeSections(to: &sections, result: snapshot.claude, todayTokens: snapshot.todayTokens)
-        sections.append(["type": "divider"])
-        appendCodexSections(to: &sections, result: snapshot.codex)
+        sections.append(["type": "text", "content": headingTitle(), "style": "heading"])
+        if provider.showsClaude {
+            appendClaudeSections(to: &sections, result: snapshot.claude, todayTokens: snapshot.todayTokens)
+        }
+        if provider.showsClaude && provider.showsCodex {
+            sections.append(["type": "divider"])
+        }
+        if provider.showsCodex {
+            appendCodexSections(to: &sections, result: snapshot.codex)
+        }
         sections.append(["type": "divider"])
         sections.append([
             "type": "text",

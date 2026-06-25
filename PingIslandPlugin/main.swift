@@ -32,7 +32,11 @@ case "com.auralink.claude", "com.wudanwu.pingisland.claude":
 case "com.auralink.codex", "com.wudanwu.pingisland.codex":
     CodexSessionPlugin.run()
 case "com.auralink.usage", "com.wudanwu.pingisland.usage":
-    UsageMonitorPlugin.run()
+    UsageMonitorPlugin.run(as: .all)
+case "com.auralink.claudeUsage":
+    UsageMonitorPlugin.run(as: .claude)
+case "com.auralink.codexUsage":
+    UsageMonitorPlugin.run(as: .codex)
 case "com.auralink.procmonitor", "com.wudanwu.pingisland.procmonitor":
     ProcMonitorPlugin.run()
 case "com.auralink.clipboard":

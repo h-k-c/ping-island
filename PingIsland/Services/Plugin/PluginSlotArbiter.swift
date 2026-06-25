@@ -72,10 +72,9 @@ final class PluginSlotArbiter: ObservableObject {
 
     // MARK: - Per-plugin latest compact content (position-agnostic)
 
-    /// Latest compact content each plugin has pushed, regardless of the position
-    /// the plugin declared in `island/compact`. The user's ear assignment decides
-    /// where it renders, so a plugin that only pushes `right` can still be placed
-    /// on the left ear.
+    /// Latest compact content each plugin has pushed. The user's ear assignment
+    /// decides where it renders, so a plugin that only pushes `right` can still
+    /// be placed on the left ear.
     private var latestCompact: [String: PluginCompactContent] = [:]
 
     private let defaults: UserDefaults

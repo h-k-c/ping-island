@@ -45,9 +45,11 @@ enum IslandExpandedRouteResolver {
 }
 
 struct PluginExpandedPanelView: View {
-    private static let procMonitorPluginId = "com.auralink.procmonitor"
+    private static let procMonitorPluginId  = "com.auralink.procmonitor"
     private static let usageMonitorPluginId = "com.auralink.usage"
-    private static let videoLoomPluginId = "com.videoloom.recorder"
+    private static let claudeUsagePluginId  = "com.auralink.claudeUsage"
+    private static let codexUsagePluginId   = "com.auralink.codexUsage"
+    private static let videoLoomPluginId    = "com.videoloom.recorder"
 
     let pluginId: String
     @ObservedObject private var arbiter = PluginSlotArbiter.shared
@@ -58,10 +60,14 @@ struct PluginExpandedPanelView: View {
             if pluginId == Self.procMonitorPluginId {
                 ProcMonitorIslandPanelView()
             } else if pluginId == Self.usageMonitorPluginId {
-                UsageMonitorIslandPanelView(
-                    pluginId: pluginId,
-                    sections: arbiter.expandedContent[pluginId] ?? []
-                )
+                UsageMonitorIslandPanelView(pluginId: pluginId,
+                    sections: arbiter.expandedContent[pluginId] ?? [], show: .all)
+            } else if pluginId == Self.claudeUsagePluginId {
+                UsageMonitorIslandPanelView(pluginId: pluginId,
+                    sections: arbiter.expandedContent[pluginId] ?? [], show: .claude)
+            } else if pluginId == Self.codexUsagePluginId {
+                UsageMonitorIslandPanelView(pluginId: pluginId,
+                    sections: arbiter.expandedContent[pluginId] ?? [], show: .codex)
             } else if pluginId == Self.videoLoomPluginId {
                 VideoLoomIslandPanelView(
                     pluginId: pluginId,
@@ -147,8 +153,10 @@ struct PluginExpandedPanelView: View {
 }
 
 private struct UsageMonitorIslandPanelView: View {
+    enum ShowProvider { case all, claude, codex }
     let pluginId: String
     let sections: [ExpandedSection]
+    var show: ShowProvider = .all
 
     @State private var claudeSessionKey = ""
     @State private var didLoadClaudeSessionKey = false
@@ -193,31 +201,34 @@ private struct UsageMonitorIslandPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
-                providerCard(
-                    title: "Claude",
-                    subtitle: claudeStatus?.value ?? "加载中",
-                    assetName: "ClaudeLogo",
-                    tint: usageColor(.claude),
-                    rows: [
-                        usageRow("5小时", claudeSession, tint: usageColor(.session)),
-                        usageRow("7日", claudeWeekly, tint: usageColor(.weekly))
-                    ],
-                    resetRows: claudeResetRows,
-                    footer: todayTokens.map { ("今日 Tokens", $0.value, usageColor(.tokens)) }
-                )
-
-                providerCard(
-                    title: "Codex",
-                    subtitle: codexStatus?.value ?? "加载中",
-                    assetName: "CodexLogo",
-                    tint: usageColor(.codex),
-                    rows: [
-                        usageRow("5小时", codexPrimary, tint: usageColor(.sessionAlt)),
-                        usageRow("7日", codexSecondary, tint: usageColor(.weeklyAlt))
-                    ],
-                    resetRows: codexResetRows,
-                    footer: credits.map { ("Credits", $0.value, usageColor(.credits)) }
-                )
+                if show != .codex {
+                    providerCard(
+                        title: "Claude",
+                        subtitle: claudeStatus?.value ?? "加载中",
+                        assetName: "ClaudeLogo",
+                        tint: usageColor(.claude),
+                        rows: [
+                            usageRow("5小时", claudeSession, tint: usageColor(.session)),
+                            usageRow("7日", claudeWeekly, tint: usageColor(.weekly))
+                        ],
+                        resetRows: claudeResetRows,
+                        footer: todayTokens.map { ("今日 Tokens", $0.value, usageColor(.tokens)) }
+                    )
+                }
+                if show != .claude {
+                    providerCard(
+                        title: "Codex",
+                        subtitle: codexStatus?.value ?? "加载中",
+                        assetName: "CodexLogo",
+                        tint: usageColor(.codex),
+                        rows: [
+                            usageRow("5小时", codexPrimary, tint: usageColor(.sessionAlt)),
+                            usageRow("7日", codexSecondary, tint: usageColor(.weeklyAlt))
+                        ],
+                        resetRows: codexResetRows,
+                        footer: credits.map { ("Credits", $0.value, usageColor(.credits)) }
+                    )
+                }
             }
 
             if !extraMessages.isEmpty {
