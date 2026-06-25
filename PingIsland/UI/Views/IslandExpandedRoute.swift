@@ -1859,7 +1859,7 @@ private struct VideoLoomIslandPanelView: View {
         if let stat = statSection {
             HStack(spacing: 4) {
                 if let icon = stat.icon {
-                    IslandPluginRenderer.iconBadge(icon, tint: stat.tint, size: 15, iconSize: 7)
+                    IslandPluginRenderer.iconBadge(icon, tint: stat.tint, size: 13, iconSize: 6)
                 }
                 // If the plugin provided startedAt, render a SwiftUI live timer so
                 // the sections JSON never needs to change on each tick — no periodic
@@ -1869,7 +1869,7 @@ private struct VideoLoomIslandPanelView: View {
                         timerInterval: Date(timeIntervalSince1970: startedAt)...Date.distantFuture,
                         countsDown: false
                     )
-                    .font(.system(size: 11.5, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.system(size: 10.5, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.92))
                 } else {
                     Text(stat.value)
@@ -1990,7 +1990,7 @@ private struct VideoLoomIslandPanelView: View {
                         .foregroundStyle(tint == .default ? .white.opacity(0.85) : IslandPluginRenderer.tintColor(tint))
                 }
             }
-            .frame(width: 17, height: 17)
+            .frame(width: 15, height: 15)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(tint == .default ? .white.opacity(0.08) : IslandPluginRenderer.tintColor(tint).opacity(0.16))
