@@ -1884,10 +1884,14 @@ private struct VideoLoomIslandPanelView: View {
                     )
                     .font(.system(size: 10.5, weight: .bold, design: .rounded).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.92))
+                    // Reserve width for "10:00" (5 chars) from the start so the
+                    // layout doesn't shift when the timer crosses the 10-minute mark.
+                    .frame(minWidth: 36)
                 } else {
                     Text(stat.value)
                         .font(.system(size: 10.5, weight: .bold, design: .rounded).monospacedDigit())
                         .foregroundStyle(.white.opacity(0.92))
+                        .frame(minWidth: 36)
                 }
             }
             .fixedSize()

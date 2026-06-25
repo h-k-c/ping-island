@@ -299,6 +299,7 @@ class NotchViewModel: ObservableObject {
     /// when the click is outside the visible island so the caller can fall through.
     private func handleRecorderClick(at screenPoint: CGPoint) -> Bool {
         let window = recorderPeekScreenFrame
+        if let d = "[VL] click pt=\(screenPoint) status=\(status) win=\(window) frames=\(recorderButtonFrames.mapValues { "(\(Int($0.minX)),\(Int($0.minY)),\(Int($0.width)),\(Int($0.height)))" })\n".data(using: .utf8) { let u = URL(fileURLWithPath: "/tmp/vl_debug.txt"); if let fh = try? FileHandle(forWritingTo: u) { fh.seekToEndOfFile(); fh.write(d); fh.closeFile() } else { try? d.write(to: u) } }
         // A click on a specific control fires that action.
         for (actionId, local) in recorderButtonFrames where actionId != Self.recorderPanelFrameKey {
             let buttonScreen = recorderFrameToScreen(local, window: window)
@@ -310,12 +311,16 @@ class NotchViewModel: ObservableObject {
                 return true
             }
         }
-        // Not on a button: a tap anywhere on the island card toggles expand/collapse
-        // (reveals the auxiliary tools), matching the SwiftUI row's onTapGesture.
+        // Not on a button: a tap anywhere on the island card EXPANDS the bar (but
+        // never collapses it) to reveal the auxiliary tools. Collapsing via a
+        // background tap caused the buttons to shift position, making subsequent
+        // clicks miss — a tap-to-open-only policy keeps buttons stable.
         if let panelLocal = recorderButtonFrames[Self.recorderPanelFrameKey] {
             let panelScreen = recorderFrameToScreen(panelLocal, window: window)
             if panelScreen.contains(screenPoint) {
-                PluginSlotArbiter.shared.stickyPeekExpanded.toggle()
+                if !PluginSlotArbiter.shared.stickyPeekExpanded {
+                    PluginSlotArbiter.shared.stickyPeekExpanded = true
+                }
                 return true
             }
         }
@@ -694,6 +699,7 @@ class NotchViewModel: ObservableObject {
     }
 
     private func handleMouseDown(_ event: NSEvent) {
+        if let d = "[VL] mouseDown loc=\(NSEvent.mouseLocation) presMode=\(presentationMode) status=\(status) content=\(String(describing: contentType)) settingsPopover=\(isSettingsPopoverPresented) replayed=\(MouseEventReplay.isReplayed(event))\n".data(using: .utf8) { let u = URL(fileURLWithPath: "/tmp/vl_debug.txt"); if let fh = try? FileHandle(forWritingTo: u) { fh.seekToEndOfFile(); fh.write(d); fh.closeFile() } else { try? d.write(to: u) } }
         guard presentationMode == .docked else { return }
 
         if isSettingsPopoverPresented {
