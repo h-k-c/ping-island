@@ -303,7 +303,7 @@ class NotchViewModel: ObservableObject {
         // A click on a specific control fires that action.
         for (actionId, local) in recorderButtonFrames where actionId != Self.recorderPanelFrameKey {
             let buttonScreen = recorderFrameToScreen(local, window: window)
-            if buttonScreen.insetBy(dx: -4, dy: -4).contains(screenPoint) {
+            if buttonScreen.insetBy(dx: -8, dy: -8).contains(screenPoint) {
                 NotificationCenter.default.post(
                     name: .pluginButtonTapped, object: nil,
                     userInfo: ["pluginId": PluginSlotArbiter.stickyPeekPluginId, "actionId": actionId]
@@ -311,16 +311,11 @@ class NotchViewModel: ObservableObject {
                 return true
             }
         }
-        // Not on a button: a tap anywhere on the island card EXPANDS the bar (but
-        // never collapses it) to reveal the auxiliary tools. Collapsing via a
-        // background tap caused the buttons to shift position, making subsequent
-        // clicks miss — a tap-to-open-only policy keeps buttons stable.
+        // Not on a button: a tap on the island card background toggles expand/collapse.
         if let panelLocal = recorderButtonFrames[Self.recorderPanelFrameKey] {
             let panelScreen = recorderFrameToScreen(panelLocal, window: window)
             if panelScreen.contains(screenPoint) {
-                if !PluginSlotArbiter.shared.stickyPeekExpanded {
-                    PluginSlotArbiter.shared.stickyPeekExpanded = true
-                }
+                PluginSlotArbiter.shared.stickyPeekExpanded.toggle()
                 return true
             }
         }
