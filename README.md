@@ -1,10 +1,11 @@
 <h1 align="center">
   <img src="docs/images/ping-island-icon.svg" width="64" height="64" alt="Auralink app icon" valign="middle">&nbsp;
-  Auralink
+  Auralink · Ping Island
 </h1>
 <p align="center">
-  <b>AI coding session monitor for the macOS menu bar</b><br>
-  <a href="https://erha19.github.io/">Website</a> •
+  <b>AI coding session monitor & plugin framework for the macOS notch</b><br>
+  🎬 Works with <a href="https://github.com/h-k-c/videoloom">VideoLoom</a> — screen recording controls live in the Dynamic Island<br>
+  <a href="https://github.com/h-k-c/">Website</a> •
   <a href="#installation">Install</a> •
   <a href="#features">Features</a> •
   <a href="#buddy-detach">Buddy Detach</a> •
@@ -16,11 +17,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/erha19/ping-island/releases">
-    <img src="https://img.shields.io/github/v/release/erha19/ping-island?display_name=tag&style=flat-square" alt="Latest release">
+  <a href="https://github.com/h-k-c/ping-island/releases">
+    <img src="https://img.shields.io/github/v/release/h-k-c/ping-island?display_name=tag&style=flat-square" alt="Latest release">
   </a>
-  <a href="https://github.com/erha19/ping-island/releases">
-    <img src="https://img.shields.io/github/downloads/erha19/ping-island/total?style=flat-square" alt="Release downloads">
+  <a href="https://github.com/h-k-c/ping-island/releases">
+    <img src="https://img.shields.io/github/downloads/h-k-c/ping-island/total?style=flat-square" alt="Release downloads">
   </a>
   <img src="https://img.shields.io/badge/macOS-14%2B-0A84FF?style=flat-square&logo=apple&logoColor=white" alt="macOS 14 or later">
   <img src="https://img.shields.io/badge/Swift-6.1-FA7343?style=flat-square&logo=swift&logoColor=white" alt="Swift 6.1">
@@ -38,7 +39,7 @@
 </p>
 
 <p align="center">
-  <sub>Official website: <a href="https://erha19.github.io/ping-island/">erha19.github.io/ping-island</a></sub>
+  <sub>Official website: <a href="https://github.com/h-k-c/ping-island">github.com/h-k-c/ping-island</a></sub>
 </p>
 
 <p align="center">
@@ -130,13 +131,13 @@ The OpenClaw feature poster in `docs/images/ping-island-openclaw-poster.png` is 
 ### Install with Homebrew Cask
 
 ```bash
-brew tap erha19/tap
+# brew tap h-k-c/tap  # Homebrew cask not yet published
 brew install --cask ping-island
 ```
 
 ### Download a Release
 
-1. Visit the [official website](https://erha19.github.io/ping-island/) for the product overview and latest download link, or go straight to [Releases](https://github.com/erha19/ping-island/releases).
+1. Visit the [official website](https://github.com/h-k-c/ping-island) for the product overview and latest download link, or go straight to [Releases](https://github.com/h-k-c/ping-island/releases).
 2. Download the latest DMG.
 3. Move `Auralink.app` into your Applications folder.
 4. Launch the app and start the clients you want Auralink to monitor.
@@ -149,7 +150,7 @@ brew install --cask ping-island
 Requires macOS 14+ and an Xcode toolchain that can build the Xcode project and the Swift 6.1 `Prototype` package tests.
 
 ```bash
-git clone https://github.com/erha19/ping-island.git
+git clone https://github.com/h-k-c/ping-island.git
 cd ping-island
 
 # Debug build
@@ -317,7 +318,7 @@ Implementation details worth knowing:
 
 Thanks to everyone who has helped shape Auralink through code, issues, ideas, testing, docs, design feedback, and release validation.
 
-See the full contributor history on the [GitHub contributors graph](https://github.com/erha19/ping-island/graphs/contributors).
+See the full contributor history on the [GitHub contributors graph](https://github.com/h-k-c/ping-island/graphs/contributors).
 
 ## Acknowledgments
 
