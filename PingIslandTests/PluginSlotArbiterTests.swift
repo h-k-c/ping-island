@@ -1,5 +1,5 @@
 import XCTest
-@testable import Ping_Island
+@testable import Auralink
 
 @MainActor
 final class PluginSlotArbiterTests: XCTestCase {

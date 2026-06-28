@@ -1,6 +1,6 @@
 import CoreGraphics
 import XCTest
-@testable import Ping_Island
+@testable import Auralink
 
 final class ScreenNotchMetricsTests: XCTestCase {
     func testDetectUsesSafeAreaHeightForPhysicalNotchDisplays() {

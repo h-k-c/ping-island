@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import Combine
 import Darwin
+import IOKit
 import SwiftUI
 
 enum IslandExpandedSurface: Equatable {
@@ -17,125 +18,38 @@ enum IslandExpandedTrigger: Equatable {
 }
 
 enum IslandExpandedRoute: Equatable {
-    case sessionList
-    case hoverDashboard
-    case attentionNotification(SessionState)
-    case completionNotification(SessionCompletionNotification)
     case pluginNotification(PluginNotifyUpdate)
-    case chat(SessionState)
     case plugin(pluginId: String)
+    case empty
 }
 
 enum IslandExpandedRouteResolver {
+    /// Plugin-host routing: the island only ever surfaces plugin content or a
+    /// plugin notification. Session monitoring has been removed.
     nonisolated static func resolve(
         surface: IslandExpandedSurface,
         trigger: IslandExpandedTrigger,
-        contentType: NotchContentType,
-        sessions: [SessionState],
-        activeCompletionNotification: SessionCompletionNotification? = nil,
-        activeRealtimeNotificationSession: SessionState? = nil,
+        contentType: NotchContentType?,
         activePluginNotification: PluginNotifyUpdate? = nil
     ) -> IslandExpandedRoute {
-        switch trigger {
-        case .notification:
-            if let session = highestPriorityAttentionSession(from: sessions) {
-                return .attentionNotification(session)
-            }
-            if let activeCompletionNotification {
-                return .completionNotification(activeCompletionNotification)
-            }
-            if let activeRealtimeNotificationSession {
-                return .chat(activeRealtimeNotificationSession)
-            }
-            if let activePluginNotification {
-                return .pluginNotification(activePluginNotification)
-            }
-        case .hover:
-            if let session = highestPriorityAttentionSession(from: sessions) {
-                return .attentionNotification(session)
-            }
-            if let activeRealtimeNotificationSession {
-                return .chat(activeRealtimeNotificationSession)
-            }
-        case .click, .pinnedList:
-            break
-        }
-
         if case .plugin(let id) = contentType {
             return .plugin(pluginId: id)
         }
 
-        if case .chat(let session) = contentType {
-            return .chat(session)
+        if let activePluginNotification {
+            return .pluginNotification(activePluginNotification)
         }
 
-        switch (surface, trigger) {
-        case (.docked, .notification):
-            if let session = highestPriorityAttentionSession(from: sessions) {
-                return .attentionNotification(session)
-            }
-            if let activeCompletionNotification {
-                return .completionNotification(activeCompletionNotification)
-            }
-            if let activeRealtimeNotificationSession {
-                return .chat(activeRealtimeNotificationSession)
-            }
-            if let activePluginNotification {
-                return .pluginNotification(activePluginNotification)
-            }
-            return .sessionList
-        case (.docked, .hover), (.floating, .hover):
-            if let session = highestPriorityAttentionSession(from: sessions) {
-                return .attentionNotification(session)
-            }
-            return .hoverDashboard
-        case (.floating, .notification):
-            if let session = highestPriorityAttentionSession(from: sessions) {
-                return .attentionNotification(session)
-            }
-            if let activeCompletionNotification {
-                return .completionNotification(activeCompletionNotification)
-            }
-            if let activePluginNotification {
-                return .pluginNotification(activePluginNotification)
-            }
-            return .hoverDashboard
-        case (_, .click):
-            if let session = highestPriorityAttentionSession(from: sessions) {
-                return .attentionNotification(session)
-            }
-            return .sessionList
-        case (_, .pinnedList):
-            return .sessionList
-        }
-    }
-
-    nonisolated static func orderedSessions(from sessions: [SessionState]) -> [SessionState] {
-        sessions.sorted { $0.shouldSortBeforeInQueue($1) }
-    }
-
-    nonisolated static func activePreviewSessions(from sessions: [SessionState]) -> [SessionState] {
-        orderedSessions(from: sessions).filter(\.phase.isActive)
-    }
-
-    nonisolated static func highestPriorityAttentionSession(from sessions: [SessionState]) -> SessionState? {
-        orderedSessions(from: sessions)
-            .filter { $0.needsApprovalResponse || $0.needsQuestionResponse }
-            .sorted(by: attentionSort)
-            .first
-    }
-
-    nonisolated private static func attentionSort(_ lhs: SessionState, _ rhs: SessionState) -> Bool {
-        let lhsDate = lhs.attentionRequestedAt ?? lhs.lastUserMessageDate ?? lhs.lastActivity
-        let rhsDate = rhs.attentionRequestedAt ?? rhs.lastUserMessageDate ?? rhs.lastActivity
-        return lhsDate > rhsDate
+        return .empty
     }
 }
 
 struct PluginExpandedPanelView: View {
-    private static let procMonitorPluginId = "com.auralink.procmonitor"
+    private static let procMonitorPluginId  = "com.auralink.procmonitor"
     private static let usageMonitorPluginId = "com.auralink.usage"
-    private static let weatherDemoPluginId = "com.example.weatherdemo"
+    private static let claudeUsagePluginId  = "com.auralink.claudeUsage"
+    private static let codexUsagePluginId   = "com.auralink.codexUsage"
+    private static let videoLoomPluginId    = "com.videoloom.recorder"
 
     let pluginId: String
     @ObservedObject private var arbiter = PluginSlotArbiter.shared
@@ -146,12 +60,16 @@ struct PluginExpandedPanelView: View {
             if pluginId == Self.procMonitorPluginId {
                 ProcMonitorIslandPanelView()
             } else if pluginId == Self.usageMonitorPluginId {
-                UsageMonitorIslandPanelView(
-                    pluginId: pluginId,
-                    sections: arbiter.expandedContent[pluginId] ?? []
-                )
-            } else if pluginId == Self.weatherDemoPluginId {
-                WeatherDemoIslandPanelView(
+                UsageMonitorIslandPanelView(pluginId: pluginId,
+                    sections: arbiter.expandedContent[pluginId] ?? [], show: .all)
+            } else if pluginId == Self.claudeUsagePluginId {
+                UsageMonitorIslandPanelView(pluginId: pluginId,
+                    sections: arbiter.expandedContent[pluginId] ?? [], show: .claude)
+            } else if pluginId == Self.codexUsagePluginId {
+                UsageMonitorIslandPanelView(pluginId: pluginId,
+                    sections: arbiter.expandedContent[pluginId] ?? [], show: .codex)
+            } else if pluginId == Self.videoLoomPluginId {
+                VideoLoomIslandPanelView(
                     pluginId: pluginId,
                     sections: arbiter.expandedContent[pluginId] ?? []
                 )
@@ -180,8 +98,6 @@ struct PluginExpandedPanelView: View {
 
     private var genericPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
-            header
-
             if let sections = arbiter.expandedContent[pluginId] {
                 IslandPluginRenderer.expandedView(sections: sections, pluginId: pluginId)
             } else {
@@ -195,28 +111,6 @@ struct PluginExpandedPanelView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.white.opacity(0.06))
         )
-    }
-
-    @ViewBuilder
-    private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
-            pluginIcon
-                .frame(width: 24, height: 24)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(plugin?.manifest.name ?? "插件详情")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                if let description = plugin?.manifest.description {
-                    Text(description)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.52))
-                        .lineLimit(2)
-                }
-            }
-
-            Spacer(minLength: 0)
-        }
     }
 
     private var loadingDetail: some View {
@@ -258,158 +152,15 @@ struct PluginExpandedPanelView: View {
     }
 }
 
-private struct WeatherDemoIslandPanelView: View {
-    let pluginId: String
-    let sections: [ExpandedSection]
-
-    private var temperature: String {
-        statValue(containing: "气温") ?? "23°C"
-    }
-
-    private var humidity: Double {
-        progressValue(containing: "湿度") ?? 0.65
-    }
-
-    private var wind: String {
-        statValue(containing: "风速") ?? "12 km/h"
-    }
-
-    var body: some View {
-        VStack(spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 1.00, green: 0.72, blue: 0.24),
-                                    Color(red: 1.00, green: 0.42, blue: 0.18)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    Image(systemName: "sun.max.fill")
-                        .font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 58, height: 58)
-                .shadow(color: Color.orange.opacity(0.28), radius: 18, y: 8)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("天气 Demo")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.68))
-                    Text(temperature)
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .monospacedDigit()
-                    Text("晴朗 · 体感舒适")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.52))
-                }
-
-                Spacer(minLength: 0)
-            }
-
-            HStack(spacing: 8) {
-                weatherMetric(
-                    icon: "humidity.fill",
-                    title: "湿度",
-                    value: "\(Int((humidity * 100).rounded()))%"
-                )
-                weatherMetric(
-                    icon: "wind",
-                    title: "风速",
-                    value: wind
-                )
-            }
-
-            Button {
-                NotificationCenter.default.post(
-                    name: .pluginButtonTapped,
-                    object: nil,
-                    userInfo: [
-                        "pluginId": pluginId,
-                        "actionId": "refresh"
-                    ]
-                )
-            } label: {
-                Label("刷新天气", systemImage: "arrow.clockwise")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.88))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 7)
-                    .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(14)
-        .fixedSize(horizontal: false, vertical: true)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.06, green: 0.16, blue: 0.23).opacity(0.96),
-                            Color.black.opacity(0.92)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.white.opacity(0.14), lineWidth: 0.8)
-                )
-        )
-    }
-
-    private func weatherMetric(icon: String, title: String, value: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.76))
-                .frame(width: 20)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.48))
-                Text(value)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.88))
-                    .monospacedDigit()
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
-        .frame(maxWidth: .infinity)
-        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-    }
-
-    private func statValue(containing text: String) -> String? {
-        for section in sections {
-            if case .stat(let stat) = section, stat.label.contains(text) {
-                return stat.value
-            }
-        }
-        return nil
-    }
-
-    private func progressValue(containing text: String) -> Double? {
-        for section in sections {
-            if case .progress(let progress) = section, progress.label?.contains(text) == true {
-                return progress.value
-            }
-        }
-        return nil
-    }
-}
-
 private struct UsageMonitorIslandPanelView: View {
+    enum ShowProvider { case all, claude, codex }
     let pluginId: String
     let sections: [ExpandedSection]
+    var show: ShowProvider = .all
+
+    @State private var claudeSessionKey = ""
+    @State private var didLoadClaudeSessionKey = false
+    @State private var claudeCredentialMessage: String?
 
     private var claudeStatus: StatSection? {
         stat(containing: "Claude 状态")
@@ -450,29 +201,34 @@ private struct UsageMonitorIslandPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
-                providerCard(
-                    title: "Claude",
-                    subtitle: claudeStatus?.value ?? "加载中",
-                    assetName: "ClaudeLogo",
-                    tint: usageColor(.claude),
-                    rows: [
-                        usageRow("5小时", claudeSession, tint: usageColor(.session)),
-                        usageRow("7日", claudeWeekly, tint: usageColor(.weekly))
-                    ],
-                    footer: todayTokens.map { ("今日 Tokens", $0.value, usageColor(.tokens)) }
-                )
-
-                providerCard(
-                    title: "Codex",
-                    subtitle: codexStatus?.value ?? "加载中",
-                    assetName: "CodexLogo",
-                    tint: usageColor(.codex),
-                    rows: [
-                        usageRow("5小时", codexPrimary, tint: usageColor(.sessionAlt)),
-                        usageRow("7日", codexSecondary, tint: usageColor(.weeklyAlt))
-                    ],
-                    footer: credits.map { ("Credits", $0.value, usageColor(.credits)) }
-                )
+                if show != .codex {
+                    providerCard(
+                        title: "Claude",
+                        subtitle: claudeStatus?.value ?? "加载中",
+                        assetName: "ClaudeLogo",
+                        tint: usageColor(.claude),
+                        rows: [
+                            usageRow("5小时", claudeSession, tint: usageColor(.session)),
+                            usageRow("7日", claudeWeekly, tint: usageColor(.weekly))
+                        ],
+                        resetRows: claudeResetRows,
+                        footer: todayTokens.map { ("今日 Tokens", $0.value, usageColor(.tokens)) }
+                    )
+                }
+                if show != .claude {
+                    providerCard(
+                        title: "Codex",
+                        subtitle: codexStatus?.value ?? "加载中",
+                        assetName: "CodexLogo",
+                        tint: usageColor(.codex),
+                        rows: [
+                            usageRow("5小时", codexPrimary, tint: usageColor(.sessionAlt)),
+                            usageRow("7日", codexSecondary, tint: usageColor(.weeklyAlt))
+                        ],
+                        resetRows: codexResetRows,
+                        footer: credits.map { ("Credits", $0.value, usageColor(.credits)) }
+                    )
+                }
             }
 
             if !extraMessages.isEmpty {
@@ -491,6 +247,10 @@ private struct UsageMonitorIslandPanelView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+            }
+
+            if shouldShowClaudeCredentialInput {
+                claudeCredentialInput
             }
 
             HStack(spacing: 8) {
@@ -537,6 +297,151 @@ private struct UsageMonitorIslandPanelView: View {
                         .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
                 )
         )
+        .onAppear {
+            Task { @MainActor in
+                loadClaudeSessionKeyIfNeeded()
+            }
+        }
+    }
+
+    private var shouldShowClaudeCredentialInput: Bool {
+        let status = claudeStatus?.value ?? ""
+        return status == "未登录"
+            || status == "错误"
+            || extraMessages.contains { $0.contains("Claude 未登录") || $0.contains("Claude 错误") }
+    }
+
+    private var claudeResetRows: [UsageMonitorResetRow] {
+        [
+            resetRow(needle: "Claude 5小时", label: "5小时", tint: usageColor(.session)),
+            resetRow(needle: "Claude 7日", label: "7日", tint: usageColor(.weekly))
+        ].compactMap { $0 }
+    }
+
+    private var codexResetRows: [UsageMonitorResetRow] {
+        [
+            resetRow(needle: "Codex 5小时", label: "5小时", tint: usageColor(.sessionAlt)),
+            resetRow(needle: "Codex 7日", label: "7日", tint: usageColor(.weeklyAlt))
+        ].compactMap { $0 }
+    }
+
+    private var claudeCredentialInput: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 7) {
+                Image(systemName: "key.fill")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(usageColor(.claude).opacity(0.82))
+                Text("Claude Session Key")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.78))
+                Spacer(minLength: 0)
+                if let claudeCredentialMessage {
+                    Text(claudeCredentialMessage)
+                        .font(.system(size: 8.8, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.46))
+                        .lineLimit(1)
+                }
+            }
+
+            HStack(spacing: 7) {
+                SecureField("sessionKey", text: $claudeSessionKey)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 10.2, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.84))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(.black.opacity(0.22))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .strokeBorder(.white.opacity(0.09), lineWidth: 0.6)
+                            )
+                    )
+                    .onSubmit {
+                        Task { @MainActor in
+                            saveClaudeSessionKey()
+                        }
+                    }
+
+                Button {
+                    Task { @MainActor in
+                        saveClaudeSessionKey()
+                    }
+                } label: {
+                    Text("保存")
+                        .font(.system(size: 9.6, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.86))
+                        .frame(width: 38, height: 25)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(usageColor(.claude).opacity(0.30))
+                        )
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    Task { @MainActor in
+                        clearClaudeSessionKey()
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9.2, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.52))
+                        .frame(width: 24, height: 25)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(.white.opacity(0.065))
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("清空")
+            }
+        }
+        .padding(9)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(usageColor(.claude).opacity(0.10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(usageColor(.claude).opacity(0.18), lineWidth: 0.7)
+                )
+        )
+    }
+
+    @MainActor
+    private func loadClaudeSessionKeyIfNeeded() {
+        guard !didLoadClaudeSessionKey else { return }
+        didLoadClaudeSessionKey = true
+        claudeSessionKey = PluginStorage.shared.getSecret(pluginId: pluginId, key: "claudeSessionKey") ?? ""
+    }
+
+    @MainActor
+    private func saveClaudeSessionKey() {
+        let trimmed = claudeSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            clearClaudeSessionKey()
+            return
+        }
+
+        claudeSessionKey = trimmed
+        claudeCredentialMessage = "已保存，正在刷新"
+        PluginStorage.shared.setSecret(pluginId: pluginId, key: "claudeSessionKey", value: trimmed)
+        Task {
+            await PluginHost.shared.notifyConfigUpdate(pluginId: pluginId, key: "claudeSessionKey", value: trimmed)
+            await PluginHost.shared.sendAction(actionId: "refresh", to: pluginId)
+        }
+    }
+
+    @MainActor
+    private func clearClaudeSessionKey() {
+        claudeSessionKey = ""
+        claudeCredentialMessage = "已清空"
+        PluginStorage.shared.deleteSecret(pluginId: pluginId, key: "claudeSessionKey")
+        Task {
+            await PluginHost.shared.notifyConfigUpdate(pluginId: pluginId, key: "claudeSessionKey", value: "")
+            await PluginHost.shared.sendAction(actionId: "refresh", to: pluginId)
+        }
     }
 
     private func providerCard(
@@ -545,89 +450,117 @@ private struct UsageMonitorIslandPanelView: View {
         assetName: String,
         tint: Color,
         rows: [UsageMonitorRow],
+        resetRows: [UsageMonitorResetRow],
         footer: (String, String, Color)?
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 7) {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .top, spacing: 7) {
                 Image(assetName)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 17, height: 17)
+                    .frame(width: 18, height: 18)
                     .padding(4)
                     .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .fill(tint.opacity(0.18))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .strokeBorder(tint.opacity(0.24), lineWidth: 0.6)
                     )
-
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.86))
 
                 Spacer(minLength: 0)
 
                 Text(subtitle)
-                    .font(.system(size: 9.5, weight: .semibold))
+                    .font(.system(size: 8.8, weight: .semibold))
                     .foregroundStyle(tint.opacity(0.9))
                     .lineLimit(1)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                    .minimumScaleFactor(0.74)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2.5)
                     .background(
                         Capsule()
                             .fill(tint.opacity(0.14))
                     )
             }
 
-            VStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white.opacity(0.88))
+                .lineLimit(1)
+
+            VStack(spacing: 5) {
                 ForEach(rows) { row in
                     usageMeter(row)
                 }
             }
+            .padding(.top, 1)
+
+            if !resetRows.isEmpty {
+                VStack(spacing: 3) {
+                    ForEach(resetRows) { row in
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.system(size: 8.4, weight: .semibold))
+                                .foregroundStyle(row.tint.opacity(0.64))
+                                .frame(width: 10)
+                            Text(row.label)
+                                .font(.system(size: 8.4, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.42))
+                            Spacer(minLength: 0)
+                            Text(row.value)
+                                .font(.system(size: 8.8, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.62))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                        }
+                    }
+                }
+                .padding(.top, 1)
+            }
 
             if let footer {
-                Divider().overlay(.white.opacity(0.065))
-                HStack {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(footer.0)
-                        .font(.system(size: 9.2, weight: .medium))
+                        .font(.system(size: 8.6, weight: .medium))
                         .foregroundStyle(.white.opacity(0.42))
                     Spacer(minLength: 0)
                     Text(footer.1)
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .font(.system(size: 9.4, weight: .semibold, design: .rounded))
                         .foregroundStyle(footer.2.opacity(0.86))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
+        .padding(10)
         .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(minHeight: 116, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [tint.opacity(0.12), .black.opacity(0.15)],
+                        colors: [tint.opacity(0.16), .white.opacity(0.045), .black.opacity(0.16)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(tint.opacity(0.16), lineWidth: 0.6)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(tint.opacity(0.20), lineWidth: 0.7)
                 )
         )
     }
 
     private func usageMeter(_ row: UsageMonitorRow) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 2.5) {
             HStack {
                 Text(row.label)
-                    .font(.system(size: 9.6, weight: .medium))
+                    .font(.system(size: 8.8, weight: .medium))
                     .foregroundStyle(.white.opacity(0.50))
                 Spacer(minLength: 0)
                 Text(row.valueText)
-                    .font(.system(size: 9.8, weight: .semibold, design: .rounded))
+                    .font(.system(size: 9.2, weight: .semibold, design: .rounded))
                     .foregroundStyle(row.tint.opacity(0.82))
             }
 
@@ -663,8 +596,27 @@ private struct UsageMonitorIslandPanelView: View {
             if text.style == .heading || text.content.contains("更新于") {
                 return nil
             }
+            if isResetMessage(text.content) {
+                return nil
+            }
             return text.content
         }
+    }
+
+    private func resetRow(needle: String, label: String, tint: Color) -> UsageMonitorResetRow? {
+        guard var value = text(containing: needle) else { return nil }
+        value = value.replacingOccurrences(of: needle, with: "")
+        value = value.replacingOccurrences(of: "后重置", with: "")
+        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+        return UsageMonitorResetRow(label: label, value: value, tint: tint)
+    }
+
+    private func isResetMessage(_ content: String) -> Bool {
+        content.contains("Claude 5小时")
+            || content.contains("Claude 7日")
+            || content.contains("Codex 5小时")
+            || content.contains("Codex 7日")
     }
 
     private func stat(containing needle: String) -> StatSection? {
@@ -747,6 +699,13 @@ private struct UsageMonitorRow: Identifiable {
     let label: String
     let value: Double
     let valueText: String
+    let tint: Color
+}
+
+private struct UsageMonitorResetRow: Identifiable {
+    let id = UUID()
+    let label: String
+    let value: String
     let tint: Color
 }
 
@@ -941,24 +900,27 @@ private struct ProcMonitorIslandPanelView: View {
             hardwareMetricBadge(
                 icon: "thermometer.medium",
                 value: monitor.hardwareMetrics.enclosureTemperatureText,
-                tint: ProcMonitorIslandStyle.cyan
+                tint: ProcMonitorIslandStyle.cyan,
+                help: "机身温度：读取系统无权限电池/机身传感器，读不到时显示 --"
             )
             hardwareMetricBadge(
                 icon: "cpu.fill",
                 value: monitor.hardwareMetrics.cpuTemperatureText,
-                tint: ProcMonitorIslandStyle.amber
+                tint: ProcMonitorIslandStyle.amber,
+                help: "CPU 温度：直接读取 Apple Silicon HID 温度传感器，无需管理员授权"
             )
             hardwareMetricBadge(
-                icon: "fan.fill",
-                value: monitor.hardwareMetrics.fanSpeedText,
-                tint: ProcMonitorIslandStyle.green
+                icon: "memorychip.fill",
+                value: "\(Int(monitor.memoryPercent.rounded()))%",
+                tint: ProcMonitorIslandStyle.green,
+                help: "全机内存占用率"
             )
         }
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
     }
 
-    private func hardwareMetricBadge(icon: String, value: String, tint: Color) -> some View {
+    private func hardwareMetricBadge(icon: String, value: String, tint: Color, help: String) -> some View {
         HStack(spacing: 3) {
             Image(systemName: icon)
                 .font(.system(size: 8.5, weight: .semibold))
@@ -974,6 +936,7 @@ private struct ProcMonitorIslandPanelView: View {
                 .fill(tint.opacity(0.10))
                 .overlay(Capsule().strokeBorder(tint.opacity(0.17), lineWidth: 0.5))
         )
+        .help(help)
     }
 
     private func metricButton(
@@ -1196,6 +1159,8 @@ private final class ProcMonitorIslandModel: ObservableObject {
 
     private var timer: Timer?
 
+    private static let cpuTemperatureSensorSources = discoverCPUTemperatureSensorSources()
+
     var totalMemoryBytes: Int64 {
         Int64(memoryTotalGB * 1_073_741_824)
     }
@@ -1265,7 +1230,7 @@ private final class ProcMonitorIslandModel: ObservableObject {
                 self.memoryUsedGB = memory.used
                 self.memoryTotalGB = memory.total
                 self.memoryPercent = memory.percent
-                self.hardwareMetrics = hardwareMetrics
+                self.hardwareMetrics = hardwareMetrics.fillingMissingValues(from: self.hardwareMetrics)
             }
         }
     }
@@ -1401,12 +1366,18 @@ private final class ProcMonitorIslandModel: ObservableObject {
     private static func fetchHardwareMetrics() -> ProcMonitorHardwareMetrics {
         ProcMonitorHardwareMetrics(
             enclosureTemperatureCelsius: fetchBatteryTemperature(),
-            cpuTemperatureCelsius: fetchExternalCPUTemperature(),
-            fanRPM: fetchExternalFanRPM()
+            cpuTemperatureCelsius: fetchAppleSiliconCPUTemperature() ?? fetchExternalCPUTemperature()
         )
     }
 
     private static func fetchBatteryTemperature() -> Double? {
+        if let value = fetchIORegistryTemperature(
+            serviceClass: "AppleSmartBattery",
+            propertyNames: ["Temperature", "VirtualTemperature"]
+        ) {
+            return value
+        }
+
         guard let output = runCommand(
             executable: "/usr/sbin/ioreg",
             arguments: ["-r", "-n", "AppleSmartBattery", "-w0"]
@@ -1428,15 +1399,69 @@ private final class ProcMonitorIslandModel: ObservableObject {
         return celsius
     }
 
-    private static func fetchExternalCPUTemperature() -> Double? {
-        for executable in [
-            "/opt/homebrew/bin/osx-cpu-temp",
-            "/usr/local/bin/osx-cpu-temp"
-        ] {
-            guard FileManager.default.isExecutableFile(atPath: executable),
-                  let output = runCommand(executable: executable, arguments: [])
+    private static func fetchIORegistryTemperature(
+        serviceClass: String,
+        propertyNames: [String]
+    ) -> Double? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching(serviceClass))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+
+        for name in propertyNames {
+            guard let property = IORegistryEntryCreateCFProperty(
+                service,
+                name as CFString,
+                kCFAllocatorDefault,
+                0
+            )?.takeRetainedValue(),
+                  let rawValue = doubleValue(from: property)
             else { continue }
 
+            let celsius = normalizedTemperature(rawValue)
+            guard celsius > -20, celsius < 120 else { continue }
+            return celsius
+        }
+
+        return nil
+    }
+
+    private static func normalizedTemperature(_ rawValue: Double) -> Double {
+        rawValue > 200 ? rawValue / 100 : rawValue
+    }
+
+    private static func doubleValue(from value: Any) -> Double? {
+        if let number = value as? NSNumber {
+            return number.doubleValue
+        }
+        if let value = value as? Double {
+            return value
+        }
+        if let value = value as? Int {
+            return Double(value)
+        }
+        if let value = value as? UInt64 {
+            return Double(value)
+        }
+        return nil
+    }
+
+    private static func fetchAppleSiliconCPUTemperature() -> Double? {
+        AppleSiliconTemperatureReader.cpuTemperature(isCPUSensor: isAppleSiliconCPUTemperatureSensor)
+    }
+
+    private static func isAppleSiliconCPUTemperatureSensor(_ name: String) -> Bool {
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.hasPrefix("PMU ") else { return false }
+        let lowercased = normalized.lowercased()
+        return lowercased.contains("tdie")
+            || normalized.contains(" TP")
+            || lowercased.contains("pacc")
+            || lowercased.contains("eacc")
+    }
+
+    private static func fetchExternalCPUTemperature() -> Double? {
+        for source in cpuTemperatureSensorSources {
+            guard let output = runCommand(executable: source.executable, arguments: source.arguments) else { continue }
             if let value = firstDouble(in: output), value > -20, value < 130 {
                 return value
             }
@@ -1444,28 +1469,32 @@ private final class ProcMonitorIslandModel: ObservableObject {
         return nil
     }
 
-    private static func fetchExternalFanRPM() -> Int? {
+    private static func discoverCPUTemperatureSensorSources() -> [ExternalSensorCommand] {
+        var sources: [ExternalSensorCommand] = []
+        for executable in [
+            "/opt/homebrew/bin/osx-cpu-temp",
+            "/usr/local/bin/osx-cpu-temp"
+        ] where FileManager.default.isExecutableFile(atPath: executable) {
+            sources.append(ExternalSensorCommand(executable: executable, arguments: []))
+        }
+
+        for executable in [
+            "/opt/homebrew/bin/smc",
+            "/usr/local/bin/smc"
+        ] where FileManager.default.isExecutableFile(atPath: executable) {
+            for key in ["TC0P", "TC0E", "TC0F", "Tp0P", "Ts0P"] {
+                sources.append(ExternalSensorCommand(executable: executable, arguments: ["-k", key, "-r"]))
+            }
+        }
+
         for executable in [
             "/opt/homebrew/bin/istats",
             "/usr/local/bin/istats"
-        ] {
-            guard FileManager.default.isExecutableFile(atPath: executable),
-                  let output = runCommand(executable: executable, arguments: ["fan"])
-            else { continue }
-
-            let pattern = #"(\d+(?:\.\d+)?)\s*RPM"#
-            guard
-                let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
-                let match = regex.firstMatch(
-                    in: output,
-                    range: NSRange(output.startIndex..<output.endIndex, in: output)
-                ),
-                let range = Range(match.range(at: 1), in: output),
-                let rpm = Double(output[range])
-            else { continue }
-            return Int(rpm.rounded())
+        ] where FileManager.default.isExecutableFile(atPath: executable) {
+            sources.append(ExternalSensorCommand(executable: executable, arguments: ["cpu", "temp"]))
         }
-        return nil
+
+        return sources
     }
 
     private static func firstDouble(in text: String) -> Double? {
@@ -1480,6 +1509,20 @@ private final class ProcMonitorIslandModel: ObservableObject {
         else { return nil }
         return Double(text[range])
     }
+
+    private static func lastDouble(in text: String) -> Double? {
+        let pattern = #"(-?\d+(?:\.\d+)?)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.matches(in: text, range: range)
+            .reversed()
+            .compactMap { match -> Double? in
+                guard let valueRange = Range(match.range(at: 1), in: text) else { return nil }
+                return Double(text[valueRange])
+            }
+            .first
+    }
+
 
     private static func runCommand(executable: String, arguments: [String]) -> String? {
         let task = Process()
@@ -1507,16 +1550,20 @@ private final class ProcMonitorIslandModel: ObservableObject {
 private struct ProcMonitorHardwareMetrics {
     let enclosureTemperatureCelsius: Double?
     let cpuTemperatureCelsius: Double?
-    let fanRPM: Int?
 
     init(
         enclosureTemperatureCelsius: Double? = nil,
-        cpuTemperatureCelsius: Double? = nil,
-        fanRPM: Int? = nil
+        cpuTemperatureCelsius: Double? = nil
     ) {
         self.enclosureTemperatureCelsius = enclosureTemperatureCelsius
         self.cpuTemperatureCelsius = cpuTemperatureCelsius
-        self.fanRPM = fanRPM
+    }
+
+    func fillingMissingValues(from previous: ProcMonitorHardwareMetrics) -> ProcMonitorHardwareMetrics {
+        ProcMonitorHardwareMetrics(
+            enclosureTemperatureCelsius: enclosureTemperatureCelsius ?? previous.enclosureTemperatureCelsius,
+            cpuTemperatureCelsius: cpuTemperatureCelsius ?? previous.cpuTemperatureCelsius
+        )
     }
 
     var enclosureTemperatureText: String {
@@ -1524,18 +1571,91 @@ private struct ProcMonitorHardwareMetrics {
     }
 
     var cpuTemperatureText: String {
-        temperatureText(cpuTemperatureCelsius)
+        temperatureText(cpuTemperatureCelsius, missing: "受限")
     }
 
-    var fanSpeedText: String {
-        guard let fanRPM else { return "--" }
-        return "\(fanRPM)"
-    }
-
-    private func temperatureText(_ value: Double?) -> String {
-        guard let value else { return "--" }
+    private func temperatureText(_ value: Double?, missing: String = "--") -> String {
+        guard let value else { return missing }
         return "\(Int(value.rounded()))°"
     }
+}
+
+private enum AppleSiliconTemperatureReader {
+    private typealias EventSystemClient = AnyObject
+    private typealias ServiceClient = AnyObject
+    private typealias Event = AnyObject
+    private typealias CreateClient = @convention(c) (CFAllocator?) -> EventSystemClient?
+    private typealias SetMatching = @convention(c) (EventSystemClient?, CFDictionary) -> Int32
+    private typealias CopyServices = @convention(c) (EventSystemClient?) -> CFArray?
+    private typealias CopyEvent = @convention(c) (ServiceClient?, Int64, Int32, Int64) -> Event?
+    private typealias CopyProperty = @convention(c) (ServiceClient?, CFString) -> CFTypeRef?
+    private typealias GetFloatValue = @convention(c) (Event?, Int32) -> Double
+
+    private struct Symbols {
+        let createClient: CreateClient
+        let setMatching: SetMatching
+        let copyServices: CopyServices
+        let copyEvent: CopyEvent
+        let copyProperty: CopyProperty
+        let getFloatValue: GetFloatValue
+    }
+
+    private static let symbols: Symbols? = {
+        guard let handle = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_LAZY | RTLD_LOCAL) ?? dlopen(nil, RTLD_LAZY),
+              let createClient = dlsym(handle, "IOHIDEventSystemClientCreate"),
+              let setMatching = dlsym(handle, "IOHIDEventSystemClientSetMatching"),
+              let copyServices = dlsym(handle, "IOHIDEventSystemClientCopyServices"),
+              let copyEvent = dlsym(handle, "IOHIDServiceClientCopyEvent"),
+              let copyProperty = dlsym(handle, "IOHIDServiceClientCopyProperty"),
+              let getFloatValue = dlsym(handle, "IOHIDEventGetFloatValue")
+        else { return nil }
+
+        return Symbols(
+            createClient: unsafeBitCast(createClient, to: CreateClient.self),
+            setMatching: unsafeBitCast(setMatching, to: SetMatching.self),
+            copyServices: unsafeBitCast(copyServices, to: CopyServices.self),
+            copyEvent: unsafeBitCast(copyEvent, to: CopyEvent.self),
+            copyProperty: unsafeBitCast(copyProperty, to: CopyProperty.self),
+            getFloatValue: unsafeBitCast(getFloatValue, to: GetFloatValue.self)
+        )
+    }()
+
+    static func cpuTemperature(isCPUSensor: (String) -> Bool) -> Double? {
+        guard let symbols else { return nil }
+
+        let temperatureEventType: Int64 = 15
+        let temperatureField = Int32(temperatureEventType << 16)
+        let matching = [
+            "PrimaryUsagePage": 0xff00,
+            "PrimaryUsage": 0x0005
+        ] as CFDictionary
+
+        guard let client = symbols.createClient(nil),
+              symbols.setMatching(client, matching) == 0,
+              let services = symbols.copyServices(client)
+        else { return nil }
+
+        var cpuValues: [Double] = []
+        let count = CFArrayGetCount(services)
+        for index in 0..<count {
+            let service = unsafeBitCast(CFArrayGetValueAtIndex(services, index), to: ServiceClient.self)
+            let name = symbols.copyProperty(service, "Product" as CFString) as? String ?? ""
+            guard isCPUSensor(name),
+                  let event = symbols.copyEvent(service, temperatureEventType, 0, 0)
+            else { continue }
+
+            let value = symbols.getFloatValue(event, temperatureField)
+            guard value >= 10, value <= 120 else { continue }
+            cpuValues.append(value)
+        }
+
+        return cpuValues.max()
+    }
+}
+
+private struct ExternalSensorCommand {
+    let executable: String
+    let arguments: [String]
 }
 
 private struct ProcMonitorIslandProcess: Identifiable {
@@ -1646,6 +1766,290 @@ private enum ProcMonitorIslandStyle {
             return value
         }
         return "进程：\(name)"
+    }
+}
+
+// MARK: - VideoLoom recorder panel
+
+private struct VideoLoomIslandPanelView: View {
+    let pluginId: String
+    let sections: [ExpandedSection]
+    @ObservedObject private var arbiter = PluginSlotArbiter.shared
+
+    @State private var shotInProgress = false
+
+    private var isExpanded: Bool { arbiter.stickyPeekExpanded }
+
+    private var statSection: StatSection? {
+        sections.compactMap { s -> StatSection? in
+            guard case .stat(let stat) = s else { return nil }
+            return stat
+        }.first
+    }
+
+    private var toggleSections: [ActionToggleSection] {
+        sections.compactMap { s -> ActionToggleSection? in
+            guard case .actionToggle(let t) = s else { return nil }
+            return t
+        }
+    }
+
+    private var buttonSections: [ButtonSection] {
+        sections.compactMap { s -> ButtonSection? in
+            guard case .button(let b) = s else { return nil }
+            return b
+        }
+    }
+
+    private var textSections: [TextSection] {
+        sections.compactMap { s -> TextSection? in
+            guard case .text(let t) = s else { return nil }
+            return t
+        }
+    }
+
+    /// The recorder reports the finished state with reveal/dismiss buttons and no
+    /// toggles. It gets a dedicated single-row (horizontal) layout.
+    private var isFinished: Bool {
+        toggleSections.isEmpty && buttonSections.contains { $0.actionId == "dismiss" }
+    }
+
+    var body: some View {
+        Group {
+            if isFinished {
+                finishedRow
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+            } else {
+                recordingPanel
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 0)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.black.opacity(0.44))
+        )
+        // Report the whole card's frame so the mouse monitor can tell a tap on the
+        // island background (toggles expand) from a click outside it.
+        .reportsRecorderButtonFrame(NotchViewModel.recorderPanelFrameKey)
+        .animation(.easeOut(duration: 0.2), value: isExpanded)
+        .onChange(of: arbiter.recorderShotToken) { _, token in
+            // Capture finished — stop the spinner.
+            guard token > 0 else { return }
+            shotInProgress = false
+        }
+    }
+
+    /// Begin the screenshot spinner; a safety timeout clears it if no result comes.
+    private func beginShot() {
+        shotInProgress = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            shotInProgress = false
+        }
+    }
+
+    /// Single row: status tag + timer + primary controls (pause / mic / camera /
+    /// stop). Tapping the row expands it to reveal the auxiliary tools (annotate /
+    /// screenshot); tapping again collapses.
+    private var recordingPanel: some View {
+        HStack(spacing: 7) {
+            Spacer(minLength: 0)
+            statCluster
+            Spacer(minLength: 0).frame(maxWidth: 14)
+            controlButtons
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { arbiter.stickyPeekExpanded.toggle() }
+    }
+
+    @ViewBuilder
+    private var statCluster: some View {
+        if let stat = statSection {
+            HStack(spacing: 5) {
+                // Combined status tag — the colored indicator + label ("录制中" /
+                // "已暂停") as one pill, to the LEFT of the timer.
+                HStack(spacing: 3) {
+                    if let icon = stat.icon {
+                        IslandPluginRenderer.iconView(icon, size: 8)
+                    }
+                    Text(stat.label)
+                        .font(.system(size: 8.5, weight: .semibold))
+                }
+                .foregroundStyle(IslandPluginRenderer.tintColor(stat.tint))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(
+                    Capsule().fill(IslandPluginRenderer.tintColor(stat.tint).opacity(0.16))
+                )
+
+                // Live timer. With startedAt the island renders a SwiftUI timer
+                // locally so the sections JSON never changes on each tick (no
+                // re-layout → stable button hit-test).
+                if let startedAt = stat.startedAt {
+                    Text(
+                        timerInterval: Date(timeIntervalSince1970: startedAt)...Date.distantFuture,
+                        countsDown: false
+                    )
+                    .font(.system(size: 10.5, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.92))
+                    // Reserve width for "10:00:00" (8 chars) so the layout never
+                    // shifts at any format boundary (10 min / 1 h / 10 h).
+                    .frame(minWidth: 60)
+                } else {
+                    Text(stat.value)
+                        .font(.system(size: 10.5, weight: .bold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.92))
+                        .frame(minWidth: 60)
+                }
+            }
+            .fixedSize()
+        }
+    }
+
+    @ViewBuilder
+    private var controlButtons: some View {
+        // Always in the peek bar: the primary recording controls.
+        if let pause = toggleSections.first(where: { $0.actionId == "togglePause" }) {
+            peekIconButton(icon: toggleIcon(pause), tint: pause.active ? .green : .default,
+                           actionId: pause.actionId, help: pause.label)
+        }
+        if let mic = toggleSections.first(where: { $0.actionId == "toggleMic" }) {
+            peekIconButton(icon: toggleIcon(mic), tint: mic.active ? .green : .default,
+                           actionId: mic.actionId, help: mic.label)
+        }
+        if let camera = toggleSections.first(where: { $0.actionId == "toggleCamera" }) {
+            peekIconButton(icon: toggleIcon(camera), tint: camera.active ? .green : .default,
+                           actionId: camera.actionId, help: camera.label)
+        }
+        // Auxiliary tools live behind the expand tap: annotate + screenshot.
+        if isExpanded {
+            if let annotate = toggleSections.first(where: { $0.actionId == "toggleAnnotate" }) {
+                peekIconButton(icon: toggleIcon(annotate), tint: annotate.active ? .green : .default,
+                               actionId: annotate.actionId, help: annotate.label)
+            }
+            if let shot = buttonSections.first(where: { $0.actionId == "screenshot" }) {
+                peekIconButton(icon: "camera.fill", tint: .default,
+                               actionId: shot.actionId, help: shot.label,
+                               loading: shotInProgress,
+                               onTap: { beginShot() })
+            }
+        }
+        if let stop = buttonSections.first(where: { $0.actionId == "stop" }) {
+            peekIconButton(icon: "stop.fill", tint: .red, actionId: stop.actionId, help: stop.label)
+        }
+    }
+
+    // MARK: - Finished (horizontal: 已保存 + 打开文件夹 + 完成)
+
+    private var finishedRow: some View {
+        HStack(spacing: 8) {
+            if let stat = statSection {
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(IslandPluginRenderer.tintColor(.green))
+                    Text(stat.label)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+                .fixedSize()
+            }
+
+            if let name = textSections.first?.content {
+                Text(name)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .layoutPriority(-1)
+            }
+
+            Spacer(minLength: 6)
+
+            ForEach(Array(buttonSections.enumerated()), id: \.offset) { _, button in
+                finishedButton(button)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func finishedButton(_ button: ButtonSection) -> some View {
+        let isDismiss = button.actionId == "dismiss"
+        let tint: PluginTint = isDismiss ? .green : .blue
+        let label = isDismiss ? "完成" : "打开"
+        // Visual only — dispatched by the mouse monitor (handleRecorderClick).
+        return Button {
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: buttonIcon(button))
+                    .font(.system(size: 10, weight: .semibold))
+                Text(label)
+                    .font(.system(size: 10.5, weight: .semibold))
+            }
+            .fixedSize()
+            .foregroundStyle(.white.opacity(0.9))
+            .padding(.horizontal, 11)
+            .frame(height: 27)
+            .background(
+                Capsule().fill(IslandPluginRenderer.tintColor(tint).opacity(isDismiss ? 0.28 : 0.16))
+            )
+        }
+        .buttonStyle(.plain)
+        .reportsRecorderButtonFrame(button.actionId)
+    }
+
+    private func peekIconButton(icon: String, tint: PluginTint, actionId: String, help: String,
+                                loading: Bool = false, onTap: (() -> Void)? = nil) -> some View {
+        // Visual only — the click is dispatched by the mouse monitor's coordinate
+        // hit-test (handleRecorderClick), since the click-through peek window doesn't
+        // reliably deliver clicks to SwiftUI buttons (non-activating panel). onTap
+        // drives the local screenshot spinner if SwiftUI registers the press.
+        Button {
+            onTap?()
+        } label: {
+            Group {
+                if loading {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(.white.opacity(0.85))
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(tint == .default ? .white.opacity(0.85) : IslandPluginRenderer.tintColor(tint))
+                }
+            }
+            .frame(width: 15, height: 15)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(tint == .default ? .white.opacity(0.08) : IslandPluginRenderer.tintColor(tint).opacity(0.16))
+            )
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .reportsRecorderButtonFrame(actionId)
+    }
+
+    private func toggleIcon(_ toggle: ActionToggleSection) -> String {
+        switch toggle.actionId {
+        case "togglePause": return toggle.active ? "play.fill" : "pause.fill"
+        case "toggleMic": return toggle.active ? "mic.fill" : "mic.slash.fill"
+        case "toggleCamera": return toggle.active ? "video.fill" : "video.slash.fill"
+        case "toggleAnnotate": return toggle.active ? "pencil.tip" : "pencil.tip.crop.circle"
+        default: return "circle.fill"
+        }
+    }
+
+    private func buttonIcon(_ button: ButtonSection) -> String {
+        switch button.actionId {
+        case "stop": return "stop.fill"
+        case "screenshot": return "camera.fill"
+        case "revealFile": return "folder.fill"
+        case "dismiss": return "checkmark.circle.fill"
+        default: return "circle.fill"
+        }
     }
 }
 

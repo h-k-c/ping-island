@@ -24,14 +24,10 @@ enum NotchOpenReason {
 }
 
 enum NotchContentType: Equatable {
-    case instances
-    case chat(SessionState)
     case plugin(pluginId: String)
 
     var id: String {
         switch self {
-        case .instances: return "instances"
-        case .chat(let session): return "chat-\(session.sessionId)"
         case .plugin(let id): return "plugin-\(id)"
         }
     }
@@ -45,7 +41,12 @@ class NotchViewModel: ObservableObject {
     @Published private(set) var presentationMode: IslandPresentationMode = .docked
     @Published private(set) var detachedDisplayMode: DetachedIslandDisplayMode = .compact
     @Published var openReason: NotchOpenReason = .unknown
-    @Published var contentType: NotchContentType = .instances
+    @Published var contentType: NotchContentType?
+    /// Screen-independent frames (window-local, SwiftUI top-left origin) of the
+    /// recorder peek's tappable controls, keyed by plugin actionId. Reported by the
+    /// SwiftUI island via the "notchWindow" coordinate space and consumed by the
+    /// global mouse monitor to hit-test clicks (the peek window is click-through).
+    @Published var recorderButtonFrames: [String: CGRect] = [:]
     @Published var isHovering: Bool = false
     /// Whether hovering the closed notch is allowed to auto-expand it. Idle states
     /// (ears just showing plugins) do not expand on hover; only notification
@@ -198,20 +199,7 @@ class NotchViewModel: ObservableObject {
         let maxAllowedHeight = maximumOpenedHeight
 
         switch contentType {
-        case .chat:
-            switch style {
-            case .docked:
-                return CGSize(
-                    width: min(screenRect.width - 64, 600),
-                    height: maxAllowedHeight
-                )
-            case .detached:
-                return CGSize(
-                    width: min(screenRect.width - 96, 500),
-                    height: min(maxAllowedHeight, screenRect.height - 180)
-                )
-            }
-        case .instances, .plugin:
+        case .plugin, .none:
             let fallbackHeight: CGFloat = pluginPreferredFallbackHeight ?? (openReason == .hover ? 150 : 170)
             let measuredHeight = openedMeasuredHeight ?? fallbackHeight
 
@@ -234,8 +222,104 @@ class NotchViewModel: ObservableObject {
     }
 
     private var pluginPreferredFallbackHeight: CGFloat? {
-        guard case .plugin(Self.procMonitorPluginId) = contentType else { return nil }
-        return 445
+        if case .plugin(Self.procMonitorPluginId) = contentType { return 445 }
+        // The recorder opens as a minimal peek bar; give it a small fallback so it
+        // never flashes a tall panel before the real height is measured. When the
+        // user expands it, allow more room.
+        if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = contentType {
+            // Both states are a single row now, so the height stays compact.
+            return 38
+        }
+        return nil
+    }
+
+    /// True when the notch is currently showing the sticky-peek (recorder) plugin.
+    private var currentlyDisplayedStickyPeekPlugin: Bool {
+        if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = contentType { return true }
+        return false
+    }
+
+    /// Collapse the recorder's expanded panel back to the peek bar. Invoked by the
+    /// panel window when a left click lands on empty panel space (hitTest miss).
+    func collapseStickyPeekIfNeeded() {
+        guard status == .opened, currentlyDisplayedStickyPeekPlugin else { return }
+        let arbiter = PluginSlotArbiter.shared
+        guard arbiter.stickyPeekActive, arbiter.stickyPeekExpanded else { return }
+        arbiter.stickyPeekExpanded = false
+    }
+
+    /// SwiftUI reports the recorder controls' frames in the "notchWindow" space
+    /// (window-local, top-left origin). Store them for the mouse monitor to use.
+    func updateRecorderButtonFrames(_ frames: [String: CGRect]) {
+        guard frames != recorderButtonFrames else { return }
+        recorderButtonFrames = frames
+    }
+
+    /// Reserved key under which the SwiftUI island reports the visible card's frame
+    /// (so we can hit-test "tapped the island background" without resizing the
+    /// window). Must not collide with any plugin actionId.
+    static let recorderPanelFrameKey = "__recorderPanel__"
+
+    /// Screen frame (bottom-left origin) of the recorder peek's VISIBLE window — the
+    /// full notch window — matching the "notchWindow" coordinate space the SwiftUI
+    /// button frames are reported in, so window-local frames map to screen correctly.
+    private var recorderPeekScreenFrame: CGRect {
+        let height = geometry.windowHeight
+        return CGRect(
+            x: screenRect.minX,
+            y: screenRect.maxY - height,
+            width: screenRect.width,
+            height: height
+        )
+    }
+
+    /// Map a window-local (SwiftUI top-left) frame to screen coordinates (bottom-left).
+    private func recorderFrameToScreen(_ local: CGRect, window: CGRect) -> CGRect {
+        CGRect(
+            x: window.minX + local.minX,
+            y: window.maxY - (local.minY + local.height),
+            width: local.width,
+            height: local.height
+        )
+    }
+
+    /// Screen rect of the visible recorder card, derived from the SwiftUI-reported
+    /// panel frame (the actual rendered bounds — not the under-measured openedSize).
+    /// The window controller sizes the invisible click-absorber to this so every
+    /// control is covered and no tap on the island leaks through to the desktop.
+    /// Padded slightly so rounded-corner edge taps are still absorbed.
+    var recorderCardScreenFrame: CGRect? {
+        guard let panel = recorderButtonFrames[Self.recorderPanelFrameKey] else { return nil }
+        return recorderFrameToScreen(panel, window: recorderPeekScreenFrame).insetBy(dx: -6, dy: -6)
+    }
+
+    /// Hit-test a click (screen coordinates) against the recorder peek. Returns true
+    /// when the click is consumed: either it landed on a control (whose action is
+    /// dispatched) or on the island card itself (which toggles expand). Returns false
+    /// when the click is outside the visible island so the caller can fall through.
+    private func handleRecorderClick(at screenPoint: CGPoint) -> Bool {
+        let window = recorderPeekScreenFrame
+        if let d = "[VL] click pt=\(screenPoint) status=\(status) win=\(window) frames=\(recorderButtonFrames.mapValues { "(\(Int($0.minX)),\(Int($0.minY)),\(Int($0.width)),\(Int($0.height)))" })\n".data(using: .utf8) { let u = URL(fileURLWithPath: "/tmp/vl_debug.txt"); if let fh = try? FileHandle(forWritingTo: u) { fh.seekToEndOfFile(); fh.write(d); fh.closeFile() } else { try? d.write(to: u) } }
+        // A click on a specific control fires that action.
+        for (actionId, local) in recorderButtonFrames where actionId != Self.recorderPanelFrameKey {
+            let buttonScreen = recorderFrameToScreen(local, window: window)
+            if buttonScreen.insetBy(dx: -8, dy: -8).contains(screenPoint) {
+                NotificationCenter.default.post(
+                    name: .pluginButtonTapped, object: nil,
+                    userInfo: ["pluginId": PluginSlotArbiter.stickyPeekPluginId, "actionId": actionId]
+                )
+                return true
+            }
+        }
+        // Not on a button: a tap on the island card background toggles expand/collapse.
+        if let panelLocal = recorderButtonFrames[Self.recorderPanelFrameKey] {
+            let panelScreen = recorderFrameToScreen(panelLocal, window: window)
+            if panelScreen.contains(screenPoint) {
+                PluginSlotArbiter.shared.stickyPeekExpanded.toggle()
+                return true
+            }
+        }
+        return false
     }
 
     private var dockedPanelWidth: CGFloat {
@@ -244,6 +328,13 @@ class NotchViewModel: ObservableObject {
         }
         if case .plugin(Self.procMonitorPluginId) = contentType {
             return min(screenRect.width - 64, 414)
+        }
+        // The recorder peek shows status + timer + primary controls (pause / mic /
+        // camera / stop); expanding reveals two more (annotate / screenshot), so the
+        // bar widens to fit them.
+        if case .plugin(PluginSlotArbiter.stickyPeekPluginId) = contentType {
+            if PluginSlotArbiter.shared.recorderFinished { return 360 }
+            return PluginSlotArbiter.shared.stickyPeekExpanded ? 340 : 280
         }
         return min(
             screenRect.width * Self.clickedInstancesPanelWidthRatio,
@@ -278,14 +369,7 @@ class NotchViewModel: ObservableObject {
             return min(screenLimit, maxPanelHeight)
         }
 
-        switch contentType {
-        case .chat:
-            return min(screenLimit, maxPanelHeight)
-        case .instances:
-            return min(screenLimit, maxPanelHeight)
-        case .plugin:
-            return min(screenLimit, maxPanelHeight)
-        }
+        return min(screenLimit, maxPanelHeight)
     }
 
     // MARK: - Animation
@@ -531,7 +615,7 @@ class NotchViewModel: ObservableObject {
         guard let events else { return }
 
         events.mouseLocation
-            .throttle(for: .milliseconds(50), scheduler: DispatchQueue.main, latest: true)
+            .throttle(for: .milliseconds(16), scheduler: DispatchQueue.main, latest: true)
             .sink { [weak self] location in
                 self?.handleMouseMove(location)
             }
@@ -561,18 +645,21 @@ class NotchViewModel: ObservableObject {
 
     /// Whether we're in chat mode.
     private var isInChatMode: Bool {
-        if case .chat = contentType { return true }
         return false
     }
-
-    /// The chat session we're currently presenting while the island stays open.
-    private var currentChatSession: SessionState?
 
     private func handleMouseMove(_ location: CGPoint) {
         guard presentationMode == .docked else { return }
 
         let inNotch = isPointInHoverTrigger(location)
-        let inOpened = status == .opened && geometry.isPointInOpenedPanel(location, size: openedSize)
+        // For recorder peek, extend the hover zone 30 px below the panel so the
+        // cursor entering from below activates hover well before reaching the buttons,
+        // giving the 16 ms throttle enough lead time to fire ignoresMouseEvents = false.
+        var hoverSize = openedSize
+        if status == .opened, case .plugin(PluginSlotArbiter.stickyPeekPluginId) = contentType {
+            hoverSize.height += 30
+        }
+        let inOpened = status == .opened && geometry.isPointInOpenedPanel(location, size: hoverSize)
 
         let newHovering = inNotch || inOpened
 
@@ -607,6 +694,7 @@ class NotchViewModel: ObservableObject {
     }
 
     private func handleMouseDown(_ event: NSEvent) {
+        if let d = "[VL] mouseDown loc=\(NSEvent.mouseLocation) presMode=\(presentationMode) status=\(status) content=\(String(describing: contentType)) settingsPopover=\(isSettingsPopoverPresented) replayed=\(MouseEventReplay.isReplayed(event))\n".data(using: .utf8) { let u = URL(fileURLWithPath: "/tmp/vl_debug.txt"); if let fh = try? FileHandle(forWritingTo: u) { fh.seekToEndOfFile(); fh.write(d); fh.closeFile() } else { try? d.write(to: u) } }
         guard presentationMode == .docked else { return }
 
         if isSettingsPopoverPresented {
@@ -621,11 +709,46 @@ class NotchViewModel: ObservableObject {
 
         switch status {
         case .opened:
+            if currentlyDisplayedStickyPeekPlugin {
+                // Recorder peek: the window is fully click-through, so its controls
+                // are driven here by coordinate hit-testing against the SwiftUI-
+                // reported button frames (just like the closed-state ears). A click
+                // on a button fires that action; a click elsewhere inside the island
+                // toggles expand/collapse.
+                if handleRecorderClick(at: location) {
+                    return
+                }
+                // The click landed outside the island region.
+                if PluginSlotArbiter.shared.stickyPeekActive {
+                    // A recording is in progress — never tear down the live activity.
+                    return
+                }
+                if PluginSlotArbiter.shared.recorderFinished {
+                    // Dismiss the finished result (resets the recorder to idle and
+                    // restores the pill) and close.
+                    NotificationCenter.default.post(
+                        name: .pluginButtonTapped, object: nil,
+                        userInfo: ["pluginId": PluginSlotArbiter.stickyPeekPluginId, "actionId": "dismiss"]
+                    )
+                    notchClose()
+                    return
+                }
+                notchClose()
+                return
+            }
+
             if detachmentTriggerScreenRect.contains(location) {
                 beginDockedDetachmentTracking(source: .opened, startLocation: location)
             } else if geometry.isPointOutsidePanel(location, size: openedSize) {
-                // The panel window already handles click-through replay for intercepted clicks.
-                notchClose()
+                if PluginSlotArbiter.shared.stickyPeekActive {
+                    // The user had detoured to an ear plugin while recording; return
+                    // to the recorder peek instead of closing (which would orphan the
+                    // recording).
+                    PluginSlotArbiter.shared.stickyPeekExpanded = false
+                    presentPlugin(PluginSlotArbiter.stickyPeekPluginId, reason: .click)
+                } else {
+                    notchClose()
+                }
             }
         case .closed, .popping:
             if let earTarget = closedEarClickTarget(at: location) {
@@ -634,10 +757,24 @@ class NotchViewModel: ObservableObject {
                 }
             } else if detachmentTriggerScreenRect.contains(location) {
                 beginDockedDetachmentTracking(source: .closed, startLocation: location)
-            } else if isPointInHoverTrigger(location) {
+            } else if isPointInHoverTrigger(location), hasExpandedContent {
+                // Only enlarge if the center plugin actually has content to show.
+                // contentType being set is not enough — the plugin may have no
+                // expanded sections (e.g. after a notification was dismissed), which
+                // would open an empty black panel.
                 notchOpen(reason: .click)
             }
         }
+    }
+
+    /// True when the center of the island has actual expanded content to show.
+    /// Prevents opening an empty black panel when contentType is stale or the
+    /// assigned plugin has no current sections.
+    private var hasExpandedContent: Bool {
+        guard case .plugin(let id) = contentType else { return false }
+        // procmonitor generates its own content without using expandedContent
+        if id == "com.auralink.procmonitor" { return true }
+        return !(PluginSlotArbiter.shared.expandedContent[id]?.isEmpty ?? true)
     }
 
     private func handleMouseDragged(_ event: NSEvent) {
@@ -881,29 +1018,7 @@ class NotchViewModel: ObservableObject {
 
         openReason = reason
         status = .opened
-        if case .instances = contentType {
-            openedMeasuredHeight = nil
-        }
-
-        // Don't restore chat on notification - show instances list instead
-        if reason == .notification {
-            currentChatSession = nil
-            return
-        }
-
-        // Hover opens a lightweight preview instead of restoring the full chat view.
-        if reason == .hover {
-            return
-        }
-
-        // Restore chat session if we had one open before
-        if let chatSession = currentChatSession {
-            // Avoid unnecessary updates if already showing this chat
-            if case .chat(let current) = contentType, current.sessionId == chatSession.sessionId {
-                return
-            }
-            contentType = .chat(chatSession)
-        }
+        openedMeasuredHeight = nil
     }
 
     func performDeferredHoverOpenIfNeeded() {
@@ -917,13 +1032,11 @@ class NotchViewModel: ObservableObject {
 
     func notchClose() {
         status = .closed
-        currentChatSession = nil
-        contentType = .instances
         openedMeasuredHeight = nil
         isInlineTextInputActive = false
     }
 
-    func beginDetachedPresentation(contentType: NotchContentType, playSound: Bool = true) {
+    func beginDetachedPresentation(contentType: NotchContentType?, playSound: Bool = true) {
         hoverTimer?.cancel()
         hoverTimer = nil
         detachmentLongPressWorkItem?.cancel()
@@ -933,15 +1046,6 @@ class NotchViewModel: ObservableObject {
         isHovering = false
         detachedDisplayMode = .compact
         openedMeasuredHeight = nil
-
-        switch contentType {
-        case .chat(let session):
-            currentChatSession = session
-        case .instances:
-            currentChatSession = nil
-        case .plugin:
-            currentChatSession = nil  // plugin content handled separately
-        }
 
         self.contentType = contentType
         openReason = .click
@@ -987,78 +1091,10 @@ class NotchViewModel: ObservableObject {
         isInlineTextInputActive = isActive
     }
 
-    func showChat(for session: SessionState) {
-        currentChatSession = session
-        openedMeasuredHeight = nil
-
-        // Avoid unnecessary updates only when the snapshot is already current.
-        if case .chat(let current) = contentType, current == session {
-            return
-        }
-        contentType = .chat(session)
-    }
-
     func presentPlugin(_ pluginId: String, reason: NotchOpenReason = .click) {
-        currentChatSession = nil
         openedMeasuredHeight = nil
         contentType = .plugin(pluginId: pluginId)
         notchOpen(reason: reason)
-    }
-
-    func presentChat(for session: SessionState, reason: NotchOpenReason = .click) {
-        notchOpen(reason: reason)
-        showChat(for: session)
-    }
-
-    func toggleChat(for session: SessionState, reason: NotchOpenReason = .click) {
-        if status == .opened,
-           case .chat(let currentSession) = contentType,
-           currentSession.sessionId == session.sessionId {
-            notchClose()
-            return
-        }
-
-        presentChat(for: session, reason: reason)
-    }
-
-    /// Surface a session from an automatic notification without collapsing first.
-    /// This keeps attention-driven panel refreshes stable when the notch is already open.
-    func presentNotificationChat(for session: SessionState) {
-        notchOpen(reason: .notification)
-        showChat(for: session)
-    }
-
-    /// Surface manual-attention content through the route resolver instead of forcing chat.
-    /// Approval cards should take priority over the underlying session detail view.
-    func presentNotificationAttention() {
-        currentChatSession = nil
-        contentType = .instances
-        openedMeasuredHeight = nil
-        notchOpen(reason: .notification)
-    }
-
-    /// Go back to instances list and clear saved chat state
-    func exitChat() {
-        currentChatSession = nil
-        contentType = .instances
-        openedMeasuredHeight = nil
-    }
-
-    func presentSessionList(reason: NotchOpenReason = .click) {
-        exitChat()
-        notchOpen(reason: reason)
-    }
-
-    func toggleSessionList(reason: NotchOpenReason = .click) {
-        if status == .opened,
-           reason == .click,
-           openReason == .click,
-           case .instances = contentType {
-            notchClose()
-            return
-        }
-
-        presentSessionList(reason: reason)
     }
 
     func updateOpenedMeasuredHeight(_ height: CGFloat?) {

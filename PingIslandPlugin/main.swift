@@ -32,7 +32,11 @@ case "com.auralink.claude", "com.wudanwu.pingisland.claude":
 case "com.auralink.codex", "com.wudanwu.pingisland.codex":
     CodexSessionPlugin.run()
 case "com.auralink.usage", "com.wudanwu.pingisland.usage":
-    UsageMonitorPlugin.run()
+    UsageMonitorPlugin.run(as: .all)
+case "com.auralink.claudeUsage":
+    UsageMonitorPlugin.run(as: .claude)
+case "com.auralink.codexUsage":
+    UsageMonitorPlugin.run(as: .codex)
 case "com.auralink.procmonitor", "com.wudanwu.pingisland.procmonitor":
     ProcMonitorPlugin.run()
 case "com.auralink.clipboard":
@@ -124,11 +128,11 @@ enum ClaudeSessionPlugin {
 
     private static func sendCompact() {
         let count = activeSessions.count
-        let content: Any = count > 0 ? [
-            "icon": ["type": "sf", "name": count == 1 ? "brain.head.profile" : "cpu"],
+        let content: [String: Any] = [
+            "icon": ["type": "sf", "name": count == 1 ? "brain.head.profile" : "brain"],
             "label": "\(count)",
-            "tint": "default"
-        ] as [String: Any] : NSNull()
+            "tint": count > 0 ? "default" : "default"
+        ]
 
         sendJSON([
             "jsonrpc": "2.0", "method": "island/compact",
@@ -229,11 +233,11 @@ enum CodexSessionPlugin {
 
     private static func sendCompact() {
         let count = activeSessions.count
-        let content: Any = count > 0 ? [
+        let content: [String: Any] = [
             "icon": ["type": "sf", "name": count == 1 ? "terminal" : "terminal.fill"],
             "label": "\(count)",
-            "tint": "green"
-        ] as [String: Any] : NSNull()
+            "tint": count > 0 ? "green" : "default"
+        ]
 
         sendJSON([
             "jsonrpc": "2.0", "method": "island/compact",

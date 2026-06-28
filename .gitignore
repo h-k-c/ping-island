@@ -47,3 +47,6 @@ releases/notes/*
 *.xcodeproj.backup/
 CLAUDE.md
 .omx/
+
+# Claude Code worktrees / session data
+.claude/

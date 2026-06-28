@@ -6,13 +6,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowManager: WindowManager?
     private var screenObserver: ScreenObserver?
     private let launchConfiguration = AppLaunchConfiguration()
-    private let startupSessionMonitor = SessionMonitor()
-    private let globalShortcutManager = GlobalShortcutManager.shared
-    private var shouldPresentSettingsAfterOnboarding = false
-    private var shouldRunHookWalkthroughAfterOnboarding = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Ignore SIGPIPE so writing to a closed plugin stdin pipe doesn't crash the app.
         signal(SIGPIPE, SIG_IGN)
 
         if launchConfiguration.shouldEnforceSingleInstance && !ensureSingleInstance() {
@@ -20,16 +15,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // Touch the settings store early so the bridge runtime config is on disk
-        // before any hook fires.
         _ = AppSettings.shared
-#if APP_STORE
-        HookInstaller.restoreAppStoreHookDirectoryAuthorizationIfAvailable()
-#endif
 
         if !launchConfiguration.isRunningTests {
             UpdateManager.shared.start()
-            UserIdleAutoProtection.shared.start()
             Task {
                 await TelemetryService.shared.start()
             }
@@ -45,7 +34,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let value = notification.userInfo?["value"]
                 let actionType = notification.userInfo?["actionType"] as? String ?? "callback"
                 Task { @MainActor in
-                    // Handle platform-level action types first
                     switch actionType {
                     case "openURL":
                         if let urlStr = value as? String, let url = URL(string: urlStr) {
@@ -57,7 +45,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             NSPasteboard.general.setString(str, forType: .string)
                         }
                     default:
-                        // callback — forward to plugin
                         guard let pluginId = notification.userInfo?["pluginId"] as? String
                             ?? PluginSlotArbiter.shared.currentlyDisplayedExpandedPluginId else { return }
                         await PluginHost.shared.sendAction(actionId: actionId, value: value, to: pluginId)
@@ -67,17 +54,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if launchConfiguration.shouldInstallIntegrations {
-            HookInstaller.installIfNeeded(
-                markPresentationOnboardingPending: {
-                    AppSettings.presentationModeOnboardingPending = true
-                },
-                markHookInstallOnboardingPending: {
-                    AppSettings.hookInstallOnboardingPending = true
-                }
-            )
-            IDEExtensionInstaller.cleanupLegacyTraeExtension()
             NotchDetachmentHintExperience.prepareForLaunch(
-                previousVersion: HookInstaller.getVersionMetadata()?["previousVersion"] as? String,
+                previousVersion: nil,
                 markHintsPending: {
                     AppSettings.notchDetachmentHintPending = true
                     AppSettings.floatingPetSettingsHintPending = true
@@ -91,14 +69,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             configuration: launchConfiguration,
             presentationModeOnboardingPending: AppSettings.presentationModeOnboardingPending
         )
-        shouldPresentSettingsAfterOnboarding = launchFlow.shouldPresentSettingsWindowAfterOnboarding
-        shouldRunHookWalkthroughAfterOnboarding = launchFlow.shouldPresentSurfaceModeOnboarding
-
-        if launchFlow.shouldStartMonitoringImmediately && !launchFlow.shouldCreateInitialIslandWindow {
-            // Keep hook and app-server ingestion alive even when first-run onboarding
-            // defers the initial Island window.
-            startupSessionMonitor.startMonitoring()
-        }
 
         if launchFlow.shouldCreateInitialIslandWindow {
             startWindowManagerIfNeeded()
@@ -110,19 +80,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        globalShortcutManager.start()
-
         if launchFlow.shouldPresentSurfaceModeOnboarding {
             PresentationModeWelcomeWindowController.shared.present { [weak self] selectedMode in
                 self?.completePresentationModeOnboarding(with: selectedMode)
             }
         } else if launchFlow.shouldPresentSettingsWindowImmediately {
             SettingsWindowController.shared.present()
-        } else {
-            presentHookInstallOnboardingIfNeeded()
         }
 
-        // Play the fixed client startup sound for the bundled 8-bit theme.
         Task { @MainActor in
             AppSettings.playClientStartupSound()
         }
@@ -134,46 +99,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 await TelemetryService.shared.recordIntegrationSnapshot()
             }
         }
-    }
-
-    @MainActor
-    @discardableResult
-    private func presentHookInstallOnboardingIfNeeded() -> Bool {
-        guard AppSettings.hookInstallOnboardingPending else {
-            startHookWalkthroughAfterOnboardingIfNeeded()
-            return false
-        }
-        HookInstallWelcomeWindowController.shared.present { decision in
-            switch decision {
-            case .installDefaults:
-#if APP_STORE
-                let didInstall = HookInstaller.performFirstRunDefaultInstallWithUserAuthorization()
-                AppSettings.hookInstallOnboardingPending = !didInstall
-                if didInstall {
-                    self.startHookWalkthroughAfterOnboardingIfNeeded()
-                }
-#else
-                HookInstaller.performFirstRunDefaultInstall()
-                AppSettings.hookInstallOnboardingPending = false
-                self.startHookWalkthroughAfterOnboardingIfNeeded()
-#endif
-            case .customize:
-#if APP_STORE
-                AppSettings.hookInstallOnboardingPending = true
-                self.shouldRunHookWalkthroughAfterOnboarding = false
-                SettingsWindowController.shared.present(category: .plugins)
-#else
-                HookInstaller.performFirstRunDefaultInstall()
-                AppSettings.hookInstallOnboardingPending = false
-                self.shouldRunHookWalkthroughAfterOnboarding = false
-                SettingsWindowController.shared.present()
-#endif
-            case .skip:
-                AppSettings.hookInstallOnboardingPending = false
-                self.startHookWalkthroughAfterOnboardingIfNeeded()
-            }
-        }
-        return true
     }
 
     @MainActor
@@ -190,34 +115,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         AppSettings.floatingPetSettingsHintPending = false
         startWindowManagerIfNeeded()
 
-        if shouldRunHookWalkthroughAfterOnboarding {
-#if APP_STORE
-            shouldRunHookWalkthroughAfterOnboarding = false
-            _ = presentHookInstallOnboardingIfNeeded()
-#else
-            if AppSettings.hookInstallOnboardingPending {
-                HookInstaller.performFirstRunDefaultInstall()
-            }
-            AppSettings.hookInstallOnboardingPending = false
-            shouldPresentSettingsAfterOnboarding = false
-            startHookWalkthroughAfterOnboardingIfNeeded()
-#endif
-            return
-        }
-
-        if shouldPresentSettingsAfterOnboarding {
-            SettingsWindowController.shared.present()
-            shouldPresentSettingsAfterOnboarding = false
-        } else {
-            presentHookInstallOnboardingIfNeeded()
-        }
-    }
-
-    @MainActor
-    private func startHookWalkthroughAfterOnboardingIfNeeded() {
-        guard shouldRunHookWalkthroughAfterOnboarding else { return }
-        shouldRunHookWalkthroughAfterOnboarding = false
-        HookWalkthroughDemoRunner.shared.start()
+        SettingsWindowController.shared.present()
     }
 
     @MainActor
@@ -226,13 +124,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             windowManager = WindowManager()
         }
         _ = windowManager?.setupNotchWindow()
-        startupSessionMonitor.stopMonitoring()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         screenObserver = nil
-        UserIdleAutoProtection.shared.stop()
-        startupSessionMonitor.stopMonitoring()
         Task {
             await TelemetryService.shared.stop()
         }
@@ -240,6 +135,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             await PluginHost.shared.stop()
         }
     }
+
     private func ensureSingleInstance() -> Bool {
         let bundleID = Bundle.main.bundleIdentifier ?? "com.wudanwu.PingIsland"
         let runningApps = NSWorkspace.shared.runningApplications.filter {

@@ -18,6 +18,14 @@ final class PluginRegistry: ObservableObject {
         "com.wudanwu.pingisland.usage",
         "com.wudanwu.pingisland.procmonitor",
     ]
+    private static let retiredBuiltInPluginIds: Set<String> = [
+        "com.auralink.localServices",
+        "com.auralink.quickLauncher",
+        "com.auralink.taskBoard",
+        // Removed on request — Claude / Codex notification plugins are unused.
+        "com.auralink.claude",
+        "com.auralink.codex",
+    ]
 
     nonisolated static var defaultPluginsDirectoryURL: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -89,6 +97,7 @@ final class PluginRegistry: ObservableObject {
                 .filter { $0.pathExtension == "pingplugin" }
                 .compactMap { loadPlugin(at: $0) }
                 .filter { !Self.legacyBuiltInPluginIds.contains($0.manifest.id) }
+                .filter { !Self.retiredBuiltInPluginIds.contains($0.manifest.id) }
         }
 
         installedPlugins = found
@@ -110,7 +119,8 @@ final class PluginRegistry: ObservableObject {
             guard
                 let data = try? Data(contentsOf: manifestURL),
                 let manifest = try? JSONDecoder().decode(PluginManifest.self, from: data),
-                manifest.isBuiltIn
+                manifest.isBuiltIn,
+                !Self.retiredBuiltInPluginIds.contains(manifest.id)
             else { continue }
 
             let bundleURL = pluginsDirectoryURL
@@ -187,6 +197,7 @@ final class PluginRegistry: ObservableObject {
                 let manifest = loadManifest(at: bundleURL),
                 manifest.isBuiltIn,
                 Self.legacyBuiltInPluginIds.contains(manifest.id)
+                    || Self.retiredBuiltInPluginIds.contains(manifest.id)
             else { continue }
             try? FileManager.default.removeItem(at: bundleURL)
         }

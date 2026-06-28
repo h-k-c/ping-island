@@ -1,0 +1,32 @@
+{
+  "id": "com.auralink.codexUsage",
+  "name": "Codex 用量",
+  "version": "1.0.0",
+  "protocolVersion": "2.0",
+  "author": "Auralink",
+  "category": "monitoring",
+  "executable": "PingIslandPlugin",
+  "slots": ["compact", "expanded"],
+  "builtIn": true,
+  "permissions": ["network"],
+  "description": "监控 Codex 用量与配额（5小时窗口 / 7日）",
+  "icon": { "sfSymbol": "chart.pie.fill", "color": "#3399E6" },
+  "config": [
+    {
+      "key": "codexAuth",
+      "label": "Codex 凭证",
+      "type": "info",
+      "infoPath": ".codex/auth.json"
+    },
+    {
+      "key": "refreshInterval",
+      "label": "刷新间隔",
+      "type": "number",
+      "default": "300",
+      "min": 60,
+      "max": 3600,
+      "step": 60,
+      "unit": "秒"
+    }
+  ]
+}

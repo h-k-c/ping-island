@@ -1,5 +1,5 @@
 import XCTest
-@testable import Ping_Island
+@testable import Auralink
 
 final class PluginModelsTests: XCTestCase {
 
@@ -237,13 +237,13 @@ final class PluginModelsTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let manifestURL = repoRoot
-            .appendingPathComponent("PingIsland/Resources/PluginBundles/com.wudanwu.pingisland.procmonitor.pingplugin/Contents/com.wudanwu.pingisland.procmonitor.manifest.json")
+            .appendingPathComponent("PingIsland/Resources/PluginBundles/com.auralink.procmonitor.pingplugin/Contents/com.auralink.procmonitor.manifest.json")
         let manifest = try JSONDecoder().decode(
             PluginManifest.self,
             from: try Data(contentsOf: manifestURL)
         )
 
-        XCTAssertEqual(manifest.id, "com.wudanwu.pingisland.procmonitor")
+        XCTAssertEqual(manifest.id, "com.auralink.procmonitor")
         XCTAssertEqual(manifest.executable, "PingIslandPlugin")
         XCTAssertEqual(manifest.category, .system)
         XCTAssertEqual(manifest.slots, [.compact, .expanded])

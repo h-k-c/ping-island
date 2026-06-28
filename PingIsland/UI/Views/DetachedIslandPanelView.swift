@@ -179,100 +179,35 @@ enum DetachedIslandContentModel {
         return fallbackPlacement
     }
 
-    static func sortedSessions(from sessions: [SessionState]) -> [SessionState] {
-        IslandExpandedRouteResolver.orderedSessions(from: sessions)
-    }
-
-    static func representativeSession(from sessions: [SessionState]) -> SessionState? {
-        IslandExpandedRouteResolver.highestPriorityAttentionSession(from: sessions)
-            ?? sortedSessions(from: sessions).first
-    }
-
-    static func activeCount(from sessions: [SessionState]) -> Int {
-        sessions.filter { $0.phase.isActive }.count
-    }
-
     static func canPresentBubble(
-        from sessions: [SessionState],
-        mode: DetachedIslandBubbleContentMode,
-        activeCompletionNotification: SessionCompletionNotification? = nil
+        from sessions: [Any],
+        mode: DetachedIslandBubbleContentMode
     ) -> Bool {
-        switch mode {
-        case .hoverPreview:
-            if activeCompletionNotification != nil {
-                return true
-            }
-            return IslandExpandedRouteResolver.highestPriorityAttentionSession(from: sessions) != nil
-                || !IslandExpandedRouteResolver.activePreviewSessions(from: sessions).isEmpty
-        case .pinnedList:
-            return !sortedSessions(from: sessions).isEmpty
-        }
+        false
     }
 
     @MainActor
     static func route(
-        for sessions: [SessionState],
+        for sessions: [Any],
         viewModel: NotchViewModel,
-        mode: DetachedIslandBubbleContentMode,
-        activeCompletionNotification: SessionCompletionNotification? = nil
+        mode: DetachedIslandBubbleContentMode
     ) -> IslandExpandedRoute {
-        let trigger: IslandExpandedTrigger = switch mode {
-        case .hoverPreview:
-            activeCompletionNotification == nil ? .hover : .notification
-        case .pinnedList: .pinnedList
+        if case .plugin(let pluginId) = viewModel.contentType {
+            return .plugin(pluginId: pluginId)
         }
-
-        return IslandExpandedRouteResolver.resolve(
-            surface: .floating,
-            trigger: trigger,
-            contentType: viewModel.contentType,
-            sessions: sessions,
-            activeCompletionNotification: activeCompletionNotification
-        )
+        return .empty
     }
 
     @MainActor
     static func bubbleContentSize(
         for route: IslandExpandedRoute,
-        sessions: [SessionState],
         viewModel: NotchViewModel,
-        measuredAttentionBubbleHeight: CGFloat? = nil,
-        measuredCompletionBubbleHeight: CGFloat? = nil,
-        additionalFooterHeight: CGFloat = 0
+        measuredCompletionBubbleHeight: CGFloat? = nil
     ) -> CGSize {
         let widthLimit = viewModel.screenRect.width - 132
 
         switch route {
-        case .sessionList:
-            let width = min(widthLimit, 448)
-            let sorted = sortedSessions(from: sessions)
-            let estimatedHeight = sessionListEstimatedHeight(for: sorted)
-            let height = min(
-                viewModel.screenRect.height - 160,
-                max(96, estimatedHeight + additionalFooterHeight)
-            )
-            return CGSize(width: width, height: height)
-        case .hoverDashboard:
-            let width = min(widthLimit, 392)
-            let visibleCount = max(min(IslandExpandedRouteResolver.activePreviewSessions(from: sessions).count, 3), 1)
-            let estimatedHeight = 18 + (CGFloat(visibleCount) * 94)
-            let height = min(viewModel.screenRect.height - 160, max(120, estimatedHeight))
-            return CGSize(width: width, height: height)
-        case .attentionNotification(let session):
-            let width = min(widthLimit, 392)
-            let height: CGFloat
-            if let measuredAttentionBubbleHeight {
-                height = min(
-                    viewModel.screenRect.height - 160,
-                    max(170, measuredAttentionBubbleHeight)
-                )
-            } else if session.needsQuestionResponse {
-                height = min(viewModel.screenRect.height - 160, 316)
-            } else {
-                height = min(viewModel.screenRect.height - 160, 228)
-            }
-            return CGSize(width: width, height: max(170, height))
-        case .completionNotification, .pluginNotification:
+        case .pluginNotification:
             let width = min(widthLimit, 392)
             let height = measuredCompletionBubbleHeight
                 ?? DetachedIslandPanelMetrics.completionBubbleFallbackHeight
@@ -283,35 +218,11 @@ enum DetachedIslandContentModel {
                     max(DetachedIslandPanelMetrics.completionBubbleMinimumHeight, height)
                 )
             )
-        case .chat:
-            return viewModel.panelSize(for: .detached)
         case .plugin:
             return viewModel.panelSize(for: .detached)
+        case .empty:
+            return CGSize(width: 96, height: 96)
         }
-    }
-
-    private static func sessionListEstimatedHeight(for sessions: [SessionState]) -> CGFloat {
-        guard !sessions.isEmpty else { return 96 }
-
-        let contentHeight = sessions.reduce(CGFloat(0)) { partial, session in
-            partial + sessionListRowHeight(for: session)
-        }
-        let spacing = CGFloat(max(0, sessions.count - 1)) * 2
-        let verticalInsets: CGFloat = 8
-        return contentHeight + spacing + verticalInsets
-    }
-
-    private static func sessionListRowHeight(for session: SessionState) -> CGFloat {
-        if session.needsQuestionResponse || session.needsApprovalResponse || session.needsManualAttention {
-            return 86
-        }
-        if session.phase.isActive {
-            return 74
-        }
-        if session.shouldUseMinimalCompactPresentation || session.usesTitleOnlySubagentPresentation {
-            return 46
-        }
-        return 56
     }
 
     static func contentWidth(
@@ -327,14 +238,13 @@ enum DetachedIslandContentModel {
 
     @MainActor
     static func layout(
-        for sessions: [SessionState],
+        for sessions: [Any],
         viewModel: NotchViewModel,
         bubbleState: DetachedIslandBubbleState,
         bubblePlacement: DetachedIslandBubblePlacement,
         measuredAttentionBubbleHeight: CGFloat? = nil,
         measuredCompletionBubbleHeight: CGFloat? = nil,
         additionalFooterHeight: CGFloat = 0,
-        activeCompletionNotification: SessionCompletionNotification? = nil,
         guideBubbleSize: CGSize? = nil,
         petScreenAnchor: CGPoint? = nil,
         availableFrame: CGRect? = nil
@@ -347,11 +257,7 @@ enum DetachedIslandContentModel {
         let hiddenAnchor = CGPoint(x: petSize.width / 2, y: petSize.height / 2)
 
         guard let mode = DetachedIslandBubbleContentMode(bubbleState: bubbleState),
-              canPresentBubble(
-                from: sessions,
-                mode: mode,
-                activeCompletionNotification: activeCompletionNotification
-              ) else {
+              canPresentBubble(from: sessions, mode: mode) else {
             if let guideBubbleSize {
                 return bubbleLayout(
                     petSize: petSize,
@@ -377,16 +283,12 @@ enum DetachedIslandContentModel {
         let route = route(
             for: sessions,
             viewModel: viewModel,
-            mode: mode,
-            activeCompletionNotification: activeCompletionNotification
+            mode: mode
         )
         let bubbleSize = bubbleContentSize(
             for: route,
-            sessions: sessions,
             viewModel: viewModel,
-            measuredAttentionBubbleHeight: measuredAttentionBubbleHeight,
-            measuredCompletionBubbleHeight: measuredCompletionBubbleHeight,
-            additionalFooterHeight: additionalFooterHeight
+            measuredCompletionBubbleHeight: measuredCompletionBubbleHeight
         )
         return bubbleLayout(
             petSize: petSize,
@@ -596,8 +498,6 @@ final class DetachedIslandInteractionModel: ObservableObject {
 
 @MainActor
 final class DetachedIslandBubbleViewState: ObservableObject {
-    @Published var highlightedSessionStableID: String?
-    @Published private(set) var activeCompletionNotification: SessionCompletionNotification?
     @Published private(set) var renderedBubbleState: DetachedIslandBubbleState = .hidden
     @Published private(set) var isBubbleVisible = false
     @Published private(set) var measuredAttentionBubbleHeight: CGFloat?
@@ -632,15 +532,10 @@ final class DetachedIslandBubbleViewState: ObservableObject {
         measuredCompletionBubbleHeight = sanitized
     }
 
-    func setActiveCompletionNotification(_ notification: SessionCompletionNotification?) {
-        guard activeCompletionNotification != notification else { return }
-        activeCompletionNotification = notification
-    }
 }
 
 struct DetachedIslandPanelView: View {
     @ObservedObject var viewModel: NotchViewModel
-    @ObservedObject var sessionMonitor: SessionMonitor
     @ObservedObject var interactionModel: DetachedIslandInteractionModel
     @ObservedObject var bubbleViewState: DetachedIslandBubbleViewState
     @ObservedObject private var settings = AppSettings.shared
@@ -652,21 +547,6 @@ struct DetachedIslandPanelView: View {
     let onPetDragChanged: (CGSize) -> Void
     let onPetDragEnded: () -> Void
     let onBubbleHoverChanged: (Bool) -> Void
-    let onAttentionActionCompleted: () -> Void
-    let onCompletionNotificationHoverChanged: (Bool) -> Void
-    let onDismissCompletionNotification: () -> Void
-
-    private var sortedSessions: [SessionState] {
-        DetachedIslandContentModel.sortedSessions(from: sessionMonitor.instances)
-    }
-
-    private var representativeSession: SessionState? {
-        DetachedIslandContentModel.representativeSession(from: sortedSessions)
-    }
-
-    private var activeCount: Int {
-        DetachedIslandContentModel.activeCount(from: sortedSessions)
-    }
 
     private var bubbleContentMode: DetachedIslandBubbleContentMode? {
         DetachedIslandBubbleContentMode(bubbleState: bubbleViewState.renderedBubbleState)
@@ -675,23 +555,21 @@ struct DetachedIslandPanelView: View {
     private var bubbleRoute: IslandExpandedRoute? {
         guard let bubbleContentMode else { return nil }
         return DetachedIslandContentModel.route(
-            for: sortedSessions,
+            for: [],
             viewModel: viewModel,
-            mode: bubbleContentMode,
-            activeCompletionNotification: bubbleViewState.activeCompletionNotification
+            mode: bubbleContentMode
         )
     }
 
     private var layout: DetachedIslandWindowLayout {
         DetachedIslandContentModel.layout(
-            for: sortedSessions,
+            for: [],
             viewModel: viewModel,
             bubbleState: bubbleViewState.renderedBubbleState,
             bubblePlacement: interactionModel.bubblePlacement,
             measuredAttentionBubbleHeight: bubbleViewState.measuredAttentionBubbleHeight,
             measuredCompletionBubbleHeight: bubbleViewState.measuredCompletionBubbleHeight,
             additionalFooterHeight: 0,
-            activeCompletionNotification: bubbleViewState.activeCompletionNotification,
             guideBubbleSize: interactionModel.isSettingsHintVisible
                 ? DetachedIslandPanelMetrics.settingsHintBubbleSize
                 : nil
@@ -702,22 +580,15 @@ struct DetachedIslandPanelView: View {
         DetachedIslandPanelMetrics.petMetrics(for: viewModel.screenRect)
     }
 
-
-
-
     private var compactMascotKind: MascotKind {
-        settings.mascotKind(for: IslandMascotResolver.sourceSession(from: sortedSessions)?.mascotClient)
+        settings.mascotKind(for: nil)
     }
 
     private var compactMascotStatus: MascotStatus {
         if isPetDragging {
             return .dragging
         }
-        return MascotStatus.closedNotchStatus(
-            representativePhase: representativeSession?.phase,
-            hasPendingPermission: sortedSessions.contains { $0.needsApprovalResponse },
-            hasHumanIntervention: sortedSessions.contains { $0.intervention != nil }
-        )
+        return .idle
     }
 
     var body: some View {
@@ -756,36 +627,12 @@ struct DetachedIslandPanelView: View {
             alignment: .topLeading
         )
         .preferredColorScheme(.dark)
-        .onAppear {
-            if !SessionMonitor.isRunningUnderXCTest {
-                sessionMonitor.startMonitoring()
-            }
-        }
         .onChange(of: bubbleRoute) { _, route in
-            switch route {
-            case .attentionNotification:
-                bubbleViewState.setMeasuredCompletionBubbleHeight(nil)
-            case .completionNotification, .pluginNotification:
-                bubbleViewState.setMeasuredAttentionBubbleHeight(nil)
-            default:
-                bubbleViewState.setMeasuredAttentionBubbleHeight(nil)
-                bubbleViewState.setMeasuredCompletionBubbleHeight(nil)
-            }
+            bubbleViewState.setMeasuredAttentionBubbleHeight(nil)
+            bubbleViewState.setMeasuredCompletionBubbleHeight(nil)
         }
         .onPreferenceChange(OpenedPanelContentHeightPreferenceKey.self) { height in
-            switch bubbleRoute {
-            case .attentionNotification:
-                let measuredHeight = height > 0
-                    ? min(
-                        viewModel.screenRect.height - 160,
-                        max(
-                            170,
-                            height + (DetachedIslandPanelMetrics.bubbleVerticalPadding * 2)
-                        )
-                    )
-                    : nil
-                bubbleViewState.setMeasuredAttentionBubbleHeight(measuredHeight)
-            case .completionNotification, .pluginNotification:
+            if case .pluginNotification = bubbleRoute {
                 let measuredHeight = height > 0
                     ? min(
                         viewModel.screenRect.height - 160,
@@ -796,15 +643,13 @@ struct DetachedIslandPanelView: View {
                     )
                     : nil
                 bubbleViewState.setMeasuredCompletionBubbleHeight(measuredHeight)
-            default:
-                return
             }
         }
     }
 
     private var petButton: some View {
         DetachedFloatingPetInteractionView(
-            activeCount: activeCount,
+            activeCount: 0,
             mascotKind: compactMascotKind,
             mascotStatus: compactMascotStatus,
             petMetrics: petMetrics,
@@ -830,25 +675,13 @@ struct DetachedIslandPanelView: View {
         DetachedIslandBubbleChrome(placement: layout.bubblePlacement) {
             VStack(alignment: .leading, spacing: 8) {
                 IslandOpenedContentView(
-                    sessionMonitor: sessionMonitor,
                     viewModel: viewModel,
                     surface: .floating,
-                    trigger: mode == .pinnedList
-                        ? .pinnedList
-                        : (bubbleViewState.activeCompletionNotification == nil ? .hover : .notification),
+                    trigger: mode == .pinnedList ? .pinnedList : .hover,
                     style: .detached,
-                    activeCompletionNotification: bubbleViewState.activeCompletionNotification,
-                    highlightedSessionStableID: route == .sessionList
-                        ? bubbleViewState.highlightedSessionStableID
-                        : nil,
                     contentWidthOverride: contentWidth,
-                    onAttentionActionCompleted: onAttentionActionCompleted,
-                    onCompletionNotificationHoverChanged: onCompletionNotificationHoverChanged,
-                    onDismissCompletionNotification: onDismissCompletionNotification,
                     onDismissPluginNotification: {}
                 )
-
-
             }
         }
     }

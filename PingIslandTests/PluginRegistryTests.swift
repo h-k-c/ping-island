@@ -1,5 +1,5 @@
 import XCTest
-@testable import Ping_Island
+@testable import Auralink
 
 @MainActor
 final class PluginRegistryTests: XCTestCase {
@@ -41,7 +41,7 @@ final class PluginRegistryTests: XCTestCase {
     }
 
     private func makeRegistry() -> PluginRegistry {
-        PluginRegistry(pluginsDirectoryURL: tempDir, defaults: defaults, includeBuiltInPlugins: false)
+        PluginRegistry(pluginsDirectoryURL: tempDir, includeBuiltInPlugins: false)
     }
 
     func testScansInstalledPlugins() throws {
@@ -81,31 +81,6 @@ final class PluginRegistryTests: XCTestCase {
         XCTAssertTrue(registry.installedPlugins.isEmpty)
     }
 
-    func testDefaultsToEnabledForNewPlugin() {
-        let registry = makeRegistry()
-        XCTAssertTrue(registry.isEnabled("com.brand.new"))
-    }
-
-    func testSetEnabledFalse() {
-        let registry = makeRegistry()
-        registry.setEnabled(false, for: "com.test.plugin")
-        XCTAssertFalse(registry.isEnabled("com.test.plugin"))
-    }
-
-    func testEnabledStatePersistsAcrossInstances() {
-        let registry = makeRegistry()
-        registry.setEnabled(false, for: "com.test.plugin")
-        let registry2 = PluginRegistry(pluginsDirectoryURL: tempDir, defaults: defaults, includeBuiltInPlugins: false)
-        XCTAssertFalse(registry2.isEnabled("com.test.plugin"))
-    }
-
-    func testReenablingPlugin() {
-        let registry = makeRegistry()
-        registry.setEnabled(false, for: "com.test.plugin")
-        registry.setEnabled(true, for: "com.test.plugin")
-        XCTAssertTrue(registry.isEnabled("com.test.plugin"))
-    }
-
     func testEmptyDirectoryReturnsEmptyList() {
         let registry = makeRegistry()
         registry.rescan()
@@ -114,7 +89,7 @@ final class PluginRegistryTests: XCTestCase {
 
     func testCreatesPluginDirectoryOnStart() {
         let nonExistent = tempDir.appendingPathComponent("SubDir/Plugins")
-        let registry = PluginRegistry(pluginsDirectoryURL: nonExistent, defaults: defaults, includeBuiltInPlugins: false)
+        let registry = PluginRegistry(pluginsDirectoryURL: nonExistent, includeBuiltInPlugins: false)
         registry.start()
         registry.stop()
         XCTAssertTrue(FileManager.default.fileExists(atPath: nonExistent.path))

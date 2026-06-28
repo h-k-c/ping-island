@@ -64,59 +64,26 @@ class NotchPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
+    /// Called when a left mouse-down lands on an empty area of the panel (no
+    /// SwiftUI view wants it). Used by the recorder's sticky peek to collapse the
+    /// expanded panel back to the peek bar — driven by the authoritative hitTest
+    /// so a real control click is never mistaken for an outside click.
+    var onEmptyAreaMouseDown: (() -> Void)?
+
     // MARK: - Click-through for areas outside the panel content
 
     override func sendEvent(_ event: NSEvent) {
-        // For mouse events, check if we should pass through
-        if event.type == .leftMouseDown || event.type == .leftMouseUp ||
-           event.type == .rightMouseDown || event.type == .rightMouseUp {
-            // Get the location in window coordinates
-            let locationInWindow = event.locationInWindow
-
-            // Check if any view wants to handle this event
-            if let contentView = self.contentView,
-               contentView.hitTest(locationInWindow) == nil {
-                // No view wants this event - pass it through to windows behind
-                // by temporarily ignoring mouse events and re-posting
-                let screenLocation = convertPoint(toScreen: locationInWindow)
-                ignoresMouseEvents = true
-
-                // Re-post the event after a tiny delay
-                DispatchQueue.main.async { [weak self] in
-                    self?.repostMouseEvent(event, at: screenLocation)
-                }
-                return
-            }
+        // If the click lands in an empty area (no SwiftUI view claimed it), fire the
+        // collapse callback and absorb the event. With the tight peek frame this
+        // happens only in the rounded-corner dead-zone; clicks outside the window
+        // frame reach the desktop/menu-bar directly without going through here.
+        if event.type == .leftMouseDown,
+           self.contentView?.hitTest(event.locationInWindow) == nil {
+            onEmptyAreaMouseDown?()
+            return
         }
-
         super.sendEvent(event)
     }
 
-    private func repostMouseEvent(_ event: NSEvent, at screenLocation: NSPoint) {
-        let cgPoint = MouseEventReplay.repostLocation(
-            for: event,
-            fallbackScreenLocation: screenLocation
-        )
 
-        let mouseType: CGEventType
-        switch event.type {
-        case .leftMouseDown: mouseType = .leftMouseDown
-        case .leftMouseUp: mouseType = .leftMouseUp
-        case .rightMouseDown: mouseType = .rightMouseDown
-        case .rightMouseUp: mouseType = .rightMouseUp
-        default: return
-        }
-
-        let mouseButton: CGMouseButton = event.type == .rightMouseDown || event.type == .rightMouseUp ? .right : .left
-
-        if let cgEvent = CGEvent(
-            mouseEventSource: nil,
-            mouseType: mouseType,
-            mouseCursorPosition: cgPoint,
-            mouseButton: mouseButton
-        ) {
-            MouseEventReplay.mark(cgEvent)
-            cgEvent.post(tap: .cghidEventTap)
-        }
-    }
 }

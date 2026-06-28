@@ -452,7 +452,6 @@ actor DiagnosticsExporter {
         }
 
         let copiedFiles: [(source: URL, relativePath: String)] = [
-            (SessionAssociationStore.diagnosticsFileURL, "state/session-associations.json"),
             (FocusDiagnosticsStore.diagnosticsFileURL, "logs/focus-debug.log"),
             (fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json"), "configs/claude-settings.json"),
             (fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".codebuddy/settings.json"), "configs/codebuddy-settings.json"),
@@ -814,27 +813,6 @@ actor DiagnosticsExporter {
     }
 
     private func writeLiveStateSnapshots(under rootURL: URL) async throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-
-        let sessionSnapshots = await SessionStore.shared.diagnosticsSnapshot()
-        let codexThreadSnapshots = await CodexAppServerMonitor.shared.diagnosticsSnapshot()
-        let remoteEndpointSnapshots = await MainActor.run {
-            RemoteConnectorManager.shared.diagnosticsSnapshot()
-        }
-
-        let sessionsURL = rootURL.appendingPathComponent("state/live-sessions.json")
-        try fileManager.createDirectory(at: sessionsURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try encoder.encode(sessionSnapshots).write(to: sessionsURL, options: .atomic)
-
-        let codexThreadsURL = rootURL.appendingPathComponent("state/codex-thread-list.json")
-        try fileManager.createDirectory(at: codexThreadsURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try encoder.encode(codexThreadSnapshots).write(to: codexThreadsURL, options: .atomic)
-
-        let remoteEndpointsURL = rootURL.appendingPathComponent("state/remote-endpoints.json")
-        try fileManager.createDirectory(at: remoteEndpointsURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try encoder.encode(remoteEndpointSnapshots).write(to: remoteEndpointsURL, options: .atomic)
     }
 
     private func writeUnifiedLogs(to destinationURL: URL) async throws {

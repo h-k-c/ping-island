@@ -244,26 +244,3 @@ struct IdleIcon: View {
     }
 }
 
-// MARK: - Status Icon View (unified)
-struct StatusIcon: View {
-    let phase: SessionPhase
-    let size: CGFloat
-
-    init(phase: SessionPhase, size: CGFloat = 12) {
-        self.phase = phase
-        self.size = size
-    }
-
-    var body: some View {
-        switch phase {
-        case .waitingForInput:
-            WaitingForInputIcon(size: size)
-        case .waitingForApproval:
-            WaitingForApprovalIcon(size: size)
-        case .processing, .compacting:
-            RunningIcon(size: size)
-        case .idle, .ended:
-            IdleIcon(size: size)
-        }
-    }
-}

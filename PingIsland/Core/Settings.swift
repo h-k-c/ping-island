@@ -99,32 +99,6 @@ enum UsageValueMode: String, CaseIterable, Identifiable {
     }
 }
 
-enum AutoRoutePromptsIdleDelay: Int, CaseIterable, Identifiable {
-    case tenMinutes = 600
-    case twentyMinutes = 1200
-    case thirtyMinutes = 1800
-    case sixtyMinutes = 3600
-
-    nonisolated var id: Int { rawValue }
-
-    nonisolated var duration: TimeInterval {
-        TimeInterval(rawValue)
-    }
-
-    nonisolated var title: String {
-        switch self {
-        case .tenMinutes:
-            return "10 分钟"
-        case .twentyMinutes:
-            return "20 分钟"
-        case .thirtyMinutes:
-            return "30 分钟"
-        case .sixtyMinutes:
-            return "1 小时"
-        }
-    }
-}
-
 enum NotchDisplayMode: String, CaseIterable, Identifiable {
     case compact
     case detailed
@@ -346,7 +320,6 @@ final class AppSettingsStore: ObservableObject {
     static let shared = AppSettingsStore()
 
     private let defaults: UserDefaults
-    private let bridgeRuntimeConfigWriter: (Bool) -> Void
     private var isBootstrapping = true
     private var subagentVisibilityModeStorage: SubagentVisibilityMode
 
@@ -379,6 +352,7 @@ final class AppSettingsStore: ObservableObject {
         static let hideInFullscreen = "hideInFullscreen"
         static let autoHideWhenIdle = "autoHideWhenIdle"
         static let autoCollapseOnLeave = "autoCollapseOnLeave"
+        static let receiveLiveActivities = "receiveLiveActivities"
         static let smartSuppression = "smartSuppression"
         static let autoOpenCompletionPanel = "autoOpenCompletionPanel"
         static let autoOpenCompactedNotificationPanel = "autoOpenCompactedNotificationPanel"
@@ -403,15 +377,6 @@ final class AppSettingsStore: ObservableObject {
         static let labsSettingsUnlocked = "labsSettingsUnlocked"
         static let automaticUpdateChecksEnabled = "automaticUpdateChecksEnabled"
         static let mascotOverrides = "mascotOverrides"
-        static let openActiveSessionShortcut = "openActiveSessionShortcut"
-        static let openActiveSessionShortcutDisabled = "openActiveSessionShortcutDisabled"
-        static let openSessionListShortcut = "openSessionListShortcut"
-        static let openSessionListShortcutDisabled = "openSessionListShortcutDisabled"
-        static let routePromptsToTerminal = "routePromptsToTerminal"  // legacy global key (migrated)
-        static let claudeRoutePromptsToTerminal = "claudeRoutePromptsToTerminal"
-        static let codexRoutePromptsToTerminal = "codexRoutePromptsToTerminal"
-        static let autoRoutePromptsToTerminalWhenIdleEnabled = "autoRoutePromptsToTerminalWhenIdleEnabled"
-        static let autoRoutePromptsIdleDelay = "autoRoutePromptsIdleDelay"
         static let analyticsEnabled = AppSettingsDefaultKeys.analyticsEnabled
         static let analyticsConsentPromptCompleted = AppSettingsDefaultKeys.analyticsConsentPromptCompleted
     }
@@ -629,6 +594,17 @@ final class AppSettingsStore: ObservableObject {
             guard !isBootstrapping else { return }
             defaults.set(autoCollapseOnLeave, forKey: Keys.autoCollapseOnLeave)
             recordTelemetrySettingChange(key: Keys.autoCollapseOnLeave, value: autoCollapseOnLeave.description)
+        }
+    }
+
+    /// Whether the island accepts live activities pushed by third-party apps
+    /// (e.g. the VideoLoom screen recorder). When off, those plugins never pop
+    /// the notch.
+    @Published var receiveLiveActivities: Bool {
+        didSet {
+            guard !isBootstrapping else { return }
+            defaults.set(receiveLiveActivities, forKey: Keys.receiveLiveActivities)
+            recordTelemetrySettingChange(key: Keys.receiveLiveActivities, value: receiveLiveActivities.description)
         }
     }
 
@@ -858,104 +834,6 @@ final class AppSettingsStore: ObservableObject {
         }
     }
 
-    @Published var openActiveSessionShortcut: GlobalShortcut? {
-        didSet {
-            guard !isBootstrapping else { return }
-            Self.persistShortcut(
-                openActiveSessionShortcut,
-                defaults: defaults,
-                key: Keys.openActiveSessionShortcut,
-                disabledKey: Keys.openActiveSessionShortcutDisabled
-            )
-        }
-    }
-
-    @Published var openSessionListShortcut: GlobalShortcut? {
-        didSet {
-            guard !isBootstrapping else { return }
-            Self.persistShortcut(
-                openSessionListShortcut,
-                defaults: defaults,
-                key: Keys.openSessionListShortcut,
-                disabledKey: Keys.openSessionListShortcutDisabled
-            )
-        }
-    }
-
-    // Legacy global key — kept for bridge config writes but not exposed in UI.
-    // Derived from per-provider settings.
-    @Published var routePromptsToTerminal: Bool {
-        didSet {
-            guard !isBootstrapping else { return }
-            defaults.set(routePromptsToTerminal, forKey: Keys.routePromptsToTerminal)
-            recordTelemetrySettingChange(key: Keys.routePromptsToTerminal, value: routePromptsToTerminal.description)
-            writeEffectiveBridgeRuntimeConfig()
-        }
-    }
-
-    // Per-provider approval routing settings
-    @Published var claudeRoutePromptsToTerminal: Bool {
-        didSet {
-            guard !isBootstrapping else { return }
-            defaults.set(claudeRoutePromptsToTerminal, forKey: Keys.claudeRoutePromptsToTerminal)
-            // Keep legacy key in sync for bridge compatibility
-            routePromptsToTerminal = claudeRoutePromptsToTerminal || codexRoutePromptsToTerminal
-        }
-    }
-
-    @Published var codexRoutePromptsToTerminal: Bool {
-        didSet {
-            guard !isBootstrapping else { return }
-            defaults.set(codexRoutePromptsToTerminal, forKey: Keys.codexRoutePromptsToTerminal)
-            routePromptsToTerminal = claudeRoutePromptsToTerminal || codexRoutePromptsToTerminal
-        }
-    }
-
-    @Published var autoRoutePromptsToTerminalWhenIdleEnabled: Bool {
-        didSet {
-            guard !isBootstrapping else { return }
-            defaults.set(
-                autoRoutePromptsToTerminalWhenIdleEnabled,
-                forKey: Keys.autoRoutePromptsToTerminalWhenIdleEnabled
-            )
-            recordTelemetrySettingChange(
-                key: Keys.autoRoutePromptsToTerminalWhenIdleEnabled,
-                value: autoRoutePromptsToTerminalWhenIdleEnabled.description
-            )
-            if !autoRoutePromptsToTerminalWhenIdleEnabled {
-                setIdleAutoRoutePromptsToTerminalActive(false)
-                return
-            }
-            writeEffectiveBridgeRuntimeConfig()
-        }
-    }
-
-    @Published var autoRoutePromptsIdleDelay: AutoRoutePromptsIdleDelay {
-        didSet {
-            guard !isBootstrapping else { return }
-            defaults.set(autoRoutePromptsIdleDelay.rawValue, forKey: Keys.autoRoutePromptsIdleDelay)
-            writeEffectiveBridgeRuntimeConfig()
-        }
-    }
-
-    @Published private(set) var idleAutoRoutePromptsToTerminalActive: Bool = false {
-        didSet {
-            guard !isBootstrapping else { return }
-            writeEffectiveBridgeRuntimeConfig()
-        }
-    }
-
-    var effectiveRoutePromptsToTerminal: Bool {
-        routePromptsToTerminal
-            || (autoRoutePromptsToTerminalWhenIdleEnabled && idleAutoRoutePromptsToTerminalActive)
-    }
-
-    func setIdleAutoRoutePromptsToTerminalActive(_ active: Bool) {
-        let next = autoRoutePromptsToTerminalWhenIdleEnabled && active
-        guard idleAutoRoutePromptsToTerminalActive != next else { return }
-        idleAutoRoutePromptsToTerminalActive = next
-    }
-
     func mascotOverride(for client: MascotClient) -> MascotKind? {
         guard let rawValue = mascotOverrides[client.rawValue] else {
             return nil
@@ -990,36 +868,6 @@ final class AppSettingsStore: ObservableObject {
 
     func resetMascotOverrides() {
         mascotOverrides = [:]
-    }
-
-    func shortcut(for action: GlobalShortcutAction) -> GlobalShortcut? {
-        switch action {
-        case .openActiveSession:
-            return openActiveSessionShortcut
-        case .openSessionList:
-            return openSessionListShortcut
-        }
-    }
-
-    func setShortcut(_ shortcut: GlobalShortcut?, for action: GlobalShortcutAction) {
-        let normalized = Self.sanitizedShortcut(shortcut)
-
-        switch action {
-        case .openActiveSession:
-            openActiveSessionShortcut = normalized
-            if normalized != nil, normalized == openSessionListShortcut {
-                openSessionListShortcut = nil
-            }
-        case .openSessionList:
-            openSessionListShortcut = normalized
-            if normalized != nil, normalized == openActiveSessionShortcut {
-                openActiveSessionShortcut = nil
-            }
-        }
-    }
-
-    func resetShortcut(_ action: GlobalShortcutAction) {
-        setShortcut(action.defaultShortcut, for: action)
     }
 
     var customizedMascotClientCount: Int {
@@ -1105,64 +953,6 @@ final class AppSettingsStore: ObservableObject {
         }
     }
 
-    private static func sanitizedShortcut(_ shortcut: GlobalShortcut?) -> GlobalShortcut? {
-        guard let shortcut else { return nil }
-        return GlobalShortcut(keyCode: shortcut.keyCode, modifierFlags: shortcut.modifierFlags)
-    }
-
-    private static func shortcut(from defaults: UserDefaults, key: String) -> GlobalShortcut? {
-        if let shortcut = decodeValue(GlobalShortcut.self, from: defaults, key: key) {
-            return sanitizedShortcut(shortcut)
-        }
-
-        guard let rawValue = defaults.dictionary(forKey: key) as? [String: Int] else {
-            return nil
-        }
-
-        guard let keyCode = rawValue["keyCode"],
-              let modifiers = rawValue["modifierFlags"] else {
-            return nil
-        }
-
-        let shortcut = GlobalShortcut(
-            keyCode: UInt16(keyCode),
-            modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(modifiers))
-        )
-
-        persistValue(shortcut, defaults: defaults, key: key)
-        return shortcut
-    }
-
-    private static func resolvedShortcut(
-        from defaults: UserDefaults,
-        key: String,
-        disabledKey: String,
-        action: GlobalShortcutAction
-    ) -> GlobalShortcut? {
-        if defaults.bool(forKey: disabledKey) {
-            return nil
-        }
-
-        let persistedShortcut = shortcut(from: defaults, key: key)
-
-        if let persistedShortcut,
-           action.legacyDefaultShortcuts.contains(persistedShortcut) {
-            return action.defaultShortcut
-        }
-
-        return persistedShortcut ?? action.defaultShortcut
-    }
-
-    private static func persistShortcut(
-        _ shortcut: GlobalShortcut?,
-        defaults: UserDefaults,
-        key: String,
-        disabledKey: String
-    ) {
-        defaults.set(shortcut == nil, forKey: disabledKey)
-        persistValue(shortcut, defaults: defaults, key: key)
-    }
-
     private static func mascotOverrides(from defaults: UserDefaults, key: String) -> [String: String] {
         if let overrides = decodeValue([String: String].self, from: defaults, key: key) {
             return overrides
@@ -1189,13 +979,9 @@ final class AppSettingsStore: ObservableObject {
     }
 
     init(
-        defaults: UserDefaults = .standard,
-        bridgeRuntimeConfigWriter: @escaping (Bool) -> Void = {
-            BridgeRuntimeConfigWriter.write(routePromptsToTerminal: $0)
-        }
+        defaults: UserDefaults = .standard
     ) {
         self.defaults = defaults
-        self.bridgeRuntimeConfigWriter = bridgeRuntimeConfigWriter
         self.subagentVisibilityModeStorage = .visible
         let persistedKeys = Set(defaults.dictionaryRepresentation().keys)
         let appLanguageRaw = defaults.string(forKey: Keys.appLanguage)
@@ -1220,18 +1006,6 @@ final class AppSettingsStore: ObservableObject {
         let floatingPetAnchor = Self.decodeValue(FloatingPetAnchor.self, from: defaults, key: Keys.floatingPetAnchor)
         let floatingPetSizeModeRaw = defaults.string(forKey: Keys.floatingPetSizeMode)
         let mascotOverrideRaw = Self.mascotOverrides(from: defaults, key: Keys.mascotOverrides)
-        let openActiveSessionShortcut = Self.resolvedShortcut(
-            from: defaults,
-            key: Keys.openActiveSessionShortcut,
-            disabledKey: Keys.openActiveSessionShortcutDisabled,
-            action: .openActiveSession
-        )
-        let openSessionListShortcut = Self.resolvedShortcut(
-            from: defaults,
-            key: Keys.openSessionListShortcut,
-            disabledKey: Keys.openSessionListShortcutDisabled,
-            action: .openSessionList
-        )
         let temporarilyMuteNotificationsUntil = temporarilyMuteNotificationsUntilTimestamp.map {
             Date(timeIntervalSince1970: $0)
         }
@@ -1333,6 +1107,12 @@ final class AppSettingsStore: ObservableObject {
             from: defaults,
             key: Keys.autoCollapseOnLeave,
             exists: persistedKeys.contains(Keys.autoCollapseOnLeave),
+            default: true
+        ))
+        _receiveLiveActivities = Published(initialValue: Self.boolValue(
+            from: defaults,
+            key: Keys.receiveLiveActivities,
+            exists: persistedKeys.contains(Keys.receiveLiveActivities),
             default: true
         ))
         _smartSuppression = Published(initialValue: Self.boolValue(
@@ -1447,40 +1227,6 @@ final class AppSettingsStore: ObservableObject {
             default: false
         ))
         _mascotOverrides = Published(initialValue: Self.sanitizedMascotOverrides(mascotOverrideRaw))
-        _openActiveSessionShortcut = Published(initialValue: openActiveSessionShortcut)
-        _openSessionListShortcut = Published(initialValue: openSessionListShortcut)
-        // Migration: if legacy global key was true, seed per-provider keys
-        let legacyRoutePromptsToTerminal = Self.boolValue(
-            from: defaults,
-            key: Keys.routePromptsToTerminal,
-            exists: persistedKeys.contains(Keys.routePromptsToTerminal),
-            default: false
-        )
-        let claudeRoute = Self.boolValue(
-            from: defaults,
-            key: Keys.claudeRoutePromptsToTerminal,
-            exists: persistedKeys.contains(Keys.claudeRoutePromptsToTerminal),
-            default: legacyRoutePromptsToTerminal  // inherit legacy value
-        )
-        let codexRoute = Self.boolValue(
-            from: defaults,
-            key: Keys.codexRoutePromptsToTerminal,
-            exists: persistedKeys.contains(Keys.codexRoutePromptsToTerminal),
-            default: legacyRoutePromptsToTerminal  // inherit legacy value
-        )
-        _claudeRoutePromptsToTerminal = Published(initialValue: claudeRoute)
-        _codexRoutePromptsToTerminal = Published(initialValue: codexRoute)
-        let routePromptsToTerminal = claudeRoute || codexRoute
-        _routePromptsToTerminal = Published(initialValue: routePromptsToTerminal)
-        _autoRoutePromptsToTerminalWhenIdleEnabled = Published(initialValue: Self.boolValue(
-            from: defaults,
-            key: Keys.autoRoutePromptsToTerminalWhenIdleEnabled,
-            exists: persistedKeys.contains(Keys.autoRoutePromptsToTerminalWhenIdleEnabled),
-            default: true
-        ))
-        _autoRoutePromptsIdleDelay = Published(initialValue: AutoRoutePromptsIdleDelay(
-            rawValue: defaults.integer(forKey: Keys.autoRoutePromptsIdleDelay)
-        ) ?? .thirtyMinutes)
 
         if defaults.string(forKey: Keys.soundThemeMode) == nil {
             defaults.set(resolvedSoundThemeMode.rawValue, forKey: Keys.soundThemeMode)
@@ -1494,18 +1240,6 @@ final class AppSettingsStore: ObservableObject {
         applyIsland8BitStartSoundMigrationIfNeeded(for: resolvedSoundThemeMode)
 
         isBootstrapping = false
-
-        writeEffectiveBridgeRuntimeConfig()
-    }
-
-    private func writeEffectiveBridgeRuntimeConfig() {
-        let effective = effectiveRoutePromptsToTerminal
-        bridgeRuntimeConfigWriter(effective)
-        NotificationCenter.default.post(
-            name: .bridgeRuntimeConfigDidChange,
-            object: self,
-            userInfo: ["routePromptsToTerminal": effective]
-        )
     }
 
     private func recordTelemetrySettingChange(key: String, value: String) {
@@ -1578,6 +1312,11 @@ enum AppSettings {
     static var autoCollapseOnLeave: Bool {
         get { shared.autoCollapseOnLeave }
         set { shared.autoCollapseOnLeave = newValue }
+    }
+
+    static var receiveLiveActivities: Bool {
+        get { shared.receiveLiveActivities }
+        set { shared.receiveLiveActivities = newValue }
     }
 
     static var smartSuppression: Bool {
@@ -1700,18 +1439,6 @@ enum AppSettings {
     static var analyticsConsentPromptCompleted: Bool {
         get { shared.analyticsConsentPromptCompleted }
         set { shared.analyticsConsentPromptCompleted = newValue }
-    }
-
-    static func shortcut(for action: GlobalShortcutAction) -> GlobalShortcut? {
-        shared.shortcut(for: action)
-    }
-
-    static func setShortcut(_ shortcut: GlobalShortcut?, for action: GlobalShortcutAction) {
-        shared.setShortcut(shortcut, for: action)
-    }
-
-    static func resetShortcut(_ action: GlobalShortcutAction) {
-        shared.resetShortcut(action)
     }
 
     static func mascotKind(for client: MascotClient) -> MascotKind {

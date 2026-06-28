@@ -4,6 +4,7 @@ struct PluginsSettingsView: View {
     @ObservedObject private var registry = PluginRegistry.shared
     @ObservedObject private var host = PluginHost.shared
     @ObservedObject private var arbiter = PluginSlotArbiter.shared
+    @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -70,8 +71,35 @@ struct PluginsSettingsView: View {
                         assignment: Binding(get: { arbiter.leftEarAssignment },
                                            set: { arbiter.leftEarAssignment = $0 }),
                         plugins: compactCapablePlugins)
+                rowDivider()
+                liveActivityRow
             }
         }
+    }
+
+    /// Master switch for third-party live activities (e.g. the screen recorder),
+    /// pushed by other apps and shown in the island's content area. Styled to
+    /// match the ear slot rows in the same card.
+    private var liveActivityRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "dot.radiowaves.left.and.right")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 18)
+            Text("第三方实时活动")
+                .font(.system(size: 11, weight: .medium))
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { settings.receiveLiveActivities },
+                set: { settings.receiveLiveActivities = $0 }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .help("接收录屏等 App 推送的实时内容")
     }
 
     private func slotRow(side: String, image: String,
@@ -126,42 +154,44 @@ struct PluginsSettingsView: View {
     }
 
     private func pluginRow(_ plugin: InstalledPlugin) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            pluginIcon(plugin).frame(width: 30, height: 30)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
+                pluginIcon(plugin).frame(width: 30, height: 30)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
-                    Text(plugin.manifest.name)
-                        .font(.system(size: 10.8, weight: .semibold))
-                        .foregroundStyle(.primary)
-                    Text(plugin.manifest.version)
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(.tertiary)
-                    if plugin.manifest.isBuiltIn {
-                        badge("内置", color: .secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 5) {
+                        Text(plugin.manifest.name)
+                            .font(.system(size: 10.8, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Text(plugin.manifest.version)
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                        if plugin.manifest.isBuiltIn {
+                            badge("内置", color: .secondary)
+                        }
+                        if case .failed(let r) = host.processStates[plugin.id] {
+                            badge("崩溃", color: .red, filled: true).help(r)
+                        }
                     }
-                    if case .failed(let r) = host.processStates[plugin.id] {
-                        badge("崩溃", color: .red, filled: true).help(r)
+
+                    if let desc = plugin.manifest.description {
+                        Text(desc)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
-                }
 
-                if let desc = plugin.manifest.description {
-                    Text(desc)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                if !plugin.manifest.slots.isEmpty {
-                    HStack(spacing: 3) {
-                        ForEach(plugin.manifest.slots, id: \.rawValue) { slot in
-                            badge(slot.displayName, color: .secondary)
+                    if !plugin.manifest.slots.isEmpty {
+                        HStack(spacing: 3) {
+                            ForEach(plugin.manifest.slots, id: \.rawValue) { slot in
+                                badge(slot.displayName, color: .secondary)
+                            }
                         }
                     }
                 }
-            }
 
-            Spacer(minLength: 8)
+                Spacer(minLength: 8)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
@@ -189,9 +219,11 @@ struct PluginsSettingsView: View {
 
     // MARK: - Helpers
 
-    /// Plugins shown as configurable cards.
+    /// Plugins shown as configurable cards. Third-party live-activity plugins
+    /// (e.g. the screen recorder) are always-on and controlled by their host app,
+    /// so they're hidden here and governed by the "receive live activities" toggle.
     private var visiblePlugins: [InstalledPlugin] {
-        registry.installedPlugins.filter { !$0.manifest.isCoreSessionMonitor }
+        registry.installedPlugins.filter { $0.id != PluginSlotArbiter.stickyPeekPluginId }
     }
 
     /// Plugins that can render a compact ear, regardless of the specific side
@@ -227,8 +259,6 @@ struct PluginsSettingsView: View {
     /// Zero hardcoding for specific plugin IDs.
     private func iconMeta(for manifest: PluginManifest) -> (symbol: String, color: Color) {
         switch manifest.id {
-        case "com.example.weatherdemo":
-            return ("sun.max.fill", Color(red: 1.0, green: 0.62, blue: 0.16))
         case "com.auralink.procmonitor":
             return ("cpu.fill", Color(red: 0.22, green: 0.82, blue: 0.52))
         case "com.auralink.usage":
@@ -275,141 +305,6 @@ struct PluginsSettingsView: View {
                         .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5))
             )
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
-private extension PluginManifest {
-    var isCoreSessionMonitor: Bool {
-        isBuiltIn && subscribesTo.contains("hookEvent")
-    }
-}
-
-struct RealtimeNotificationsSettingsView: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            if realtimeNotificationSources.isEmpty {
-                emptyCard
-            } else {
-                sourceCard
-            }
-        }
-    }
-
-    private var sourceCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("实时通知源")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.primary)
-                .padding(.bottom, 8)
-
-            card {
-                ForEach(Array(realtimeNotificationSources.enumerated()), id: \.element.id) { index, source in
-                    if index > 0 { rowDivider() }
-                    realtimeNotificationRow(source)
-                }
-            }
-        }
-    }
-
-    private var emptyCard: some View {
-        card {
-            VStack(spacing: 10) {
-                Image(systemName: "bell.badge")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(.secondary)
-                Text("没有实时通知源")
-                    .font(.system(size: 12, weight: .medium))
-                Text("安装默认 Hooks 后，Claude、Codex 等会话源会显示在这里")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 28)
-        }
-    }
-
-    private func realtimeNotificationRow(_ source: ManagedHookClientProfile) -> some View {
-        HStack(spacing: 10) {
-            RealtimeSourceMascotIcon(profile: source)
-                .frame(width: 30, height: 30)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(source.title)
-                    .font(.system(size: 10.8, weight: .semibold))
-                    .foregroundStyle(.primary)
-                Text("默认来源宠物")
-                    .font(.system(size: 9.4))
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-    }
-
-    private var realtimeNotificationSources: [ManagedHookClientProfile] {
-        ClientProfileRegistry.managedHookProfiles.filter(\.alwaysVisibleInSettings)
-    }
-
-    private func rowDivider() -> some View {
-        Divider().background(Color.white.opacity(0.05)).padding(.leading, 14)
-    }
-
-    @ViewBuilder
-    private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(spacing: 0) { content() }
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.045))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5))
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-}
-
-private struct RealtimeSourceMascotIcon: View {
-    @ObservedObject private var settings = AppSettings.shared
-    let profile: ManagedHookClientProfile
-
-    var body: some View {
-        MascotView(
-            kind: settings.mascotKind(for: mascotClient),
-            status: .idle,
-            size: 25
-        )
-    }
-
-    private var mascotClient: MascotClient {
-        switch profile.brand {
-        case .claude:
-            return .claude
-        case .codebuddy:
-            return .codebuddy
-        case .codex:
-            return .codex
-        case .gemini:
-            return .gemini
-        case .hermes:
-            return .hermes
-        case .qwen:
-            return .qwen
-        case .opencode:
-            return .opencode
-        case .qoder:
-            return .qoder
-        case .copilot:
-            return .copilot
-        case .kimi:
-            return .kimi
-        case .neutral:
-            if profile.id.contains("openclaw") {
-                return .openclaw
-            }
-            return .claude
-        }
     }
 }
 

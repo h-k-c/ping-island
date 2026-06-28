@@ -47,7 +47,7 @@ struct IslandDetachmentRequest: Equatable {
 }
 
 struct IslandDetachmentPayload: Equatable {
-    let contentType: NotchContentType
+    let contentType: NotchContentType?
     let dragStartScreenLocation: CGPoint
     let initialCursorScreenLocation: CGPoint
     let cursorWindowOffset: CGPoint
@@ -74,62 +74,12 @@ struct IslandDetachedContentResolver {
     static func resolve(
         status: NotchStatus,
         openReason: NotchOpenReason,
-        contentType: NotchContentType,
-        sessions: [SessionState]
-    ) -> NotchContentType {
-        guard shouldNormalizeContent(
-            status: status,
-            openReason: openReason
-        ) else {
-            return contentType
-        }
-
-        guard let preferredSession = preferredSession(from: sessions) else {
-            return .instances
-        }
-
-        return .chat(preferredSession)
-    }
-
-    static func preferredSession(from sessions: [SessionState]) -> SessionState? {
-        if let attention = sessions
-            .filter(\.needsManualAttention)
-            .sorted(by: { ($0.attentionRequestedAt ?? $0.lastActivity) > ($1.attentionRequestedAt ?? $1.lastActivity) })
-            .first {
-            return attention
-        }
-
-        if let active = sessions.filter({ $0.phase.isActive })
-            .sorted(by: { $0.lastActivity > $1.lastActivity })
-            .first {
-            return active
-        }
-
-        return nil
-    }
-
-    private static func shouldNormalizeContent(
-        status: NotchStatus,
-        openReason: NotchOpenReason
-    ) -> Bool {
-        guard status == .opened else { return true }
-
-        switch openReason {
-        case .hover, .notification:
-            return true
-        case .click, .boot, .unknown:
-            return false
-        }
+        contentType: NotchContentType?,
+        sessions: [Any]
+    ) -> NotchContentType? {
+        contentType
     }
 }
 
 enum IslandMascotResolver {
-    static func sourceSession(from sessions: [SessionState]) -> SessionState? {
-        sessions
-            .filter { $0.phase.isActive || $0.needsManualAttention }
-            .sorted(by: {
-                ($0.attentionRequestedAt ?? $0.lastActivity) > ($1.attentionRequestedAt ?? $1.lastActivity)
-            })
-            .first
-    }
 }
