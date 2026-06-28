@@ -1,6 +1,6 @@
 // PluginStorage — per-plugin KV store.
 // Non-secret values: UserDefaults with namespaced keys.
-// Secret values: Keychain with namespaced keys.
+// Secret values: plain JSON file at ~/Library/Application Support/Auralink/plugin-secrets.json
 
 import Foundation
 import Security
@@ -9,6 +9,27 @@ import Security
 final class PluginStorage {
     static let shared = PluginStorage()
     private init() {}
+
+    // MARK: - Secret file storage
+
+    private var secretsFileURL: URL {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = support.appendingPathComponent("Auralink", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("plugin-secrets.json")
+    }
+
+    private func loadSecrets() -> [String: String] {
+        guard let data = try? Data(contentsOf: secretsFileURL),
+              let dict = try? JSONDecoder().decode([String: String].self, from: data)
+        else { return [:] }
+        return dict
+    }
+
+    private func saveSecrets(_ dict: [String: String]) {
+        guard let data = try? JSONEncoder().encode(dict) else { return }
+        try? data.write(to: secretsFileURL, options: .atomic)
+    }
 
     // MARK: - Public API
 
@@ -31,15 +52,29 @@ final class PluginStorage {
         UserDefaults.standard.removeObject(forKey: ns)
     }
 
-    // MARK: - Secret (Keychain)
+    // MARK: - Secret (plain file, with one-time keychain migration)
 
     func getSecret(pluginId: String, key: String) -> String? {
         let accountKey = namespacedKey(pluginId: pluginId, key: key)
+        var secrets = loadSecrets()
+        if let value = secrets[accountKey], !value.isEmpty { return value }
+
+        // One-time migration: read from legacy keychain and save to file
+        if let legacy = legacyKeychainRead(key: key) {
+            secrets[accountKey] = legacy
+            saveSecrets(secrets)
+            return legacy
+        }
+        return nil
+    }
+
+    private func legacyKeychainRead(key: String) -> String? {
         let query: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
-            kSecAttrAccount: accountKey as CFString,
-            kSecReturnData:  true,
-            kSecMatchLimit:  kSecMatchLimitOne
+            kSecClass:        kSecClassGenericPassword,
+            kSecAttrService:  "com.claude-monitor.app" as CFString,
+            kSecAttrAccount:  key as CFString,
+            kSecReturnData:   true,
+            kSecMatchLimit:   kSecMatchLimitOne
         ]
         var result: AnyObject?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
@@ -51,42 +86,16 @@ final class PluginStorage {
 
     func setSecret(pluginId: String, key: String, value: String) {
         let accountKey = namespacedKey(pluginId: pluginId, key: key)
-        let del: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
-                                     kSecAttrAccount: accountKey as CFString]
-        SecItemDelete(del as CFDictionary)
-
-        // Also write with the bare key for backward compat (e.g. "claudeSessionKey")
-        if key != accountKey {
-            let bareQuery: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
-                                               kSecAttrAccount: key as CFString]
-            SecItemDelete(bareQuery as CFDictionary)
-            let bareAdd: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
-                                             kSecAttrAccount: key as CFString,
-                                             kSecValueData: value.data(using: .utf8)!,
-                                             kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
-            SecItemAdd(bareAdd as CFDictionary, nil)
-            setLegacyServiceSecret(key: key, value: value)
-        }
-
-        let add: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
-                                     kSecAttrAccount: accountKey as CFString,
-                                     kSecValueData: value.data(using: .utf8)!,
-                                     kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
-        SecItemAdd(add as CFDictionary, nil)
+        var secrets = loadSecrets()
+        secrets[accountKey] = value
+        saveSecrets(secrets)
     }
 
     func deleteSecret(pluginId: String, key: String) {
         let accountKey = namespacedKey(pluginId: pluginId, key: key)
-        let query: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
-                                       kSecAttrAccount: accountKey as CFString]
-        SecItemDelete(query as CFDictionary)
-
-        if key != accountKey {
-            let bareQuery: [CFString: Any] = [kSecClass: kSecClassGenericPassword,
-                                               kSecAttrAccount: key as CFString]
-            SecItemDelete(bareQuery as CFDictionary)
-            deleteLegacyServiceSecret(key: key)
-        }
+        var secrets = loadSecrets()
+        secrets.removeValue(forKey: accountKey)
+        saveSecrets(secrets)
     }
 
     // MARK: - Bulk read for initialize injection
@@ -134,30 +143,4 @@ final class PluginStorage {
         "\(pluginId).\(key)"
     }
 
-    private func setLegacyServiceSecret(key: String, value: String) {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: "com.claude-monitor.app" as CFString,
-            kSecAttrAccount: key as CFString
-        ]
-        SecItemDelete(query as CFDictionary)
-
-        let add: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: "com.claude-monitor.app" as CFString,
-            kSecAttrAccount: key as CFString,
-            kSecValueData: value.data(using: .utf8)!,
-            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        ]
-        SecItemAdd(add as CFDictionary, nil)
-    }
-
-    private func deleteLegacyServiceSecret(key: String) {
-        let query: [CFString: Any] = [
-            kSecClass: kSecClassGenericPassword,
-            kSecAttrService: "com.claude-monitor.app" as CFString,
-            kSecAttrAccount: key as CFString
-        ]
-        SecItemDelete(query as CFDictionary)
-    }
 }

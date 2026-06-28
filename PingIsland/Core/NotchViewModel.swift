@@ -223,6 +223,10 @@ class NotchViewModel: ObservableObject {
 
     private var pluginPreferredFallbackHeight: CGFloat? {
         if case .plugin(Self.procMonitorPluginId) = contentType { return 445 }
+        if case .plugin(let id) = contentType,
+           id == "com.auralink.claudeUsage" || id == "com.auralink.codexUsage" {
+            return 130
+        }
         // The recorder opens as a minimal peek bar; give it a small fallback so it
         // never flashes a tall panel before the real height is measured. When the
         // user expands it, allow more room.
@@ -328,6 +332,10 @@ class NotchViewModel: ObservableObject {
         }
         if case .plugin(Self.procMonitorPluginId) = contentType {
             return min(screenRect.width - 64, 414)
+        }
+        if case .plugin(let id) = contentType,
+           id == "com.auralink.claudeUsage" || id == "com.auralink.codexUsage" {
+            return min(screenRect.width - 64, 380)
         }
         // The recorder peek shows status + timer + primary controls (pause / mic /
         // camera / stop); expanding reveals two more (annotate / screenshot), so the

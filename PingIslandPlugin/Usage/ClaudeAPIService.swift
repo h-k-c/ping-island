@@ -19,13 +19,16 @@ final class ClaudeAPIService {
     // MARK: - Config
 
     private let baseURL = "https://claude.ai/api"
-    private let urlSession: URLSession
 
-    // MARK: - Persisted credentials (Keychain-backed)
+    // MARK: - Persisted credentials
+
+    /// Set directly from plugin config (bypasses keychain read in subprocess context).
+    var sessionKeyOverride: String?
 
     var sessionKey: String? {
-        get { KeychainHelper.read(key: "claudeSessionKey") }
+        get { sessionKeyOverride ?? KeychainHelper.read(key: "claudeSessionKey") }
         set {
+            sessionKeyOverride = newValue
             if let v = newValue, !v.isEmpty {
                 try? KeychainHelper.save(key: "claudeSessionKey", value: v)
             } else {
@@ -34,25 +37,28 @@ final class ClaudeAPIService {
         }
     }
 
+    private var _orgIdCache: String?
     private var orgId: String? {
-        get { KeychainHelper.read(key: "claudeOrgId") }
+        get {
+            if let cached = _orgIdCache { return cached }
+            guard sessionKeyOverride == nil else { return nil }  // subprocess: skip keychain
+            return KeychainHelper.read(key: "claudeOrgId")
+        }
         set {
-            if let v = newValue, !v.isEmpty {
-                try? KeychainHelper.save(key: "claudeOrgId", value: v)
-            } else {
-                try? KeychainHelper.delete(key: "claudeOrgId")
+            _orgIdCache = newValue
+            if sessionKeyOverride == nil {
+                if let v = newValue, !v.isEmpty {
+                    try? KeychainHelper.save(key: "claudeOrgId", value: v)
+                } else {
+                    try? KeychainHelper.delete(key: "claudeOrgId")
+                }
             }
         }
     }
 
     // MARK: - Init
 
-    init() {
-        let config = URLSessionConfiguration.default
-        config.httpCookieAcceptPolicy = .never
-        config.httpShouldSetCookies = false
-        self.urlSession = URLSession(configuration: config)
-    }
+    init() {}
 
     // MARK: - Public API
 
@@ -95,7 +101,6 @@ final class ClaudeAPIService {
         needsLogin = true
     }
 
-
     // MARK: - Request builder
 
     private func makeRequest(path: String, sessionKey: String) -> URLRequest {
@@ -120,7 +125,7 @@ final class ClaudeAPIService {
 
     private func fetchOrgId(sessionKey: String, completion: @escaping (String?) -> Void) {
         let req = makeRequest(path: "/organizations", sessionKey: sessionKey)
-        urlSession.dataTask(with: req) { [weak self] data, response, _ in
+        URLSession.shared.dataTask(with: req) { [weak self] data, response, _ in
             guard let self else { return }
             let http = response as? HTTPURLResponse
             if http?.statusCode == 401 || http?.statusCode == 403 {
@@ -150,7 +155,7 @@ final class ClaudeAPIService {
 
     private func fetchUsage(sessionKey: String, orgId: String) {
         let req = makeRequest(path: "/organizations/\(orgId)/usage", sessionKey: sessionKey)
-        urlSession.dataTask(with: req) { [weak self] data, response, error in
+        URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
             guard let self else { return }
             DispatchQueue.main.async {
                 self.isLoading = false
@@ -197,7 +202,7 @@ final class ClaudeAPIService {
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
             forHTTPHeaderField: "User-Agent"
         )
-        urlSession.dataTask(with: req) { [weak self] data, response, _ in
+        URLSession.shared.dataTask(with: req) { [weak self] data, response, _ in
             guard let self else { return }
             let http = response as? HTTPURLResponse
             guard let data, http?.statusCode == 200,

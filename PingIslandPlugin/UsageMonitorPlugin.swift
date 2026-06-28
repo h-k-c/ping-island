@@ -17,6 +17,7 @@ enum UsageMonitorPlugin {
     private static let refreshQueue = DispatchQueue(label: "ai-monitor-refresh", qos: .utility)
     private static var refreshTimer: DispatchSourceTimer?
     private static var isRefreshing = false
+    private static var claudeSessionKeyFromConfig: String?  // avoids keychain read in subprocess
 
     private struct ProviderResult<T> {
         var data: T?
@@ -101,12 +102,9 @@ enum UsageMonitorPlugin {
         }
 
         if config.keys.contains("claudeSessionKey") {
-            let sessionKey = (config["claudeSessionKey"] as? String) ?? ""
-            if sessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                try? KeychainHelper.delete(key: "claudeSessionKey")
-            } else {
-                try? KeychainHelper.save(key: "claudeSessionKey", value: sessionKey)
-            }
+            let sessionKey = ((config["claudeSessionKey"] as? String) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            claudeSessionKeyFromConfig = sessionKey.isEmpty ? nil : sessionKey
         }
     }
 
@@ -142,17 +140,25 @@ enum UsageMonitorPlugin {
         var claude = ProviderResult<UsageData>()
         var codex = ProviderResult<CodexUsageData>()
 
+        // Keep svc alive until group.wait() completes — URLSession callbacks use [weak self]
+        var claudeSvc: ClaudeAPIService?
         if provider.showsClaude {
-            group.enter()
-            let finish = Once()
             let svc = ClaudeAPIService()
-            svc.onUsageUpdated = { data in
-                claude.data = data; claude.needsLogin = false; claude.errorMessage = nil
-                finish.run { group.leave() }
+            claudeSvc = svc
+            svc.sessionKeyOverride = claudeSessionKeyFromConfig  // bypass keychain in subprocess
+            if svc.sessionKey == nil {
+                claude.needsLogin = true
+            } else {
+                group.enter()
+                let finish = Once()
+                svc.onUsageUpdated = { data in
+                    claude.data = data; claude.needsLogin = false; claude.errorMessage = nil
+                    finish.run { group.leave() }
+                }
+                svc.onError = { msg in claude.errorMessage = msg; finish.run { group.leave() } }
+                svc.onNeedsLogin = { claude.needsLogin = true; finish.run { group.leave() } }
+                svc.refresh()
             }
-            svc.onError = { msg in claude.errorMessage = msg; finish.run { group.leave() } }
-            svc.onNeedsLogin = { claude.needsLogin = true; finish.run { group.leave() } }
-            svc.refresh()
         }
 
         if provider.showsCodex {

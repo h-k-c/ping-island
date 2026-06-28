@@ -212,7 +212,8 @@ private struct UsageMonitorIslandPanelView: View {
                             usageRow("7日", claudeWeekly, tint: usageColor(.weekly))
                         ],
                         resetRows: claudeResetRows,
-                        footer: todayTokens.map { ("今日 Tokens", $0.value, usageColor(.tokens)) }
+                        footer: todayTokens.map { ("今日 Tokens", $0.value, usageColor(.tokens)) },
+                        compact: show != .all
                     )
                 }
                 if show != .claude {
@@ -226,7 +227,8 @@ private struct UsageMonitorIslandPanelView: View {
                             usageRow("7日", codexSecondary, tint: usageColor(.weeklyAlt))
                         ],
                         resetRows: codexResetRows,
-                        footer: credits.map { ("Credits", $0.value, usageColor(.credits)) }
+                        footer: credits.map { ("Credits", $0.value, usageColor(.credits)) },
+                        compact: show != .all
                     )
                 }
             }
@@ -451,33 +453,41 @@ private struct UsageMonitorIslandPanelView: View {
         tint: Color,
         rows: [UsageMonitorRow],
         resetRows: [UsageMonitorResetRow],
-        footer: (String, String, Color)?
+        footer: (String, String, Color)?,
+        compact: Bool = false
     ) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .top, spacing: 7) {
+        let iconSize: CGFloat   = compact ? 14 : 18
+        let iconPad: CGFloat    = compact ? 3  : 4
+        let titleSize: CGFloat  = compact ? 11 : 13
+        let badgeSize: CGFloat  = compact ? 7.8 : 8.8
+        let rowSpacing: CGFloat = compact ? 3  : 5
+        let outerSpacing: CGFloat = compact ? 5 : 7
+
+        return VStack(alignment: .leading, spacing: outerSpacing) {
+            HStack(alignment: .top, spacing: outerSpacing) {
                 Image(assetName)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 18, height: 18)
-                    .padding(4)
+                    .frame(width: iconSize, height: iconSize)
+                    .padding(iconPad)
                     .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: compact ? 5 : 6, style: .continuous)
                             .fill(tint.opacity(0.18))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: compact ? 5 : 6, style: .continuous)
                             .strokeBorder(tint.opacity(0.24), lineWidth: 0.6)
                     )
 
                 Spacer(minLength: 0)
 
                 Text(subtitle)
-                    .font(.system(size: 8.8, weight: .semibold))
+                    .font(.system(size: badgeSize, weight: .semibold))
                     .foregroundStyle(tint.opacity(0.9))
                     .lineLimit(1)
                     .minimumScaleFactor(0.74)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2.5)
+                    .padding(.horizontal, compact ? 4 : 5)
+                    .padding(.vertical, compact ? 2 : 2.5)
                     .background(
                         Capsule()
                             .fill(tint.opacity(0.14))
@@ -485,16 +495,16 @@ private struct UsageMonitorIslandPanelView: View {
             }
 
             Text(title)
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: titleSize, weight: .bold))
                 .foregroundStyle(.white.opacity(0.88))
                 .lineLimit(1)
 
-            VStack(spacing: 5) {
+            VStack(spacing: rowSpacing) {
                 ForEach(rows) { row in
                     usageMeter(row)
                 }
             }
-            .padding(.top, 1)
+            .padding(.top, compact ? 0 : 1)
 
             if !resetRows.isEmpty {
                 VStack(spacing: 3) {
@@ -533,9 +543,9 @@ private struct UsageMonitorIslandPanelView: View {
                 }
             }
         }
-        .padding(10)
+        .padding(compact ? 8 : 10)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .frame(minHeight: 116, alignment: .topLeading)
+        .frame(minHeight: compact ? 0 : 116, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(
